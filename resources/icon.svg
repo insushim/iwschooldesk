@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </linearGradient>
+    <linearGradient id="topGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="letterShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#E0E7FF" stop-opacity="1"/>
+    </linearGradient>
+    <filter id="letterShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18"/>
+      <feOffset dx="0" dy="12"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- rounded square -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" ry="232" fill="url(#bg)"/>
+  <!-- subtle top gloss -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" ry="232" fill="url(#topGloss)"/>
+
+  <!-- letter S (mathematical bold Pretendard-ish) -->
+  <g filter="url(#letterShadow)">
+    <text
+      x="512"
+      y="720"
+      font-family="-apple-system, BlinkMacSystemFont, 'Pretendard', 'SF Pro Display', system-ui, sans-serif"
+      font-size="680"
+      font-weight="800"
+      letter-spacing="-30"
+      fill="url(#letterShade)"
+      text-anchor="middle"
+    >S</text>
+  </g>
+
+  <!-- 하단 좌측에 악센트 점 (책상 · 체크 의미) -->
+  <circle cx="756" cy="756" r="36" fill="#FBBF24" opacity="0.92"/>
+</svg>

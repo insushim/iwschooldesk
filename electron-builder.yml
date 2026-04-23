@@ -1,0 +1,54 @@
+appId: com.schooldesk.app
+productName: SchoolDesk
+copyright: Copyright © 2026 SchoolDesk
+
+directories:
+  output: dist-electron
+  buildResources: resources
+
+files:
+  - "out/**/*"
+  - "package.json"
+  - "resources/tray-icon.png"
+  - "resources/tray-icon@16.png"
+  - "resources/icon.png"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/*.d.ts"
+  - "!**/node_modules/.bin"
+
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**/*"
+  - "**/node_modules/bindings/**/*"
+  - "**/node_modules/file-uri-to-path/**/*"
+  - "**/node_modules/koffi/**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: SchoolDesk-${version}-${arch}.${ext}
+
+portable:
+  artifactName: SchoolDesk-Portable-${version}.exe
+
+nsis:
+  # oneClick: true — 더블클릭 → 진행률 바 → 자동 설치 → 끝
+  # (경로 선택 UI 없음. 기본 경로: %LOCALAPPDATA%\Programs\SchoolDesk)
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SchoolDesk
+  language: "1042"
+  differentialPackage: false
+  artifactName: SchoolDesk-Setup-${version}.exe
+  # 사용자 데이터 삭제 여부는 언인스톨 시 build/installer.nsh의 다이얼로그로 사용자가 선택
+  # 기본값은 "보존" (재설치 시 데이터 그대로 복원 가능)
+  include: build/installer.nsh

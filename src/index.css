@@ -1,0 +1,293 @@
+@import "tailwindcss";
+
+/* Pretendard Variable 폰트를 앱 번들에 내장 — CDN 의존 없이 완전 오프라인 동작 */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2-variations');
+}
+
+/* 기존 static weights도 시스템 설치 시 우선 적용 (fallback 체인) */
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 400;
+  font-style: normal;
+  src: local('Pretendard Regular');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 500;
+  font-style: normal;
+  src: local('Pretendard Medium');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 600;
+  font-style: normal;
+  src: local('Pretendard SemiBold');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 700;
+  font-style: normal;
+  src: local('Pretendard Bold');
+}
+
+:root {
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #EEF2F7;
+  /* 완전 순백 대신 slate-50에 블루 살짝 섞은 cool off-white — 가독성 유지하면서 세련됨 */
+  --bg-widget: rgba(249, 251, 254, 0.96);
+  --bg-widget-hover: rgba(253, 254, 255, 1);
+  --bg-widget-tint: linear-gradient(170deg,
+    rgba(191, 219, 254, 0.14) 0%,
+    rgba(226, 232, 240, 0.05) 45%,
+    rgba(255, 255, 255, 0) 100%);
+  --border-widget: rgba(15, 23, 42, 0.08);
+  --shadow-widget: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --accent: #2563EB;
+  --accent-light: #DBEAFE;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --backdrop-blur: blur(20px) saturate(180%);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: 'Pretendard Variable', 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+
+  /* Widget shell tokens (2026 refined glass) */
+  --shell-radius: 22px;
+  --shell-border: 1px solid rgba(15, 23, 42, 0.12);
+  --shell-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(15, 23, 42, 0.05),
+    0 24px 60px -18px rgba(15, 23, 42, 0.35),
+    0 8px 20px -8px rgba(15, 23, 42, 0.18);
+  --shell-header-bg: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.45) 100%);
+  --shell-header-border: rgba(15, 23, 42, 0.09);
+  --shell-btn-hover-bg: rgba(15, 23, 42, 0.08);
+  --shell-popover-bg: rgba(255, 255, 255, 0.98);
+  --shell-popover-border: rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-widget: rgba(28, 38, 56, 0.94);
+  --bg-widget-hover: rgba(32, 44, 64, 1);
+  --bg-widget-tint: linear-gradient(170deg,
+    rgba(96, 165, 250, 0.08) 0%,
+    rgba(148, 163, 184, 0.02) 50%,
+    rgba(255, 255, 255, 0) 100%);
+  --border-widget: rgba(148, 163, 184, 0.22);
+  --shadow-widget: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --accent: #60A5FA;
+  --accent-light: #1E3A5F;
+
+  --shell-border: 1px solid rgba(148, 163, 184, 0.2);
+  --shell-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 0 0 1px rgba(148, 163, 184, 0.08),
+    0 24px 60px -18px rgba(0, 0, 0, 0.7),
+    0 8px 20px -8px rgba(0, 0, 0, 0.45);
+  --shell-header-bg: linear-gradient(180deg, rgba(148,163,184,0.12) 0%, rgba(148,163,184,0.03) 100%);
+  --shell-header-border: rgba(148, 163, 184, 0.15);
+  --shell-btn-hover-bg: rgba(148, 163, 184, 0.16);
+  --shell-popover-bg: rgba(30, 41, 59, 0.98);
+  --shell-popover-border: rgba(148, 163, 184, 0.2);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 20px;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv11', 'ss03', 'ss05', 'ss07', 'tnum', 'palt';
+  font-kerning: normal;
+  font-optical-sizing: auto;
+  letter-spacing: -0.012em;
+}
+
+/* Windows Chromium에서 한글 폰트 힌팅으로 생기는 계단감을 완화 — 서브픽셀 스무딩 강제 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    -webkit-font-smoothing: subpixel-antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
+/* 숫자는 항상 정렬되는 tabular-nums (시간, 교시, 퍼센트 등) */
+.tabular, .tabular-nums, time, kbd, .num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 위젯 모드: 투명 배경이어야 WidgetShell의 border-radius 바깥이 검게 보이지 않음 */
+html.widget-mode,
+body.widget-mode,
+html.widget-mode #root {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Custom utility classes */
+.glass {
+  background: var(--bg-widget);
+  backdrop-filter: var(--backdrop-blur);
+  border: 1px solid var(--border-widget);
+  box-shadow: var(--shadow-widget);
+  border-radius: var(--radius);
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* Priority colors */
+.priority-0 { border-left-color: #94A3B8; }
+.priority-1 { border-left-color: #94A3B8; }
+.priority-2 { border-left-color: #3B82F6; }
+.priority-3 { border-left-color: #F97316; }
+.priority-4 { border-left-color: #EF4444; }
+
+/* Widget shell — refined glass card */
+.shell-card {
+  position: relative;
+  /* 베이스 색 + 그 위에 은은한 블루 그라데이션 틴트 */
+  background:
+    var(--bg-widget-tint),
+    var(--bg-widget);
+  /* 블러를 낮춰 뒷배경(검은 바탕) 흡수 최소화 → 가독성 우선 */
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-radius: var(--shell-radius);
+  border: var(--shell-border);
+  box-shadow: var(--shell-shadow);
+  overflow: hidden;
+  isolation: isolate;
+  /* ★ clip-path로 서브픽셀까지 확실히 radius 바깥 잘라냄.
+     overflow:hidden만으론 gradient/backdrop-filter가 경계에 잔상 남김. */
+  clip-path: inset(0 round var(--shell-radius));
+  -webkit-clip-path: inset(0 round var(--shell-radius));
+}
+/* 자식 첫/마지막 요소에도 명시적으로 모서리 radius 지정 — 4모서리 완전 보장 */
+.shell-card > *:first-child {
+  border-top-left-radius: var(--shell-radius);
+  border-top-right-radius: var(--shell-radius);
+}
+.shell-card > *:last-child {
+  border-bottom-left-radius: var(--shell-radius);
+  border-bottom-right-radius: var(--shell-radius);
+}
+.shell-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0) 40%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+[data-theme="dark"] .shell-card::before {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0) 50%);
+}
+
+.shell-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--text-muted);
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.shell-btn:hover {
+  background: var(--shell-btn-hover-bg);
+  color: var(--text-primary);
+  transform: scale(1.06);
+}
+.shell-btn:active { transform: scale(0.94); }
+.shell-btn-danger:hover { background: rgba(239, 68, 68, 0.12); color: #EF4444; }
+.shell-btn-active { color: var(--accent); }
+
+.shell-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--shell-btn-hover-bg);
+  outline: none;
+}
+.shell-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+.shell-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+[data-theme="dark"] .shell-slider::-webkit-slider-thumb { border-color: #1E293B; }

@@ -13,6 +13,7 @@ export type WidgetType =
   | 'studenttimetable'
   | 'today'
   | 'studentrecord'
+  | 'meal'
 
 export interface WidgetPosition {
   widget_id: string
@@ -37,7 +38,7 @@ export interface WidgetPosition {
  * 타이머/메모/할일/체크리스트 등 상호작용이 많은 위젯은 의도적으로 제외.
  */
 export const WALLPAPER_ELIGIBLE_TYPES: ReadonlySet<WidgetType> = new Set<WidgetType>([
-  'timetable', 'studentcheck', 'calendar', 'goal', 'studenttimetable', 'dday', 'clock', 'timer', 'today',
+  'timetable', 'studentcheck', 'calendar', 'goal', 'studenttimetable', 'dday', 'clock', 'timer', 'today', 'meal',
 ])
 
 export interface WidgetConfig {
@@ -176,5 +177,14 @@ export const WIDGET_CONFIGS: Record<WidgetType, WidgetConfig> = {
     defaultHeight: 460,
     minWidth: 300,
     minHeight: 280,
+  },
+  meal: {
+    type: 'meal',
+    label: '오늘의 급식',
+    icon: 'Utensils',
+    defaultWidth: 380,
+    defaultHeight: 360,
+    minWidth: 280,
+    minHeight: 240,
   },
 }

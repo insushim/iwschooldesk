@@ -20,14 +20,20 @@
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 \
-      "사용자 데이터(학교 정보, 시간표, 일정, 업무, 메모, 체크리스트 등)도 함께 삭제하시겠습니까?$\r$\n$\r$\n[예]  모든 개인 데이터를 완전히 삭제합니다. (복구 불가)$\r$\n[아니오]  데이터를 PC에 보존합니다. 재설치 시 그대로 복원됩니다.$\r$\n$\r$\n보존 위치: %APPDATA%\SchoolDesk" \
+      "사용자 데이터(학교 정보, 시간표, 일정, 업무, 메모, 체크리스트 등)도 함께 삭제하시겠습니까?$\r$\n$\r$\n[예]  모든 개인 데이터를 완전히 삭제합니다. (복구 불가)$\r$\n[아니오]  데이터를 PC에 보존합니다. 재설치 시 그대로 복원됩니다.$\r$\n$\r$\n보존 위치: %APPDATA%\school-desk" \
       /SD IDNO \
       IDNO skip_appdata_removal
+      ; 실제 Electron userData 경로는 package.json 의 name("school-desk") 기준 —
+      ; 과거 설치본은 ${PRODUCT_NAME}("SchoolDesk") 에 저장된 경우도 있어 양쪽 모두 삭제한다.
       RMDir /r "$APPDATA\${PRODUCT_NAME}"
+      RMDir /r "$APPDATA\school-desk"
+      ; 일부 환경은 LOCALAPPDATA 밑에 남기기도 하므로 함께 시도 (실패는 무시).
+      RMDir /r "$LOCALAPPDATA\${PRODUCT_NAME}"
+      RMDir /r "$LOCALAPPDATA\school-desk"
       DetailPrint "사용자 데이터를 삭제했습니다."
       Goto appdata_done
     skip_appdata_removal:
-      DetailPrint "사용자 데이터는 보존되었습니다: $APPDATA\${PRODUCT_NAME}"
+      DetailPrint "사용자 데이터는 보존되었습니다: $APPDATA\school-desk"
     appdata_done:
   ${endIf}
 !macroend

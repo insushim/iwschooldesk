@@ -290,4 +290,13 @@ input, button, select, textarea {
   transition: transform 150ms ease;
 }
 .shell-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+/* 위젯 콘텐츠 본문에 적용 — 말줄임표(...) 대신 줄바꿈 허용.
+   한글 단어 중간은 안 자르되(keep-all), 매우 긴 영문/URL 은 경계에서 자름(anywhere). */
+.content-wrap {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
 [data-theme="dark"] .shell-slider::-webkit-slider-thumb { border-color: #1E293B; }

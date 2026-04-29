@@ -15,7 +15,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname2, 'electron/main.ts')
         },
-        external: ['electron', 'better-sqlite3', 'path', 'fs', 'os', 'crypto', 'node:module', 'node:crypto', 'node:path', 'node:fs', 'node:os', 'node:url']
+        external: ['electron', 'better-sqlite3', 'koffi', 'path', 'fs', 'os', 'crypto', 'node:module', 'node:crypto', 'node:path', 'node:fs', 'node:os', 'node:url']
       }
     }
   },

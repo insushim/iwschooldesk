@@ -1,39 +1,37 @@
 /**
  * 학교 교시 벨 (수업 시작/종료) — Web Audio API 합성.
  *
- * - 시작종: C5 E5 G5 B5 C6 D6 C6 B5 G5 E5 D5 C5 (12음, 상승→정점→우아한 하강, 주목 · 활기)
- * - 종료종: Westminster Chimes 3-phrase (12음, E5 C5 D5 G4 | G4 D5 E5 C5 | E5 D5 C5 G4)
+ * 시작종·종료종 모두 동일 멜로디:
+ *   C5 E5 G5 B5 C6 D6 C6 B5 G5 E5 D5 C5 (12음, 상승→정점→우아한 하강)
+ *
+ * (이전엔 종료종이 Westminster Chimes 였으나, 교사 요청에 따라 시작·종료 종소리를 통일.
+ *  시각적 구분은 ClockWidget 의 "수업 시작 / 수업 끝" 오버레이가 담당.)
  *
  * 각 음: fundamental + 옥타브 배음 + bell envelope (fast attack / exp decay)
- * convolution reverb 2.5초 IR로 교회 공명 질감.
- *
- * 총 지속 시간 약 8~8.5초.
+ * convolution reverb 2.5초 IR로 교회 공명 질감. 총 지속 시간 약 8초.
  */
 
 type BellMode = 'start' | 'end'
 
-const MELODIES: Record<BellMode, number[]> = {
-  // C major — 상승 → 정점(C6/D6) → 하강으로 완결된 arc
-  start: [
-    523.25,  // C5
-    659.25,  // E5
-    783.99,  // G5
-    987.77,  // B5
-    1046.50, // C6
-    1174.66, // D6
-    1046.50, // C6
-    987.77,  // B5
-    783.99,  // G5
-    659.25,  // E5
-    587.33,  // D5
-    523.25,  // C5
-  ],
-  // Westminster Chimes 3 phrases
-  end: [
-    659.25, 523.25, 587.33, 392.00, // E5 C5 D5 G4
-    392.00, 587.33, 659.25, 523.25, // G4 D5 E5 C5
-    659.25, 587.33, 523.25, 392.00, // E5 D5 C5 G4
-  ],
+// C major — 상승 → 정점(C6/D6) → 하강으로 완결된 arc. 시작·종료 공통 사용.
+const UNIFIED_MELODY: readonly number[] = [
+  523.25,  // C5
+  659.25,  // E5
+  783.99,  // G5
+  987.77,  // B5
+  1046.50, // C6
+  1174.66, // D6
+  1046.50, // C6
+  987.77,  // B5
+  783.99,  // G5
+  659.25,  // E5
+  587.33,  // D5
+  523.25,  // C5
+]
+
+const MELODIES: Record<BellMode, readonly number[]> = {
+  start: UNIFIED_MELODY,
+  end: UNIFIED_MELODY,
 }
 
 export function playSchoolBell(mode: BellMode): void {
@@ -46,10 +44,10 @@ export function playSchoolBell(mode: BellMode): void {
     const t0 = ctx.currentTime
 
     const melody = MELODIES[mode]
-    // end(수업 끝)는 조금 더 느긋하게 울리도록 간격·여운을 늘림
-    const noteGap = mode === 'end' ? 0.60 : 0.52
-    const noteDur = mode === 'end' ? 0.88 : 0.75
-    const tailExtra = mode === 'end' ? 4.0 : 2.5
+    // 시작/종료 공통 타이밍 — 시작 종 기준(상승·하강 arc 에 맞는 템포).
+    const noteGap = 0.52
+    const noteDur = 0.75
+    const tailExtra = 2.5
 
     // ── 마스터 체인 ──
     const master = ctx.createGain()

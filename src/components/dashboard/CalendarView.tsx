@@ -237,7 +237,7 @@ export function CalendarView() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,.ics,.xlsx,.xls,.docx,.doc,.hwp,.hwpx"
+            accept=".csv,.tsv,.ics,.ical,.xlsx,.xls,.xlsm,.ods,.docx,.doc,.hwp,.hwpx,.pdf,.txt,.md"
             className="hidden"
             onChange={async (e) => {
               const f = e.target.files?.[0]
@@ -253,6 +253,26 @@ export function CalendarView() {
               setTimeout(() => setImportToast(null), 5000)
             }}
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={async () => {
+              if (schedules.length === 0) { addToast('info', '삭제할 일정이 없어요'); return }
+              if (!window.confirm(`정말 ${schedules.length}개 일정을 모두 삭제할까요?\n\n되돌릴 수 없으니 주의하세요.\n(학사일정 재임포트·초기화 목적)`)) return
+              const n = await window.api.schedule.deleteAll()
+              addToast('success', `${n}개 일정을 삭제했어요`)
+            }}
+            className="whitespace-nowrap"
+            style={{
+              padding: '11px 16px', fontSize: 14, gap: 8,
+              color: '#EF4444',
+              borderColor: 'rgba(239,68,68,0.35)',
+            }}
+            title="달력의 모든 일정 삭제 (되돌릴 수 없음)"
+          >
+            <Trash2 size={14} strokeWidth={2.4} />
+            <span className="whitespace-nowrap">전체 삭제</span>
+          </Button>
           <Button
             size="sm"
             onClick={() => openCreateDialog()}

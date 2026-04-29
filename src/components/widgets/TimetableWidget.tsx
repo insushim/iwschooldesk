@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import type { TimetableSlot, TimetablePeriod, TimetableOverride, DayOfWeek } from '../../types/timetable.types'
 import { DAY_LABELS } from '../../types/timetable.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 function pad2(n: number): string { return String(n).padStart(2, '0') }
 function ymd(d: Date): string {
@@ -47,6 +48,7 @@ export function TimetableWidget() {
   }, [todayStr_])
   // 메인 대시보드에서 시간표/강사 수업 편집 시 위젯 자동 갱신 (slots·periods·오늘 override까지)
   useDataChange('timetable', reload)
+  useAutoRefresh(reload)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000)
@@ -157,10 +159,11 @@ export function TimetableWidget() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 'clamp(3px, 0.7cqmin, 6px)',
-                fontSize: 'clamp(11px, 2.3cqmin, 17px)',
-                fontWeight: isToday ? 900 : 700,
-                color: isToday ? 'var(--accent)' : 'var(--text-muted)',
-                letterSpacing: '-0.3px',
+                // 요일 헤더 — 살짝 업 + 오늘은 그라디언트로 포인트.
+                fontSize: 'clamp(12px, 2.5cqmin, 19px)',
+                fontWeight: isToday ? 900 : 750,
+                color: isToday ? 'var(--accent)' : 'var(--text-secondary)',
+                letterSpacing: '-0.035em',
               }}
             >
               {DAY_LABELS[d]}
@@ -195,10 +198,14 @@ export function TimetableWidget() {
             >
               <span
                 style={{
-                  fontSize: 'clamp(13px, 2.8cqmin, 20px)',
+                  // 교시 숫자 — 조금 키우고 그라디언트 포인트로 세련화.
+                  fontSize: 'clamp(15px, 3.2cqmin, 24px)',
                   fontWeight: 900,
-                  color: 'var(--text-secondary)',
-                  letterSpacing: '-0.3px',
+                  letterSpacing: '-0.04em',
+                  background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 120%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
                 }}
               >
                 {period.period}
@@ -270,15 +277,16 @@ export function TimetableWidget() {
                   ].filter(Boolean).join(' · ')}
                   style={{
                     position: 'relative',
-                    fontSize: 'clamp(12px, 2.8cqmin, 19px)',
-                    fontWeight: isTodayCol ? 800 : 700,
+                    // 과목명 폰트 업 — 조금 더 시원하고 세련되게. 글씨 무게도 살짝 무겁게.
+                    fontSize: 'clamp(13px, 3.1cqmin, 22px)',
+                    fontWeight: isTodayCol ? 850 : 750,
                     color: textColor,
                     background: bg,
-                    borderRadius: 'clamp(6px, 1.4cqmin, 10px)',
+                    borderRadius: 'clamp(7px, 1.6cqmin, 12px)',
                     padding: '0 clamp(3px, 0.8cqmin, 6px)',
                     textAlign: 'center',
-                    letterSpacing: '-0.5px',
-                    lineHeight: 1.15,
+                    letterSpacing: '-0.035em',
+                    lineHeight: 1.18,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -321,11 +329,11 @@ export function TimetableWidget() {
                     />
                   )}
                   <span
+                    className="content-wrap"
                     style={{
                       maxWidth: '100%',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      textAlign: 'center',
+                      lineHeight: 1.15,
                     }}
                   >
                     {shortSubject(slot.subject)}

@@ -27,6 +27,7 @@ import { StudentCheckWidget } from './components/widgets/StudentCheckWidget'
 import { StudentTimetableWidget } from './components/widgets/StudentTimetableWidget'
 import { TodayWidget } from './components/widgets/TodayWidget'
 import { StudentRecordWidget } from './components/widgets/StudentRecordWidget'
+import { MealWidget } from './components/widgets/MealWidget'
 import { useUIStore } from './stores/ui.store'
 import { useAppStore } from './stores/app.store'
 import { useTheme } from './hooks/useTheme'
@@ -34,7 +35,7 @@ import { playSchoolBell } from './lib/school-bell'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen,
   LayoutPanelLeft, CheckCheck, TimerReset, CalendarHeart, Repeat, Target, Users,
-  GraduationCap, CalendarCheck, ShieldCheck,
+  GraduationCap, CalendarCheck, ShieldCheck, Utensils,
 } from 'lucide-react'
 
 const views = {
@@ -65,6 +66,7 @@ const WIDGET_REGISTRY: Record<string, { title: string; icon: JSX.Element; iconCo
   studentcheck: { title: '학급 체크', icon: <Users {...ICON_PROPS} />,           iconColor: '#0EA5E9', Component: StudentCheckWidget },
   today:     { title: '오늘',       icon: <CalendarCheck {...ICON_PROPS} />,    iconColor: '#F59E0B', Component: TodayWidget },
   studentrecord: { title: '학생 기록', icon: <ShieldCheck {...ICON_PROPS} />,   iconColor: '#8B5CF6', Component: StudentRecordWidget },
+  meal:      { title: '오늘의 급식', icon: <Utensils {...ICON_PROPS} />,        iconColor: '#F59E0B', Component: MealWidget },
 }
 
 function parseWidgetHash(): string | null {

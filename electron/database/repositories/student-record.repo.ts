@@ -276,25 +276,34 @@ export function clearPassword(currentPassword: string): void {
 }
 
 // ─── 로그 내보내기(검증 가능한 JSON) ───────────────────────────
-export function buildLogExportPayload(): {
+export interface LogExportPayload {
   meta: {
     app: string
     app_version: string
-    exported_at: string
+    exported_at_utc: string
+    exported_at_local: string
     total_logs: number
     chain_algorithm: string
+    chain_head_hash: string
+    chain_tail_hash: string
     verification: string
   }
   logs: StudentRecordLog[]
-} {
+}
+
+export function buildLogExportPayload(): LogExportPayload {
   const logs = listAllLogs()
+  const now = new Date()
   return {
     meta: {
       app: 'SchoolDesk',
       app_version: '1.0.0',
-      exported_at: nowIsoMs(),
+      exported_at_utc: now.toISOString(),
+      exported_at_local: now.toLocaleString('ko-KR', { hour12: false }),
       total_logs: logs.length,
       chain_algorithm: 'SHA-256',
+      chain_head_hash: logs[0]?.hash ?? '',
+      chain_tail_hash: logs[logs.length - 1]?.hash ?? '',
       verification:
         "각 로그의 hash = SHA-256(record_id|action|student_name|content_after|tag_after|timestamp|prev_hash). " +
         "prev_hash 는 바로 이전 로그의 hash (첫 로그는 빈 문자열). 한 행이라도 변조되면 이후 체인이 전부 불일치.",
@@ -305,3 +314,30 @@ export function buildLogExportPayload(): {
 
 // 외부 검증용 해시 재계산 함수 노출 (export 에 포함되지는 않지만 렌더러 export 로직이 사용 가능)
 export { computeLogHash }
+
+// ─── 일상 확인용 CSV 내보내기 (Excel/한글에서 바로 열림) ───────
+// 법원 제출 등 증거용이 아니라 "담임이 기록 훑어보기" 용도.
+// UTF-8 BOM 포함 → Excel 한글 깨짐 방지.
+function escapeCsv(v: unknown): string {
+  const s = String(v ?? '')
+  if (s === '') return ''
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+export function buildRecordsCsv(): string {
+  const rows = listStudentRecords()
+  const header = ['학생 이름', '태그', '내용', '작성일시', '수정일시']
+  const lines: string[] = [header.join(',')]
+  for (const r of rows) {
+    lines.push([
+      escapeCsv(r.student_name),
+      escapeCsv(r.tag),
+      escapeCsv(r.content),
+      escapeCsv(r.created_at),
+      escapeCsv(r.updated_at),
+    ].join(','))
+  }
+  // UTF-8 BOM → Excel 에서 더블클릭 시 한글 깨짐 방지
+  return '﻿' + lines.join('\r\n')
+}

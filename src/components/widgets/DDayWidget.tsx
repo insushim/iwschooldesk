@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Plus, X, CalendarClock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getDDayText, formatDate } from '../../lib/date-utils'
+import { getDDayText } from '../../lib/date-utils'
 import type { DDayEvent } from '../../types/settings.types'
 import type { Schedule } from '../../types/schedule.types'
 import { Dialog } from '../ui/Dialog'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 /**
  * 통합 이벤트 — DDayEvent 원본 + 달력에서 가져온 임박 일정(D-7 이내).
@@ -35,7 +36,7 @@ export function DDayWidget() {
 
   const reload = useCallback(() => {
     window.api.dday.list().then(setEvents)
-    // 달력 일정 중 "오늘 ~ 오늘+7일" 범위의 all_day 또는 시작 일정을 D-Day 리스트에 합친다.
+    // 달력 일정 중 "오늘 ~ 오늘+7일" 범위의 일정을 D-Day 리스트에 자동 합침.
     // 달력에서 일정 추가하면 D-7 부터 자동 노출.
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const in7 = new Date(today); in7.setDate(in7.getDate() + 7)
@@ -49,6 +50,7 @@ export function DDayWidget() {
   useEffect(() => { reload() }, [reload])
   useDataChange('dday', reload)
   useDataChange('schedule', reload)
+  useAutoRefresh(reload)
 
   const handleAdd = async (): Promise<void> => {
     if (!newTitle.trim() || !newDate) return
@@ -108,28 +110,21 @@ export function DDayWidget() {
     return list
   }, [events, upcomingSchedules])
 
-  // 남은 일수 기준으로 정렬 — 과거(지남)는 뒤로, 임박한 미래가 앞.
+  // 미래(D-N 또는 D-Day)만 표시. 지나간 D+N 은 감춘다 — 오늘 위젯이 당일 담당과 동일 원칙.
+  // 임박도순(오늘·내일 먼저, 그 뒤로).
   const sorted = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    return [...merged].sort((a, b) => {
-      const da = daysDiff(today, a.target_date)
-      const db = daysDiff(today, b.target_date)
-      const aFuture = da >= 0
-      const bFuture = db >= 0
-      if (aFuture !== bFuture) return aFuture ? -1 : 1
-      return Math.abs(da) - Math.abs(db)
-    })
+    return merged
+      .filter((e) => daysDiff(today, e.target_date) >= 0)
+      .sort((a, b) => daysDiff(today, a.target_date) - daysDiff(today, b.target_date))
   }, [merged])
 
-  const hero = sorted[0]
-  const rest = sorted.slice(1)
-
-  // 히어로 카드 컬러 — 임박도(urgency)에 따라 톤이 달라짐.
-  const heroUrgency = useMemo(() => {
-    if (!hero) return null
-    return urgencyOf(hero.target_date)
-  }, [hero])
+  // 첫 번째 항목(가장 임박)의 urgency — 위젯 루트 배경 글로우에 사용.
+  const firstUrgency = useMemo(() => {
+    if (sorted.length === 0) return null
+    return urgencyOf(sorted[0].target_date)
+  }, [sorted])
 
   // 나머지 칩 영역 동적 사이즈 — 스크롤 없이 모든 아이템 수용.
   const restAreaRef = useRef<HTMLDivElement>(null)
@@ -145,21 +140,18 @@ export function DDayWidget() {
     return () => ro.disconnect()
   }, [])
   const restLayout = useMemo(() => {
-    const n = rest.length
-    if (n === 0 || restBoxH < 20) return { rowH: 36, titleFont: 13, dateFont: 11, countFont: 15, showDate: true, padY: 7, padX: 12, emojiFont: 18 }
+    const n = sorted.length
+    if (n === 0 || restBoxH < 20) return { rowH: 36, titleFont: 18, countFont: 20, padY: 7, padX: 12 }
     const gap = 5
     const available = Math.max(0, restBoxH - (n - 1) * gap)
     const rowH = Math.max(18, Math.floor(available / n))
-    // 행 높이별로 글자·표시를 점진 축소. 너무 좁으면 날짜 라인 제거.
-    const showDate = rowH >= 38
-    const titleFont = Math.max(9, Math.min(18, rowH * (showDate ? 0.38 : 0.5)))
-    const dateFont = Math.max(8, Math.min(13, rowH * 0.3))
-    const countFont = Math.max(10, Math.min(24, rowH * 0.58))
-    const emojiFont = Math.max(12, Math.min(28, rowH * 0.55))
+    // 날짜 라인 제거 — 한 행에 제목 + D-N 만 표시. 글자 크기 대폭 증가.
+    const titleFont = Math.max(11, Math.min(30, rowH * 0.55))
+    const countFont = Math.max(13, Math.min(34, rowH * 0.62))
     const padY = Math.max(2, Math.min(8, rowH * 0.15))
     const padX = Math.max(6, Math.min(14, rowH * 0.3))
-    return { rowH, titleFont, dateFont, countFont, showDate, padY, padX, emojiFont }
-  }, [rest.length, restBoxH])
+    return { rowH, titleFont, countFont, padY, padX }
+  }, [sorted.length, restBoxH])
 
   return (
     <div
@@ -168,8 +160,8 @@ export function DDayWidget() {
         // containerType: size → 모든 하위 cqmin/cqw 단위가 이 위젯 크기 기준으로 동작.
         containerType: 'size',
         padding: 'clamp(10px, 3cqmin, 28px) clamp(18px, 5cqmin, 36px) clamp(18px, 5cqmin, 36px)',
-        background: heroUrgency
-          ? `radial-gradient(ellipse at 85% 0%, ${heroUrgency.color}18 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, ${heroUrgency.color}10 0%, transparent 45%)`
+        background: firstUrgency
+          ? `radial-gradient(ellipse at 85% 0%, ${firstUrgency.color}18 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, ${firstUrgency.color}10 0%, transparent 45%)`
           : undefined,
       }}
     >
@@ -202,7 +194,7 @@ export function DDayWidget() {
         </button>
       </div>
 
-      {events.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
           <div
             className="flex items-center justify-center"
@@ -223,105 +215,93 @@ export function DDayWidget() {
         </div>
       ) : (
         <>
-          {/* 히어로 카드 — 가장 임박한 이벤트 */}
-          {hero && heroUrgency && (
-            <HeroCard
-              event={hero}
-              urgency={heroUrgency}
-              onDelete={handleDelete}
-            />
-          )}
-
-          {/* 나머지 칩 리스트 — 스크롤 없이 동적 사이즈. 창 작아지면 행 높이/글씨 축소 */}
-          {rest.length > 0 && (
-            <div
-              ref={restAreaRef}
-              className="flex-1 mt-3 overflow-hidden"
-              style={{ display: 'flex', flexDirection: 'column', gap: 5, minHeight: 0 }}
-            >
-              <AnimatePresence>
-                {rest.map((event) => {
-                  const u = urgencyOf(event.target_date)
-                  const ddayText = getDDayText(event.target_date)
-                  return (
-                    <motion.div
-                      key={event.id}
-                      layout
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: -40 }}
-                      className="group flex items-center transition-all"
+          {/* 히어로와 rest 를 하나의 리스트로 통합 — 모든 항목이 같은 폰트·같은 높이·같은 padding 으로
+              완벽한 좌우·상하 정렬. 첫 번째 항목(가장 임박)만 urgency 색으로 배경/테두리 강조. */}
+          <div
+            ref={restAreaRef}
+            className="flex-1 overflow-hidden"
+            style={{ display: 'flex', flexDirection: 'column', gap: 5, minHeight: 0 }}
+          >
+            <AnimatePresence>
+              {sorted.map((event, idx) => {
+                const isHero = idx === 0
+                const u = urgencyOf(event.target_date)
+                const ddayText = getDDayText(event.target_date)
+                const neutralBorder = 'rgba(148,163,184,0.55)'
+                const neutralCount = 'var(--text-secondary)'
+                return (
+                  <motion.div
+                    key={event.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -40 }}
+                    className="group flex items-center transition-all"
+                    style={{
+                      height: restLayout.rowH,
+                      // 제목↔D-N 간격 축소 — 기존 padX*0.6(최대 8.4px) → padX*0.3(최대 4.2px).
+                      // 여백 줄이면 제목이 한 줄에 더 많이 들어가 줄바꿈 감소.
+                      gap: Math.max(3, restLayout.padX * 0.3),
+                      padding: `${restLayout.padY}px ${restLayout.padX}px`,
+                      borderRadius: Math.max(7, restLayout.padX * 0.7),
+                      background: isHero
+                        ? `linear-gradient(135deg, ${u.color}14 0%, ${u.color}30 100%)`
+                        : 'var(--bg-secondary)',
+                      borderLeft: `3px solid ${isHero ? u.color : neutralBorder}`,
+                      boxShadow: isHero ? `0 4px 14px ${u.color}22` : undefined,
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {/* 제목 — 모든 항목 동일한 폰트/lineHeight/margin 으로 수직 정렬. */}
+                    <div
+                      className="flex-1 min-w-0 content-wrap"
                       style={{
-                        height: restLayout.rowH,
-                        gap: Math.max(6, restLayout.padX * 0.6),
-                        padding: `${restLayout.padY}px ${restLayout.padX}px`,
-                        borderRadius: Math.max(7, restLayout.padX * 0.7),
-                        backgroundColor: 'var(--bg-secondary)',
-                        borderLeft: `3px solid ${u.color}`,
-                        overflow: 'hidden',
-                        flexShrink: 0,
+                        fontSize: restLayout.titleFont,
+                        fontWeight: isHero ? 900 : 800,
+                        color: 'var(--text-primary)',
+                        letterSpacing: '-0.3px',
+                        lineHeight: 1,
+                        margin: 0,
                       }}
                     >
-                      {event.emoji && restLayout.rowH >= 26 && (
-                        <span
-                          className="shrink-0"
-                          style={{ fontSize: restLayout.emojiFont, lineHeight: 1 }}
-                        >
-                          {event.emoji}
-                        </span>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className="truncate"
-                          style={{
-                            fontSize: restLayout.titleFont,
-                            fontWeight: 800,
-                            color: 'var(--text-primary)',
-                            letterSpacing: '-0.3px',
-                            lineHeight: 1.15,
-                          }}
-                        >
-                          {event.title}
-                        </p>
-                        {restLayout.showDate && (
-                          <p
-                            className="truncate tabular-nums"
-                            style={{
-                              fontSize: restLayout.dateFont,
-                              color: 'var(--text-muted)',
-                              fontWeight: 600,
-                              letterSpacing: '-0.2px',
-                              marginTop: 2,
-                            }}
-                          >
-                            {formatDate(event.target_date, 'yyyy.MM.dd')}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className="tabular-nums shrink-0"
-                        style={{
-                          fontSize: restLayout.countFont,
-                          fontWeight: 900,
-                          color: u.color,
-                          letterSpacing: '-0.03em',
-                        }}
-                      >
-                        {ddayText}
-                      </span>
-                      <button
-                        onClick={() => handleDelete(event.id)}
-                        className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-500 transition-all p-0.5"
-                        title="삭제"
-                      >
-                        <X size={11} />
-                      </button>
-                    </motion.div>
-                  )
-                })}
-              </AnimatePresence>
-            </div>
-          )}
+                      {event.title}
+                    </div>
+                    {/* D-N — 같은 폰트, 같은 minWidth, 같은 lineHeight → 모든 카드에서 세로줄 정렬.
+                        minWidth 를 3.4 → 2.3 으로 축소해 제목 영역을 더 확보 (줄바꿈 감소). */}
+                    <div
+                      className="tabular-nums shrink-0 text-right"
+                      style={{
+                        fontSize: restLayout.countFont,
+                        fontWeight: 900,
+                        color: isHero ? u.color : neutralCount,
+                        letterSpacing: '-0.03em',
+                        minWidth: restLayout.countFont * 2.3,
+                        lineHeight: 1,
+                        margin: 0,
+                        animation: isHero && u.key === 'today' ? 'dday-pulse 1.4s ease-in-out infinite' : undefined,
+                      }}
+                    >
+                      {ddayText}
+                    </div>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-500 transition-all p-0.5"
+                      title="삭제"
+                    >
+                      <X size={11} />
+                    </button>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+          <style>{`
+            @keyframes dday-pulse {
+              0%, 100% { opacity: 1; }
+              50%      { opacity: 0.55; }
+            }
+          `}</style>
         </>
       )}
 
@@ -361,162 +341,6 @@ export function DDayWidget() {
         </div>
       </Dialog>
     </div>
-  )
-}
-
-// ──────────────────────────────────────────────────────────────
-// 히어로 카드
-
-function HeroCard({
-  event, urgency, onDelete,
-}: {
-  event: DDayEvent
-  urgency: Urgency
-  onDelete: (id: string) => void
-}) {
-  const ddayText = getDDayText(event.target_date)
-  // "D-12" 같은 숫자 부분만 분리해서 크게. 부호/접두 "D-/D+/D-Day"도 같이 스타일링.
-  const match = ddayText.match(/^(D[-+]?)(\d+)?(.*)$/)
-  const prefix = match?.[1] ?? ddayText
-  const num = match?.[2] ?? ''
-  const tail = match?.[3] ?? ''
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative group shrink-0"
-      style={{
-        padding: 'clamp(14px, 1.8cqmin, 24px) clamp(16px, 2cqmin, 26px)',
-        borderRadius: 'clamp(16px, 1.4cqmin, 24px)',
-        background: `linear-gradient(135deg, ${urgency.color}10 0%, ${urgency.color}24 100%)`,
-        border: `1.5px solid ${urgency.color}30`,
-        boxShadow: `0 10px 30px ${urgency.color}18`,
-        overflow: 'hidden',
-      }}
-    >
-      {/* 배경 광선 효과 */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: `radial-gradient(circle at 90% 10%, ${urgency.color}30 0%, transparent 55%)`,
-        }}
-      />
-
-      <div className="relative flex items-center" style={{ gap: 'clamp(6px, 1.4cqmin, 22px)' }}>
-        {/* 이모지 뱃지 — 이모지가 있을 때만 렌더 */}
-        {event.emoji && (
-          <span
-            className="flex items-center justify-center shrink-0"
-            style={{
-              fontSize: 'clamp(18px, 4cqmin, 70px)',
-              width: 'clamp(32px, 5.6cqmin, 96px)',
-              height: 'clamp(32px, 5.6cqmin, 96px)',
-              borderRadius: 'clamp(8px, 1.4cqmin, 24px)',
-              background: 'rgba(255,255,255,0.55)',
-              border: `1.5px solid ${urgency.color}40`,
-              boxShadow: `0 4px 14px ${urgency.color}22`,
-            }}
-          >
-            {event.emoji}
-          </span>
-        )}
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center flex-wrap" style={{ gap: 'clamp(3px, 0.6cqmin, 10px)', marginBottom: 'clamp(1px, 0.3cqmin, 6px)' }}>
-            <span
-              className="inline-flex items-center font-bold"
-              style={{
-                fontSize: 'clamp(9px, 1.15cqmin, 16px)',
-                padding: 'clamp(1px, 0.35cqmin, 5px) clamp(5px, 1cqmin, 14px)',
-                borderRadius: 999,
-                backgroundColor: urgency.color,
-                color: '#fff',
-                letterSpacing: '-0.2px',
-                boxShadow: `0 2px 8px ${urgency.color}55`,
-              }}
-            >
-              {urgency.label}
-            </span>
-            <span
-              className="tabular-nums"
-              style={{
-                fontSize: 'clamp(9px, 1.1cqmin, 15px)',
-                color: 'var(--text-muted)',
-                fontWeight: 600,
-                letterSpacing: '-0.2px',
-              }}
-            >
-              {formatDate(event.target_date, 'yyyy.MM.dd')}
-            </span>
-          </div>
-          <p
-            className="truncate"
-            title={event.title}
-            style={{
-              fontSize: 'clamp(12px, 2cqmin, 34px)',
-              fontWeight: 900,
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.035em',
-              lineHeight: 1.12,
-            }}
-          >
-            {event.title}
-          </p>
-        </div>
-
-        {/* 거대 D-Day 카운트 — 창이 작으면 더 작아짐 */}
-        <div
-          className="shrink-0 flex items-baseline tabular-nums"
-          style={{ color: urgency.color, minWidth: 0 }}
-        >
-          <span
-            style={{
-              fontSize: 'clamp(18px, 5.2cqmin, 88px)',
-              fontWeight: 900,
-              marginRight: 'clamp(1px, 0.5cqmin, 4px)',
-              letterSpacing: '-0.04em',
-              lineHeight: 0.9,
-              opacity: 0.92,
-            }}
-          >
-            {prefix}
-          </span>
-          <span
-            style={{
-              fontSize: 'clamp(22px, 6.5cqmin, 110px)',
-              fontWeight: 900,
-              lineHeight: 0.9,
-              letterSpacing: '-0.04em',
-              background: `linear-gradient(180deg, ${urgency.color} 0%, ${urgency.colorDark} 130%)`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              animation: urgency.key === 'today' ? 'dday-pulse 1.4s ease-in-out infinite' : undefined,
-            }}
-          >
-            {num || tail || ''}
-          </span>
-        </div>
-      </div>
-
-      <button
-        onClick={() => onDelete(event.id)}
-        className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-all"
-        title="삭제"
-      >
-        <X size={11} />
-      </button>
-
-      <style>{`
-        @keyframes dday-pulse {
-          0%, 100% { opacity: 1; }
-          50%      { opacity: 0.55; }
-        }
-      `}</style>
-    </motion.div>
   )
 }
 

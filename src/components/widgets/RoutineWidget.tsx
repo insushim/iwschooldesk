@@ -3,6 +3,7 @@ import { Plus, Check, ChevronDown, Flame, X, Trash2, Repeat } from 'lucide-react
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Routine, RoutineItemWithStatus } from '../../types/routine.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 function todayStr(): string {
   const d = new Date()
@@ -67,6 +68,7 @@ export function RoutineWidget() {
 
   useEffect(() => { reloadRoutines() }, [])
   useDataChange('routine', () => { reloadRoutines() })
+  useAutoRefresh(reloadRoutines)
 
   // 자정 지나면 today 자동 갱신 → 체크 초기화
   useEffect(() => {
@@ -77,15 +79,20 @@ export function RoutineWidget() {
     return () => clearInterval(timer)
   }, [today])
 
-  // 선택된 루틴 / today 변경 시 items + dayNumber 재조회
+  // 선택된 루틴 / today 변경 시 items + dayNumber 재조회.
+  // 선택 없으면 dayNumber 도 1 로 초기화 — 이전 루틴 잔여값(예: 4일차)이 남는 버그 방지.
   useEffect(() => {
     if (!selectedId) {
-      setItems([]); return
+      setItems([])
+      setDayNumber(1)
+      return
     }
     window.api.routine.getItems(selectedId, today).then(setItems)
     const r = routines.find((x) => x.id === selectedId)
     if (r) {
       window.api.routine.dayNumber(r.start_date, today).then(setDayNumber)
+    } else {
+      setDayNumber(1)  // routines 목록에서 사라진 경우(삭제 직후)도 초기화
     }
   }, [selectedId, today, routines])
 
@@ -306,7 +313,8 @@ export function RoutineWidget() {
           />
         </div>
 
-        {/* N일차 pill */}
+        {/* N일차 pill — 선택된 루틴이 있을 때만. 루틴 없으면 의미가 없으니 숨김. */}
+        {selected && (
         <span
           className="inline-flex items-center gap-1 tabular-nums shrink-0"
           style={{
@@ -324,6 +332,7 @@ export function RoutineWidget() {
           <Flame size={11} strokeWidth={2.6} />
           {dayNumber}일차
         </span>
+        )}
 
         <button
           onClick={() => setCreateMode(true)}

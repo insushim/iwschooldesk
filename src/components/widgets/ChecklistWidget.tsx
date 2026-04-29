@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Checklist, ChecklistItem } from '../../types/checklist.types'
 import { isSectionLine } from '../../lib/section-parser'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 /** url hash 에서 instance(=checklist id) 추출. 없으면 null → 첫 번째 자동 선택. */
 function getInstanceIdFromHash(): string | null {
@@ -75,6 +76,11 @@ export function ChecklistWidget() {
     if (selectedId) {
       window.api.checklist.getItems(selectedId).then(setItems)
     }
+  })
+  // 폴링 + 창 포커스 자동 갱신 (이벤트 누락 대비 안전망)
+  useAutoRefresh(() => {
+    reload()
+    if (selectedId) window.api.checklist.getItems(selectedId).then(setItems)
   })
 
   const countable = items.filter((i) => !isSectionLine(i.content))
@@ -498,13 +504,13 @@ export function ChecklistWidget() {
                         <div
                           onDoubleClick={() => startEdit(item)}
                           title="더블클릭하여 수정  ( [제목] 형식을 유지하면 섹션 헤더 )"
-                          className="flex-1 cursor-text truncate"
+                          className="flex-1 min-w-0 cursor-text content-wrap"
                           style={{
                             fontSize: 15,
                             fontWeight: 900,
                             letterSpacing: '-0.025em',
                             color: 'var(--text-primary)',
-                            lineHeight: 1.2,
+                            lineHeight: 1.25,
                           }}
                         >
                           {sectionTitle}

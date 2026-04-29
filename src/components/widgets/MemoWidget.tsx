@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Memo } from '../../types/memo.types'
 import { parseSectionedText } from '../../lib/section-parser'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 export function MemoWidget() {
   const [memos, setMemos] = useState<Memo[]>([])
@@ -17,6 +18,7 @@ export function MemoWidget() {
 
   useEffect(() => { reloadMemos() }, [reloadMemos])
   useDataChange('memo', reloadMemos)
+  useAutoRefresh(reloadMemos)
 
   const current = memos[currentIndex]
 

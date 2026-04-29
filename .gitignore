@@ -3,3 +3,18 @@ out/
 dist-electron/
 *.exe
 .DS_Store
+
+# 환경 변수 / 비밀 키 (Worker 로컬 개발 포함)
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Cloudflare Workers 로컬 상태
+cloudflare-worker/.wrangler/
+cloudflare-worker/dist/
+
+# 로컬 SQLite
+*.db
+*.sqlite

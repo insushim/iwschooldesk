@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { X, Pin, PinOff, Eye, Type, Image as WallpaperIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { X, Pin, PinOff, Eye, Type, Image as WallpaperIcon, MonitorOff } from 'lucide-react'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType } from '../../types/widget.types'
+import { useDisplayBg } from '../../lib/display-bg'
+import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
 interface WidgetShellProps {
   title: string
@@ -21,11 +23,19 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
   const [anyWallpaperOn, setAnyWallpaperOn] = useState(false)
   // 내 창이 배경화면 모드면 헤더 숨기고 콘텐츠만 풀로 보여주자.
   const [iAmWallpaper, setIAmWallpaper] = useState(false)
+  // 자식 위젯(GoalWidget / StudentCheckWidget 등)이 보낸 "디스플레이 모드" 상태.
+  // 배경화면 모드가 아니어도 디스플레이 모드면 헤더를 숨겨 콘텐츠만 풀로 보여준다.
+  const [childDisplayMode, setChildDisplayMode] = useState(false)
+  // 쉘 자체 디스플레이 모드 — 헤더 버튼으로 토글. 배경화면 모드가 없는 위젯이나 "그냥 헤더만 숨기고 싶을 때" 사용.
+  const [shellDisplayMode, setShellDisplayMode] = useState(false)
+  // 쉘 레벨 디스플레이 배경 프리셋 — 디스플레이 모드 켠 위젯의 body 배경 색.
+  // 위젯별로 따로 저장 (e.g. 메모/시계 각자 다른 색 선택 가능).
+  const bgScopeKey = useMemo(() => `shell:${widgetType ?? 'default'}`, [widgetType])
+  const { preset: shellBg, setPresetId: setShellBgId } = useDisplayBg(bgScopeKey)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const fontPopoverRef = useRef<HTMLDivElement | null>(null)
 
-  // 현재 위젯이 "편집용(배경모드 제외)" 위젯이면 마스터 토글 노출.
-  // 제외 위젯(Timer/Memo/Task/Checklist/Routine)에서는 항상 클릭 가능하므로 여기서 on/off.
+  // 배경화면 모드 마스터 토글은 편집용 위젯(= 배경화면 불가능) 헤더에서만 노출.
   const isMasterToggleHost = !!widgetType && !WALLPAPER_ELIGIBLE_TYPES.has(widgetType as WidgetType)
 
   // 내 widget id — URL hash에서 유도. 형태: `widget-<type>[-<instanceId>]`.
@@ -71,11 +81,48 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
       } catch { /* ignore */ }
     }
     syncMine()
+    // 자식 위젯이 자신의 "디스플레이 모드" 상태를 dispatch 하면 헤더를 숨긴다.
+    // 배경화면 모드 아닌 상태에서도 "화면 가득 보여주기"가 가능해짐.
+    const onDisplayMode = (ev: Event): void => {
+      const detail = (ev as CustomEvent<{ on?: boolean }>).detail
+      setChildDisplayMode(!!detail?.on)
+    }
+    window.addEventListener('widget:displayMode', onDisplayMode as EventListener)
     const off = window.api.widget.onWallpaperModeChanged?.((p) => {
-      if (p.widgetId === myWidgetId.current) setIAmWallpaper(p.on)
+      if (p.widgetId !== myWidgetId.current) return
+      setIAmWallpaper(p.on)
+      // 배경화면 모드 진입 시 현재 창에 남아있는 DOM focus 를 즉시 해제.
+      // (input·button·contentEditable 에 포커스가 있으면 Windows 가 창을
+      //  다시 앞으로 가져와 "맨 뒤 고정"을 방해한다.)
+      if (p.on) {
+        try {
+          const active = document.activeElement as HTMLElement | null
+          if (active && typeof active.blur === 'function') active.blur()
+        } catch { /* noop */ }
+        try { window.getSelection()?.removeAllRanges?.() } catch { /* noop */ }
+        try { window.blur() } catch { /* noop */ }
+      }
     })
-    return () => { cancelled = true; if (off) off() }
+    return () => {
+      cancelled = true
+      if (off) off()
+      window.removeEventListener('widget:displayMode', onDisplayMode as EventListener)
+    }
   }, [])
+
+  // 마스터 디스플레이 모드 브로드캐스트 구독 — 다른 위젯에서 "전체 디스플레이 모드" 를 켜면 내 shellDisplayMode 도 동기화.
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      setShellDisplayMode(!!p.on)
+    })
+    return () => { if (off) off() }
+  }, [])
+
+  // 디스플레이 모드 해제(플로팅 버튼)는 항상 마스터 브로드캐스트 — 모든 위젯이 함께 해제.
+  const exitAllDisplayMode = (): void => {
+    setShellDisplayMode(false)
+    try { window.api.widget.setAllDisplayMode?.(false) } catch { /* ignore */ }
+  }
 
   const toggleAllWallpaper = async (): Promise<void> => {
     if (anyWallpaperOn) {
@@ -145,8 +192,8 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
       className="shell-card flex flex-col h-screen w-screen"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
-      {/* Draggable header — 배경화면 모드면 완전히 숨겨 콘텐츠 전체를 깔끔하게 노출 */}
-      {!iAmWallpaper && (
+      {/* Draggable header — 배경화면 모드, 자식 위젯 디스플레이 모드, 쉘 자체 디스플레이 모드면 완전히 숨김. */}
+      {!iAmWallpaper && !childDisplayMode && !shellDisplayMode && (
       <div
         className="flex items-center justify-between relative"
         style={{
@@ -195,8 +242,8 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
               className={`shell-btn ${anyWallpaperOn ? 'shell-btn-active' : ''}`}
               title={
                 anyWallpaperOn
-                  ? '배경화면 모드 전체 해제 — 시간표/학급체크/달력/우리반목표/학생용시간표/D-Day/시계/타이머'
-                  : '열린 시간표·학급체크·달력·우리반목표·학생용시간표·D-Day·시계·타이머를 모두 배경화면 모드로 전환 (클릭 통과 + 맨 뒤 고정). 단축키: Ctrl+Alt+Shift+W'
+                  ? '배경화면 모드 전체 해제 — 단축키: Ctrl+Alt+Shift+W (다시 누르면 진입)'
+                  : '배경화면 모드 전체 진입 — 시간표·학급체크·달력·우리반목표·학생용시간표·D-Day·시계·타이머·오늘·급식 일괄 적용. 단축키: Ctrl+Alt+Shift+W (같은 단축키로 해제)'
               }
               style={anyWallpaperOn
                 ? { color: '#fff', background: 'linear-gradient(135deg, #0EA5E9, #2563EB)', boxShadow: '0 4px 10px rgba(14,165,233,0.45)' }
@@ -205,6 +252,9 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
               <WallpaperIcon size={13} strokeWidth={2.2} />
             </button>
           )}
+
+          {/* 디스플레이 모드 토글은 위젯 내부의 Monitor 버튼(시계/학생시간표/학급체크/우리반목표) 과
+              중복되어 제거. 내부 토글이 이미 마스터 브로드캐스트를 보내 모든 위젯에 일괄 적용됨. */}
 
           <div className="relative" ref={popoverRef}>
             <button
@@ -329,7 +379,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
           <button
             onClick={() => window.api.widget.closeSelf()}
             className="shell-btn shell-btn-danger"
-            title="닫기"
+            title="닫기 — 바탕화면 위젯 패널에서 다시 켤 수 있어요"
           >
             <X size={13.5} strokeWidth={2.4} />
           </button>
@@ -338,12 +388,77 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
       )}
 
       {/* Body — 헤더 유무와 무관하게 4 모서리 모두 round. 헤더가 있으면 위 2 모서리는 헤더 뒤에 가려서 안 보이고,
-          헤더가 없으면(배경화면 모드) 그대로 예쁜 rounded top 이 노출됨. */}
+          헤더가 없으면(배경화면/디스플레이 모드) 그대로 예쁜 rounded top 이 노출됨.
+          shellDisplayMode 일 때는 사용자가 고른 배경 프리셋을 body 에 깔아준다 — 모든 위젯에 일관된 배경. */}
       <div
-        className="flex-1 overflow-hidden"
-        style={{ borderRadius: 'var(--shell-radius)' }}
+        className="flex-1 overflow-hidden relative"
+        style={{
+          borderRadius: 'var(--shell-radius)',
+          background: shellDisplayMode && shellBg.bg ? shellBg.bg : undefined,
+          transition: 'background 320ms ease',
+        }}
       >
-        {children}
+        {/* 디스플레이 모드 글로우 오버레이 */}
+        {shellDisplayMode && shellBg.glow && (
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: shellBg.glow, zIndex: 0 }}
+          />
+        )}
+
+        {/* 글씨 크기 배율 적용 — CSS zoom 은 cqmin/vw 까지 모두 스케일하므로
+            webContents.setZoomFactor 가 스케일 못하던 콘텐츠 내부 글씨도 제대로 커진다.
+            A-/A+ 버튼이 이 값을 바꾸면 body 만 커지고 헤더는 그대로. */}
+        <div
+          className="relative w-full h-full"
+          style={{
+            zIndex: 1,
+            color: shellDisplayMode && shellBg.textMode === 'light' ? '#fff' : undefined,
+            zoom: fontScale,
+          } as React.CSSProperties}
+        >
+          {children}
+        </div>
+
+        {/* 디스플레이 모드 전용 플로팅 컨트롤.
+            위젯 내부의 팔레트/토글 버튼(시계·학생시간표·학급체크·목표)과 겹치지 않도록
+            좌하단(bottom-left) 에 위치. 기본 완전 투명(opacity:0) — 위젯에 마우스를 올려야 나타남. */}
+        {shellDisplayMode && !iAmWallpaper && (
+          <div
+            className="shell-float-controls absolute bottom-1.5 left-1.5 flex items-center gap-1"
+            style={{ zIndex: 30, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <DisplayBgPicker current={shellBg} onPick={setShellBgId} />
+            <button
+              onClick={exitAllDisplayMode}
+              className="rounded-md transition-colors flex items-center justify-center"
+              title="디스플레이 모드 해제 (모든 위젯 · Ctrl+Alt+Shift+D)"
+              style={{
+                width: 22,
+                height: 22,
+                color: shellBg.textMode === 'light' ? '#fff' : 'var(--text-secondary)',
+                background: shellBg.textMode === 'light'
+                  ? 'rgba(255,255,255,0.14)'
+                  : 'rgba(15,23,42,0.06)',
+                border: shellBg.textMode === 'light'
+                  ? '1px solid rgba(255,255,255,0.28)'
+                  : '1px solid var(--border-widget)',
+                backdropFilter: 'blur(10px)',
+              }}
+            >
+              <MonitorOff size={11} strokeWidth={2.2} />
+            </button>
+          </div>
+        )}
+
+        {/* 평소엔 안 보이게 — 위젯 hover 시에만 opacity 1.0. 내부 콘텐츠와 시각적 충돌 최소화. */}
+        <style>{`
+          .shell-float-controls { opacity: 0; transition: opacity 0.2s ease; pointer-events: none; }
+          .shell-card:hover .shell-float-controls,
+          .shell-float-controls:hover,
+          .shell-float-controls:focus-within { opacity: 1; pointer-events: auto; }
+        `}</style>
       </div>
     </div>
   )

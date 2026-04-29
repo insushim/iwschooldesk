@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Lock, Unlock, ShieldCheck, Plus, Trash2, Download, Key, X, Check, AlertCircle } from 'lucide-react'
+import { Lock, Unlock, ShieldCheck, Plus, Trash2, Download, Key, X, Check, AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDataChange } from '../../hooks/useDataChange'
 
@@ -83,8 +83,11 @@ export function StudentRecordWidget() {
     window.api.studentRecord.isPasswordSet().then((set) => {
       if (!alive) return
       setMode(set ? { kind: 'locked' } : { kind: 'setup' })
+      // 최초 생성 (setup)일 땐 비밀번호 설정 UI를 자동으로 펼쳐둠.
+      // 그래야 사용자가 "왜 헤더만 보이지?" 하는 혼란 없이 바로 설정 가능.
+      if (!set) setShowPwPrompt(true)
     }).catch(() => {
-      if (alive) setMode({ kind: 'setup' })
+      if (alive) { setMode({ kind: 'setup' }); setShowPwPrompt(true) }
     })
     return () => { alive = false }
   }, [])
@@ -155,6 +158,8 @@ export function StudentRecordWidget() {
 
   const handleLock = () => {
     setMode({ kind: 'locked' })
+    setShowPwPrompt(false)  // 입력창 닫고 헤더만 보이는 잠금 상태로 복귀
+    setPwInput(''); setPwInput2(''); setPwError(null)
     setAdding(false); setEditingId(null)
   }
 
@@ -202,11 +207,33 @@ export function StudentRecordWidget() {
 
   const handleExport = async () => {
     try {
+      setExportToast('저장 중… (타임스탬프 요청 포함 최대 20초)')
       const res = await window.api.studentRecord.exportLogs() as
+        | { ok: true; count: number; path: string; proofPath?: string; otsPath?: string | null; sha256?: string }
+        | { ok: false; reason: string }
+      if (res.ok) {
+        const parts = ['JSON', '증명서']
+        if (res.otsPath) parts.push('OTS(타임스탬프)')
+        setExportToast(`${parts.join(' + ')} 저장 완료 (${res.count}개 로그)`)
+      } else if (res.reason !== 'canceled') {
+        setExportToast('저장에 실패했어요')
+      } else {
+        setExportToast(null)
+      }
+      setTimeout(() => setExportToast(null), 6000)
+    } catch {
+      setExportToast('저장에 실패했어요')
+      setTimeout(() => setExportToast(null), 4000)
+    }
+  }
+
+  const handleExportCsv = async () => {
+    try {
+      const res = await window.api.studentRecord.exportCsv() as
         | { ok: true; count: number; path: string }
         | { ok: false; reason: string }
       if (res.ok) {
-        setExportToast(`${res.count}개 로그를 저장했어요`)
+        setExportToast(`${res.count}개 기록을 CSV로 저장했어요 (Excel에서 열기)`)
       } else if (res.reason !== 'canceled') {
         setExportToast('저장에 실패했어요')
       }
@@ -270,8 +297,8 @@ export function StudentRecordWidget() {
           </span>
           <div className="min-w-0 flex-1">
             <div
-              className="truncate"
-              style={{ fontSize: 13.5, fontWeight: 900, letterSpacing: '-0.3px', color: 'var(--text-primary)' }}
+              className="content-wrap"
+              style={{ fontSize: 13.5, fontWeight: 900, letterSpacing: '-0.3px', color: 'var(--text-primary)', lineHeight: 1.25 }}
             >
               학생 기록 · {isSetup ? '비밀번호 설정' : '잠금'}
             </div>
@@ -296,7 +323,7 @@ export function StudentRecordWidget() {
             {showPwPrompt ? (
               <><X size={11} strokeWidth={2.6} />취소</>
             ) : (
-              <><Unlock size={11} strokeWidth={2.6} />{isSetup ? '비밀번호 설정' : '비밀번호 입력'}</>
+              <><Unlock size={11} strokeWidth={2.6} />{isSetup ? '비밀번호 설정' : '잠금 해제'}</>
             )}
           </button>
         </div>
@@ -421,16 +448,24 @@ export function StudentRecordWidget() {
           <ShieldCheck size={13} strokeWidth={2.6} />
         </span>
         <span
-          className="flex-1 min-w-0 truncate"
-          style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.25px', color: 'var(--text-primary)' }}
+          className="flex-1 min-w-0 content-wrap"
+          style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.25px', color: 'var(--text-primary)', lineHeight: 1.25 }}
         >
           학생 기록
         </span>
         <button
+          onClick={handleExportCsv}
+          className="flex items-center justify-center hover:bg-[var(--bg-secondary)] transition-colors"
+          style={{ width: 28, height: 28, borderRadius: 8, color: '#059669', border: '1px solid rgba(5,150,105,0.28)' }}
+          title="CSV 내보내기 — Excel/한글에서 바로 열림 (일상 확인용)"
+        >
+          <FileSpreadsheet size={13} strokeWidth={2.4} />
+        </button>
+        <button
           onClick={handleExport}
           className="flex items-center justify-center hover:bg-[var(--bg-secondary)] transition-colors"
           style={{ width: 28, height: 28, borderRadius: 8, color: '#0284C7', border: '1px solid rgba(2,132,199,0.28)' }}
-          title="로그 내보내기 (JSON, 해시체인 포함)"
+          title="로그 JSON 내보내기 — 해시체인 포함 (법원 증거용)"
         >
           <Download size={13} strokeWidth={2.4} />
         </button>

@@ -24,16 +24,17 @@ function toScheduleCategory(c?: string): ScheduleCategory {
 
 /**
  * 파일을 읽어 DB에 schedules 를 bulk insert.
- * 지원: .csv / .ics / .xlsx / .xls / .docx / .doc / .hwp.
+ * 지원: .csv / .ics / .xlsx / .xls / .docx / .doc / .hwp / .hwpx / .pdf / .txt / .md.
  */
 export async function importScheduleFile(file: File): Promise<ImportResult> {
   const lower = file.name.toLowerCase()
   let events: ImportedEvent[] = []
   try {
-    if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+    assertFileSize(file)
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.xlsm') || lower.endsWith('.ods')) {
       events = parseXLSX(await file.arrayBuffer())
-    } else if (lower.endsWith('.ics')) {
-      events = parseICS(await file.text())
+    } else if (lower.endsWith('.ics') || lower.endsWith('.ical') || lower.endsWith('.ifb')) {
+      events = parseICS(await readTextAutoEncoding(file))
     } else if (lower.endsWith('.docx') || lower.endsWith('.doc')) {
       const mammoth = await import('mammoth')
       const { value: text } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
@@ -49,13 +50,22 @@ export async function importScheduleFile(file: File): Promise<ImportResult> {
         events = parseTextBlob(text)
       }
     } else if (lower.endsWith('.hwpx')) {
-      return { ok: false, error: '.hwpx 는 아직 안 돼요. 한글에서 "다른 이름으로 저장 → .hwp 또는 .docx" 로 변환 후 올려주세요.' }
+      const text = await extractTextFromHwpx(await file.arrayBuffer())
+      events = parseTextBlob(text)
+    } else if (lower.endsWith('.pdf')) {
+      const text = await extractTextFromPdf(await file.arrayBuffer())
+      events = parseTextBlob(text)
+    } else if (lower.endsWith('.csv') || lower.endsWith('.tsv')) {
+      events = parseCSV(await readTextAutoEncoding(file))
+    } else if (lower.endsWith('.txt') || lower.endsWith('.md') || lower.endsWith('.markdown')) {
+      events = parseTextBlob(await readTextAutoEncoding(file))
     } else {
-      events = parseCSV(await file.text())
+      // 확장자 없거나 특수 — 일단 텍스트로 시도
+      events = parseCSV(await readTextAutoEncoding(file))
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: `파일 파싱 오류: ${msg.slice(0, 120)}` }
+    return { ok: false, error: `파일 파싱 오류: ${msg.slice(0, 160)}` }
   }
 
   if (events.length === 0) {
@@ -80,7 +90,7 @@ export async function importScheduleFile(file: File): Promise<ImportResult> {
 
 // ─── HWP 텍스트 추출 ─────────────────────────────────────────────────
 
-async function parseHwpDoc(buf: ArrayBuffer): Promise<HwpLike> {
+export async function parseHwpDoc(buf: ArrayBuffer): Promise<HwpLike> {
   const mod = await import('hwp.js')
   const parseHwp =
     (mod as unknown as { default?: (b: unknown, o?: unknown) => unknown; parse?: (b: unknown, o?: unknown) => unknown }).default
@@ -130,7 +140,7 @@ function extractParagraphText(p: HwpParagraph | undefined): string {
   return out
 }
 
-function extractTextFromHwp(doc: HwpLike): string {
+export function extractTextFromHwp(doc: HwpLike): string {
   let text = ''
   for (const section of doc.sections ?? []) {
     for (const para of section.content ?? []) text += extractParagraphText(para) + '\n'
@@ -262,7 +272,7 @@ export function parseHwpCalendarTables(doc: HwpLike): ImportedEvent[] {
           let endDate: string | undefined
           const rng = extractRangeFromTitle(title, startDate)
           if (rng) endDate = rng
-          else if (/주간/.test(title)) endDate = addDays(startDate, 6)
+          else if (/주간/.test(title)) endDate = addDays(startDate, 4)
           events.push({ title, startDate, endDate, category: '학교행사' })
         }
       }
@@ -299,7 +309,7 @@ export function parseCSV(text: string): ImportedEvent[] {
     if (title && date) {
       const r = extractRangeFromTitle(title, date)
       if (r && !endDate) endDate = r
-      else if (!endDate && /주간/.test(title)) endDate = addDays(date, 6)
+      else if (!endDate && /주간/.test(title)) endDate = addDays(date, 4)
       out.push({ title, startDate: date, endDate, category })
     }
   }
@@ -382,7 +392,7 @@ export function parseXLSX(buf: ArrayBuffer): ImportedEvent[] {
       let endDate: string | undefined
       const r = extractRangeFromTitle(title, dateStr)
       if (r) endDate = r
-      else if (/주간/.test(title)) endDate = addDays(dateStr, 6)
+      else if (/주간/.test(title)) endDate = addDays(dateStr, 4)
       events.push({ title, startDate: dateStr, endDate, category: '학교행사' })
     }
   }
@@ -445,7 +455,7 @@ export function parseTextBlob(text: string): ImportedEvent[] {
     let endDate: string | undefined
     const t = extractRangeFromTitle(title, dateStr)
     if (t) endDate = t
-    else if (/주간/.test(title)) endDate = addDays(dateStr, 6)
+    else if (/주간/.test(title)) endDate = addDays(dateStr, 4)
     events.push({ title, startDate: dateStr, endDate, category: '학교행사' })
   }
   return events
@@ -498,4 +508,170 @@ function isValidMD(m: number, d: number): boolean {
 
 function cleanTitle(s: string): string {
   return s.replace(/^[\s\-:,~·|│▪■□◈◆◇☆★]+|[\s\-:,~·|│▪■□◈◆◇☆★]+$/g, '').trim()
+}
+
+// ─── 공용 파일 유틸 ────────────────────────────────────────
+/** 과도하게 큰 파일 거부 (메모리 보호). 기본 40MB. */
+export const MAX_IMPORT_BYTES = 40 * 1024 * 1024
+
+export function assertFileSize(file: File, limit = MAX_IMPORT_BYTES): void {
+  if (file.size > limit) {
+    throw new Error(`파일이 너무 커요 (${Math.round(file.size / (1024 * 1024))}MB). ${Math.round(limit / (1024 * 1024))}MB 이하만 읽을 수 있어요.`)
+  }
+  if (file.size === 0) throw new Error('빈 파일이에요.')
+}
+
+/**
+ * 한국 학교 환경에서 오는 CSV/TXT 는 UTF-8 과 EUC-KR(=CP949) 둘 다 흔하다.
+ * 휴리스틱: BOM 우선 → UTF-8 엄격 디코드 시도 → 실패 시 EUC-KR → 최후로 loose UTF-8.
+ */
+export async function readTextAutoEncoding(file: File): Promise<string> {
+  const ab = await file.arrayBuffer()
+  const u8 = new Uint8Array(ab)
+  // UTF-8 BOM
+  if (u8[0] === 0xef && u8[1] === 0xbb && u8[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(u8.slice(3))
+  }
+  // UTF-16 BE/LE BOM
+  if (u8[0] === 0xfe && u8[1] === 0xff) return new TextDecoder('utf-16be').decode(u8.slice(2))
+  if (u8[0] === 0xff && u8[1] === 0xfe) return new TextDecoder('utf-16le').decode(u8.slice(2))
+  // UTF-8 엄격 — 유효하지 않으면 throw
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(ab)
+  } catch {
+    // EUC-KR / CP949 — 한글 윈도우 표준
+    try {
+      return new TextDecoder('euc-kr').decode(ab)
+    } catch {
+      // 최후 loose UTF-8 (깨진 바이트는 치환)
+      return new TextDecoder('utf-8').decode(ab)
+    }
+  }
+}
+
+/**
+ * PDF 텍스트 추출. unpdf 사용 — 순수 JS, WASM 없음.
+ * 레이아웃에 따라 토큰 순서가 엇갈릴 수 있으나, 학사일정·학급명렬처럼
+ * 텍스트 기반 문서는 대부분 읽힌다.
+ */
+export async function extractTextFromPdf(ab: ArrayBuffer): Promise<string> {
+  const { extractText, getDocumentProxy } = await import('unpdf')
+  try {
+    const doc = await getDocumentProxy(new Uint8Array(ab))
+    const { text } = await extractText(doc, { mergePages: true })
+    return Array.isArray(text) ? text.join('\n') : (text as string) ?? ''
+  } catch (err) {
+    throw new Error(`PDF 읽기 실패: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+// ─── HWPX (한글 2010+ 최신 포맷: ZIP + XML) ─────────────────
+/**
+ * HWPX 파일에서 전체 텍스트를 추출.
+ *
+ * HWPX 는 OOXML 계열 컨테이너로 Zip 압축된 XML 묶음:
+ *   Contents/section0.xml, Contents/section1.xml, ...
+ * 각 섹션의 XML 은 HWPML 4 네임스페이스(hp:) 를 사용.
+ *   - <hp:t>텍스트</hp:t>   : 텍스트 노드
+ *   - <hp:p>...</hp:p>      : 문단 (경계에 개행)
+ *   - <hp:tr>...</hp:tr>    : 테이블 행 (경계에 개행)
+ *   - <hp:cell>...</hp:cell>: 테이블 셀 (경계에 탭)
+ *
+ * 학급명렬표·학사일정 둘 다 "텍스트 추출 → 기존 파서로 넘기기" 로 충분히 커버.
+ */
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([\da-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&amp;/g, '&') // & 마지막
+}
+
+export async function extractTextFromHwpx(ab: ArrayBuffer): Promise<string> {
+  const { unzipSync, strFromU8 } = await import('fflate')
+  const u8 = new Uint8Array(ab)
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(u8)
+  } catch (err) {
+    throw new Error(`HWPX 압축 해제 실패: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  // 섹션 파일만 추림(Contents/section*.xml). HWPX 버전에 따라 'contents/' 소문자일 수도 있어 대소문자 무시.
+  const sectionKeys = Object.keys(files)
+    .filter((k) => /(^|\/)section\d+\.xml$/i.test(k))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/section(\d+)\.xml$/i)?.[1] ?? '0', 10)
+      const nb = parseInt(b.match(/section(\d+)\.xml$/i)?.[1] ?? '0', 10)
+      return na - nb
+    })
+  if (sectionKeys.length === 0) {
+    // 섹션 파일이 없으면 Contents/content.hpf 의 spine 에서 경로를 얻을 수도 있으나,
+    // 표준 경로가 안 맞는 케이스는 드물다. 있는 .xml 전부 fallback 스캔.
+    const xmlKeys = Object.keys(files).filter((k) => k.toLowerCase().endsWith('.xml'))
+    if (xmlKeys.length === 0) throw new Error('HWPX 안에 읽을 XML 섹션이 없어요.')
+    sectionKeys.push(...xmlKeys)
+  }
+
+  const chunks: string[] = []
+  for (const key of sectionKeys) {
+    const xml = strFromU8(files[key])
+    chunks.push(extractTextFromHwpxXml(xml))
+  }
+  return chunks.join('\n')
+}
+
+/**
+ * HWPX section XML 하나에서 텍스트 추출.
+ * 1차: `<hp:t>…</hp:t>` 를 직접 뽑아내서 문단/테이블 경계에 개행/탭 삽입.
+ *      (정규표현식 단순 치환보다 순서·누락에 훨씬 견고)
+ * 2차 fallback: 태그 전체 제거.
+ */
+function extractTextFromHwpxXml(xml: string): string {
+  const out: string[] = []
+  // 개행/탭 토큰 — 마지막에 치환되도록 특수 마커 사용
+  const NL = '\x01' // end-of-paragraph / row / linebreak
+  const TAB = '\x02' // end-of-cell
+
+  // hp: 접두사 없이 쓰이는 변형(HWPX 2022+ 무-prefix 또는 다른 ns 접두사)도 커버
+  const replaceClose = (tag: string, mark: string) => {
+    const re = new RegExp(`<\\/([a-z]+:)?${tag}>`, 'gi')
+    xml = xml.replace(re, `${mark}</$1${tag}>`)
+  }
+  replaceClose('p', NL)
+  replaceClose('tr', NL)
+  replaceClose('cell', TAB)
+  xml = xml.replace(/<([a-z]+:)?linebreak\s*\/?>(?:<\/([a-z]+:)?linebreak>)?/gi, NL)
+  xml = xml.replace(/<([a-z]+:)?tab\s*\/?>(?:<\/([a-z]+:)?tab>)?/gi, TAB)
+
+  // <hp:t ...>내용</hp:t> 만 뽑아서 순차 누적. 속성은 무시, 내부 nested inline 태그는 안에서 제거.
+  const tRe = /<([a-z]+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/([a-z]+:)?t>/gi
+  let lastEnd = 0
+  let match: RegExpExecArray | null
+  while ((match = tRe.exec(xml)) !== null) {
+    // hp:t 바깥의 marker 들(NL/TAB)도 순서 보존
+    const between = xml.slice(lastEnd, match.index)
+    const betweenMarks = between.replace(/[^\x01\x02]/g, '')
+    if (betweenMarks) out.push(betweenMarks)
+    const inner = match[2].replace(/<[^>]+>/g, '')
+    out.push(inner)
+    lastEnd = match.index + match[0].length
+  }
+  const tail = xml.slice(lastEnd)
+  const tailMarks = tail.replace(/[^\x01\x02]/g, '')
+  if (tailMarks) out.push(tailMarks)
+
+  let joined = out.join('')
+  // hp:t 가 전혀 없는 XML이면 태그 제거 fallback
+  if (!joined.trim()) {
+    joined = xml.replace(/<[^>]+>/g, '')
+  }
+  joined = decodeXmlEntities(joined)
+    .replace(new RegExp(NL, 'g'), '\n')
+    .replace(new RegExp(TAB, 'g'), '\t')
+    // 연속 개행 정리 (3개 이상 → 2개)
+    .replace(/\n{3,}/g, '\n\n')
+  return joined
 }

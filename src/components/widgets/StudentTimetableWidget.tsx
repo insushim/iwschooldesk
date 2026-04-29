@@ -1,10 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Monitor, MonitorOff } from 'lucide-react'
+import { useDisplayBg } from '../../lib/display-bg'
+import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 import type {
   TimetableSlot, TimetablePeriod, TimetableOverride, DayOfWeek,
 } from '../../types/timetable.types'
 import { SUBJECT_COLORS, DAY_LABELS } from '../../types/timetable.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 
 /**
  * 학생용 시간표 위젯 (전자칠판에 띄워 학생들에게 보여줄 용도).
@@ -106,6 +111,36 @@ export function StudentTimetableWidget() {
   const [todayOverrides, setTodayOverrides] = useState<TimetableOverride[]>([])
   const [tomorrowOverrides, setTomorrowOverrides] = useState<TimetableOverride[]>([])
   const [now, setNow] = useState(new Date())
+  const [displayMode, setDisplayMode] = useState(false)
+  const myWidgetId = useRef<string>('widget-studenttimetable')
+  // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
+  const iAmWallpaper = useIAmWallpaper('studenttimetable')
+  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg('studenttimetable')
+
+  // 배경화면 모드 + 마스터 디스플레이 모드 브로드캐스트와 sync — "모든 위젯 통일 적용".
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const map = await window.api.widget.getWallpaperModeMap()
+        if (!cancelled && Array.isArray(map) && map.includes(myWidgetId.current)) setDisplayMode(true)
+      } catch { /* noop */ }
+    })()
+    const offWallpaper = window.api.widget.onWallpaperModeChanged?.((p) => {
+      if (p.widgetId === myWidgetId.current) setDisplayMode(p.on)
+    })
+    const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      setDisplayMode(!!p.on)
+    })
+    return () => {
+      cancelled = true
+      if (offWallpaper) offWallpaper()
+      if (offAll) offAll()
+    }
+  }, [])
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('widget:displayMode', { detail: { on: displayMode } }))
+  }, [displayMode])
 
   // 1초로 하면 과하고, 30초면 교시 경계에서 최대 30초 지연. 15초마다가 적정.
   useEffect(() => {
@@ -133,6 +168,7 @@ export function StudentTimetableWidget() {
 
   useEffect(() => { reload() }, [reload])
   useDataChange('timetable', reload)
+  useAutoRefresh(reload)
 
   const classPeriods = useMemo(
     () => periods.filter((p) => p.is_break === 0 && p.period > 0).sort((a, b) => a.period - b.period),
@@ -255,14 +291,52 @@ export function StudentTimetableWidget() {
     ? `${status.prevPeriodNumber}교시 끝 → ${period.period}교시`
     : `${period.period}교시`
 
+  // 디스플레이 모드에서 사용자가 고른 배경 프리셋 적용. 쉬는시간/수업중 전부 동일 배경.
+  const isLightText = displayMode && displayBg.textMode === 'light'
   return (
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
         // 좌/우 최소 26px — shell-radius 22px 곡선 바깥 유지
         padding: 'clamp(14px, 2.4vw, 36px) clamp(26px, 2.6vw, 40px)',
+        background: displayMode && displayBg.bg ? displayBg.bg : undefined,
+        transition: 'background 320ms ease',
+        color: isLightText ? '#fff' : undefined,
       }}
     >
+      {/* 디스플레이 모드 — 레이어드 glow(은은한 빛·vignette) 오버레이. */}
+      {displayMode && displayBg.glow && (
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: displayBg.glow, zIndex: 0 }}
+        />
+      )}
+      {/* 디스플레이 모드 토글 + 배경 팔레트 — 우상단 플로팅.
+          배경화면 모드(클릭 통과)에선 어차피 누를 수 없으므로 통째로 숨김. */}
+      {!iAmWallpaper && (
+      <div
+        className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
+        style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
+      >
+        {displayMode && (
+          <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
+        )}
+        <button
+          onClick={() => {
+            const next = !displayMode
+            setDisplayMode(next)
+            try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
+          }}
+          className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)]"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-widget)', background: 'rgba(255,255,255,0.55)' }}
+          title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
+        >
+          {displayMode ? <MonitorOff size={13} strokeWidth={2.2} /> : <Monitor size={13} strokeWidth={2.2} />}
+        </button>
+      </div>
+      )}
+
       {/* 배경 — 과목 색 그라디언트 + 위/아래 글로우. 시인성 ↑. */}
       <div
         aria-hidden
@@ -276,15 +350,22 @@ export function StudentTimetableWidget() {
         }}
       />
 
-      {/* 상단: 배지 (지금/다음/쉬는시간 후/내일) + 교시 */}
+      {/* 상단: 배지 (지금/다음/쉬는시간 후/내일) + 교시
+          디스플레이 모드일 때: 좌우 동일 padding 으로 시각적 대칭 + justify-center 로 가운데 모음.
+          (기존엔 paddingRight 만 있어 좌측으로 치우쳐 보였음.) */}
       <div
-        className="relative flex items-center justify-between gap-2 shrink-0"
-        style={{ marginBottom: 'clamp(8px, 1.2vw, 20px)' }}
+        className={`relative flex items-center gap-2 shrink-0 ${displayMode ? 'justify-center' : 'justify-between'}`}
+        style={{
+          marginBottom: 'clamp(8px, 1.2vw, 20px)',
+          gap: displayMode ? 'clamp(12px, 1.6vw, 24px)' : 'clamp(4px, 0.6vw, 8px)',
+          paddingLeft: displayMode ? 'clamp(72px, 10vw, 120px)' : 0,
+          paddingRight: displayMode ? 'clamp(72px, 10vw, 120px)' : 0,
+        }}
       >
         <span
           className="inline-flex items-center gap-1.5 font-bold"
           style={{
-            fontSize: 'clamp(11px, 1.5vw, 20px)',
+            fontSize: 'clamp(13px, 1.7vw, 22px)',
             padding: 'clamp(4px, 0.6vw, 8px) clamp(10px, 1.2vw, 18px)',
             borderRadius: 999,
             backgroundColor: badge.emphasis ? color : 'var(--bg-secondary)',
@@ -308,11 +389,14 @@ export function StudentTimetableWidget() {
           {badge.text}
         </span>
         <span
-          className="font-bold truncate"
+          className="font-bold"
           style={{
-            fontSize: 'clamp(12px, 1.6vw, 22px)',
+            fontSize: 'clamp(13px, 1.7vw, 24px)',
             color: 'var(--text-secondary)',
             letterSpacing: '-0.3px',
+            lineHeight: 1.25,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
           title={periodLabel}
         >
@@ -332,7 +416,7 @@ export function StudentTimetableWidget() {
           style={{ gap: 'clamp(6px, 1vw, 14px)' }}
         >
           <div
-            className="flex items-end"
+            className={`flex items-end ${displayMode ? 'justify-center' : ''}`}
             style={{ gap: 'clamp(8px, 1.2vw, 18px)' }}
           >
             {/* 좌측 과목색 악센트 */}
@@ -349,30 +433,36 @@ export function StudentTimetableWidget() {
               }}
             />
             <span
-              className="truncate"
+              className="content-wrap"
               style={{
-                fontSize: 'clamp(36px, 11vw, 180px)',
+                fontSize: 'clamp(34px, 10vw, 200px)',
                 fontWeight: 900,
                 letterSpacing: '-0.04em',
-                lineHeight: 1.05,
+                lineHeight: 1.1,
                 wordBreak: 'keep-all',
-                background: `linear-gradient(180deg, var(--text-primary) 0%, ${color} 130%)`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                textShadow: status.kind === 'now' ? `0 6px 22px ${color}30` : 'none',
+                // 어두운 프리셋에선 흰색 flat + 그림자로 대비 확보. 아닐 땐 기존 그라디언트.
+                color: isLightText ? '#FFFFFF' : 'var(--text-primary)',
+                background: isLightText ? 'none' : `linear-gradient(180deg, var(--text-primary) 0%, ${color} 130%)`,
+                WebkitBackgroundClip: isLightText ? 'border-box' : 'text',
+                WebkitTextFillColor: isLightText ? '#FFFFFF' : 'transparent',
+                backgroundClip: isLightText ? 'border-box' : 'text',
+                textShadow: isLightText
+                  ? '0 6px 26px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.08)'
+                  : (status.kind === 'now' ? `0 6px 22px ${color}30` : 'none'),
+                position: 'relative',
+                zIndex: 1,
               }}
             >
               {subject}
             </span>
           </div>
 
-          {/* 하단: 시간 범위 + 교사(전담/강사) */}
+          {/* 하단: 시간 범위 + 교사(전담/강사) — 디스플레이 모드에선 가운데 정렬. */}
           <div
-            className="flex items-center flex-wrap"
+            className={`flex items-center flex-wrap ${displayMode ? 'justify-center' : ''}`}
             style={{
               gap: 'clamp(8px, 1.4vw, 20px)',
-              marginLeft: 'clamp(12px, 2vw, 28px)',
+              marginLeft: displayMode ? 0 : 'clamp(12px, 2vw, 28px)',
               fontSize: 'clamp(12px, 1.7vw, 22px)',
               color: 'var(--text-secondary)',
               fontWeight: 600,

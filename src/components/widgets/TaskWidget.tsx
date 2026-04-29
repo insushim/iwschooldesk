@@ -5,6 +5,7 @@ import type { Task } from '../../types/task.types'
 import { PRIORITY_COLORS } from '../../types/task.types'
 import { getDDayText, formatDate } from '../../lib/date-utils'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 type FilterType = 'all' | 'today' | 'week' | 'overdue'
 
@@ -29,6 +30,7 @@ export function TaskWidget() {
 
   useEffect(() => { loadTasks() }, [])
   useDataChange('task', loadTasks)
+  useAutoRefresh(loadTasks)
 
   // 각 필터별 활성 할일 수 (완료 제외)
   const counts = useMemo(() => {

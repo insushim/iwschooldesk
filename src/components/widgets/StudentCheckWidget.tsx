@@ -1,37 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Check, ChevronDown, X, Trash2, Users, Monitor, MonitorOff } from 'lucide-react'
+import { Plus, Check, ChevronDown, X, Trash2, Users, Monitor, MonitorOff, FileUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Routine, RoutineItemWithStatus } from '../../types/routine.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { useDisplayBg } from '../../lib/display-bg'
 import { DisplayBgPicker } from '../ui/DisplayBgPicker'
-
-/** 자기 창이 배경화면 모드인지 추적 (WidgetShell 과 동일한 로직을 경량 훅으로). */
-function useIAmWallpaper(widgetType: string): boolean {
-  const myIdRef = useRef<string | null>(null)
-  if (myIdRef.current === null) {
-    const m = /instance=([^&]+)/.exec(window.location.hash)
-    const inst = m ? decodeURIComponent(m[1]) : null
-    myIdRef.current = inst ? `widget-${widgetType}-${inst}` : `widget-${widgetType}`
-  }
-  const [on, setOn] = useState(false)
-  useEffect(() => {
-    let cancelled = false
-    const sync = async (): Promise<void> => {
-      try {
-        const map = await window.api.widget.getWallpaperModeMap()
-        if (cancelled) return
-        setOn(Array.isArray(map) && map.includes(myIdRef.current!))
-      } catch { /* noop */ }
-    }
-    sync()
-    const off = window.api.widget.onWallpaperModeChanged?.((p) => {
-      if (p.widgetId === myIdRef.current) setOn(p.on)
-    })
-    return () => { cancelled = true; if (off) off() }
-  }, [])
-  return on
-}
+import { importStudentsFile } from '../../lib/student-import'
 
 function todayStr(): string {
   const d = new Date()
@@ -94,6 +70,12 @@ export function StudentCheckWidget() {
   const [createMode, setCreateMode] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newEmoji, setNewEmoji] = useState('')
+  // 학생 명렬표 파일 업로드
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importedNames, setImportedNames] = useState<string[] | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importFileName, setImportFileName] = useState<string>('')
+  const [importBusy, setImportBusy] = useState(false)
   // 디스플레이 모드: 편집 컨트롤(드롭다운/추가/삭제)을 숨기고 제목 헤더 + 학생 카드 중심.
   // 교사가 배경색도 팔레트에서 고를 수 있어 교실 분위기에 맞게 전환.
   const [displayMode, setDisplayMode] = useState(false)
@@ -103,10 +85,24 @@ export function StudentCheckWidget() {
   )
   // 배경화면 모드일 때 — 컨트롤은 숨기지만 타이틀은 보여준다. 학생 카드는 세로 중앙 정렬.
   const iAmWallpaper = useIAmWallpaper('studentcheck')
-  // 배경모드 진입 시 디스플레이 모드 자동 활성화 — 학생에게 보여주는 뷰가 일관되게 유지.
+  // 배경모드 진입 시 디스플레이 모드 자동 ON / 해제 시 자동 OFF.
+  const prevWallpaperRef = useRef<boolean>(iAmWallpaper)
   useEffect(() => {
-    if (iAmWallpaper) setDisplayMode(true)
+    if (iAmWallpaper && !prevWallpaperRef.current) setDisplayMode(true)
+    else if (!iAmWallpaper && prevWallpaperRef.current) setDisplayMode(false)
+    prevWallpaperRef.current = iAmWallpaper
   }, [iAmWallpaper])
+  // 마스터 디스플레이 모드 브로드캐스트와 sync — "모든 위젯 통일 적용".
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      setDisplayMode(!!p.on)
+    })
+    return () => { if (off) off() }
+  }, [])
+  // 디스플레이 모드 상태를 WidgetShell 에 알려 헤더 숨김. 배경화면 모드 아니어도 풀 노출.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('widget:displayMode', { detail: { on: displayMode } }))
+  }, [displayMode])
   // "컨트롤 숨김" 신호: 배경모드이거나 사용자가 수동 디스플레이 모드를 켰을 때.
   const chromeHidden = displayMode || iAmWallpaper
   // 인라인 삭제 확인 — 네이티브 confirm() 의 Windows 포그라운드 락 회피.
@@ -198,6 +194,7 @@ export function StudentCheckWidget() {
 
   useEffect(() => { reload() }, [])
   useDataChange('routine', () => { reload() })
+  useAutoRefresh(reload)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -237,6 +234,14 @@ export function StudentCheckWidget() {
   const handleToggle = async (itemId: string) => {
     const { is_completed } = await window.api.routine.toggleCompletion(itemId, today)
     setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, is_completed } : i)))
+    // 주간 카운트 뱃지 즉시 갱신 — 오늘이 이번 주 범위에 속하므로
+    // 체크하면 +1, 해제하면 -1. 기존엔 reload 전까지 반영 안 되어 "눌러도 ×1 안 뜨는" 버그.
+    setWeekCounts((prev) => {
+      const next = new Map(prev)
+      const cur = next.get(itemId) ?? 0
+      next.set(itemId, is_completed ? cur + 1 : Math.max(0, cur - 1))
+      return next
+    })
   }
 
   const handleAdd = async () => {
@@ -244,6 +249,38 @@ export function StudentCheckWidget() {
     const item = await window.api.routine.addItem({ routine_id: selectedId, content: newContent.trim() })
     setItems((prev) => [...prev, { ...item, is_completed: 0 }])
     setNewContent('')
+  }
+
+  // 학생 명렬표 파일 업로드 → 이름 추출 → 미리보기 → bulk 추가
+  const handleImportFile = async (file: File) => {
+    setImportError(null)
+    setImportedNames(null)
+    setImportFileName(file.name)
+    const res = await importStudentsFile(file)
+    if (res.ok) {
+      // 이미 등록된 이름은 기본 선택에서 제외(중복 방지)
+      const exist = new Set(items.map((i) => i.content))
+      const fresh = res.names.filter((n) => !exist.has(n))
+      setImportedNames(fresh.length > 0 ? fresh : res.names)
+    } else {
+      setImportError(res.error)
+    }
+  }
+
+  const confirmImport = async () => {
+    if (!selectedId || !importedNames || importedNames.length === 0) return
+    setImportBusy(true)
+    const added: RoutineItemWithStatus[] = []
+    for (const name of importedNames) {
+      try {
+        const item = await window.api.routine.addItem({ routine_id: selectedId, content: name })
+        added.push({ ...item, is_completed: 0 })
+      } catch { /* 개별 실패는 무시하고 계속 */ }
+    }
+    setItems((prev) => [...prev, ...added])
+    setImportBusy(false)
+    setImportedNames(null)
+    setImportFileName('')
   }
 
   const handleDeleteItem = async (itemId: string) => {
@@ -426,19 +463,23 @@ export function StudentCheckWidget() {
       {/* 우상단 컨트롤: [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김 */}
       {!iAmWallpaper && (
         <div
-          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 z-20"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 z-50"
+          style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
         >
           {displayMode && (
             <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
           )}
           <button
-            onClick={() => setDisplayMode((v) => !v)}
+            onClick={() => {
+              const next = !displayMode
+              setDisplayMode(next)
+              try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
+            }}
             className="p-1 rounded-md transition-colors"
             style={{
               color: isLightText ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)',
             }}
-            title={displayMode ? '디스플레이 모드 해제' : '디스플레이 모드 (학생들에게 보여주기)'}
+            title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
           >
             {displayMode ? <MonitorOff size={12} strokeWidth={2.2} /> : <Monitor size={12} strokeWidth={2.2} />}
           </button>
@@ -492,10 +533,10 @@ export function StudentCheckWidget() {
           })()}
 
           <span
-            className="truncate flex-1 min-w-0"
+            className="content-wrap flex-1 min-w-0"
             title={selected.title}
             style={{
-              fontSize: 'clamp(20px, 3vw, 48px)',
+              fontSize: 'clamp(16px, 2.6vw, 48px)',
               fontWeight: 900,
               letterSpacing: '-0.03em',
               lineHeight: 1.05,
@@ -585,14 +626,14 @@ export function StudentCheckWidget() {
         {/* 타이틀 — 시계 위젯과 동일 톤. `display div + 투명 select overlay`로 그라디언트 텍스트 + 드롭다운 기능 둘 다. */}
         <div className="relative shrink min-w-0" style={{ flex: '1 1 40%' }}>
           <div
-            className="truncate w-full pointer-events-none"
+            className="content-wrap w-full pointer-events-none"
             title={selected?.title}
             style={{
               // 시계 위젯의 시간 숫자 톤과 동일 — 900 weight, 엄격한 네거티브 tracking, 그라디언트 clip
-              fontSize: 'clamp(16px, 2.1vw, 32px)',
+              fontSize: 'clamp(14px, 1.9vw, 32px)',
               fontWeight: 900,
               letterSpacing: '-0.045em',
-              lineHeight: 1.05,
+              lineHeight: 1.15,
               paddingRight: 18,
               fontFeatureSettings: '"ss03"',
               background: 'linear-gradient(180deg, var(--text-primary) 0%, #0284C7 130%)',
@@ -692,6 +733,33 @@ export function StudentCheckWidget() {
             <Plus size={12} strokeWidth={2.8} />
           </button>
         </div>
+
+        {/* 파일로 학생 이름 일괄 추가 (HWP/XLSX/DOCX/CSV) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".hwp,.hwpx,.xlsx,.xls,.xlsm,.ods,.docx,.doc,.pdf,.csv,.tsv,.txt,.md"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) handleImportFile(f)
+            e.target.value = ''
+          }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!selectedId}
+          className="shrink-0 flex items-center justify-center hover:opacity-85 transition-opacity disabled:opacity-40"
+          style={{
+            width: 26, height: 26, borderRadius: 8,
+            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+            color: '#fff',
+            boxShadow: '0 3px 10px rgba(16,185,129,0.32)',
+          }}
+          title="학급 명렬표 파일 올리기 (HWP/Excel/DOCX/CSV)"
+        >
+          <FileUp size={13} strokeWidth={2.4} />
+        </button>
 
         {/* 새 리스트 */}
         <button
@@ -879,18 +947,24 @@ export function StudentCheckWidget() {
                         <span
                           className="flex-1 text-left min-w-0"
                           style={{
-                            // 카드 높이 기반 동적 폰트. 이름 길면 살짝 더 축소.
-                            fontSize: Math.max(10, nameFont * (item.content.length >= 5 ? 0.78 : item.content.length >= 4 ? 0.88 : 1)),
+                            // 카드 높이 기반 동적 폰트. 이름 길수록 단계적으로 더 축소 → "..." 없이 전체 표시.
+                            fontSize: Math.max(
+                              9,
+                              nameFont * (
+                                item.content.length >= 8 ? 0.55 :
+                                item.content.length >= 6 ? 0.65 :
+                                item.content.length >= 5 ? 0.78 :
+                                item.content.length >= 4 ? 0.88 : 1
+                              ),
+                            ),
                             fontWeight: done ? 900 : 800,
-                            letterSpacing: '-0.035em',
+                            letterSpacing: '-0.04em',
                             lineHeight: 1.08,
+                            // ellipsis 금지 — WebkitLineClamp/box-orient 제거하고 자연스러운 wrap.
                             wordBreak: 'keep-all',
                             overflowWrap: 'anywhere',
                             whiteSpace: 'normal',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical' as const,
-                            overflow: 'hidden',
+                            textOverflow: 'clip',
                             textShadow: done
                               ? '0 1px 3px rgba(0,0,0,0.22)'
                               : (isLightText ? '0 1px 2px rgba(0,0,0,0.22)' : 'none'),
@@ -998,6 +1072,103 @@ export function StudentCheckWidget() {
                 >
                   삭제
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 학생 명렬표 import 미리보기 */}
+      <AnimatePresence>
+        {(importedNames !== null || importError) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 flex items-center justify-center"
+            style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', borderRadius: 'var(--shell-radius)' }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !importBusy) {
+                setImportedNames(null); setImportError(null)
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 8 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 8 }}
+              transition={{ duration: 0.16 }}
+              style={{
+                padding: 18, maxWidth: 360, margin: 12, borderRadius: 16,
+                background: 'var(--bg-widget)',
+                boxShadow: '0 20px 48px rgba(15,23,42,0.32)',
+                border: '1px solid rgba(15,23,42,0.08)',
+                maxHeight: '85%',
+                display: 'flex', flexDirection: 'column',
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6, letterSpacing: '-0.3px' }}>
+                {importError ? '⚠️ 파일 인식 실패' : `📋 ${importFileName}`}
+              </p>
+              {importError ? (
+                <p style={{ fontSize: 12, color: '#EF4444', marginBottom: 14, lineHeight: 1.5 }}>
+                  {importError}
+                </p>
+              ) : importedNames && (
+                <>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, letterSpacing: '-0.2px' }}>
+                    {importedNames.length}명의 이름을 찾았어요. 추가할까요?
+                  </p>
+                  <div style={{
+                    flex: 1, minHeight: 0, overflowY: 'auto',
+                    padding: 10, borderRadius: 10,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-widget)',
+                    marginBottom: 14,
+                  }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {importedNames.map((n, i) => (
+                        <span key={i} style={{
+                          fontSize: 12, fontWeight: 600, letterSpacing: '-0.2px',
+                          padding: '4px 10px', borderRadius: 999,
+                          background: 'var(--bg-widget)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-widget)',
+                        }}>{n}</span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => { if (!importBusy) { setImportedNames(null); setImportError(null) } }}
+                  disabled={importBusy}
+                  className="flex-1"
+                  style={{
+                    padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10,
+                    backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-widget)',
+                  }}
+                >
+                  취소
+                </button>
+                {!importError && importedNames && importedNames.length > 0 && (
+                  <button
+                    onClick={confirmImport}
+                    disabled={importBusy}
+                    className="flex-1"
+                    style={{
+                      padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10,
+                      background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                      color: '#fff',
+                      boxShadow: '0 4px 12px rgba(16,185,129,0.38)',
+                      opacity: importBusy ? 0.7 : 1,
+                    }}
+                  >
+                    {importBusy ? '추가 중…' : `${importedNames.length}명 추가`}
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>

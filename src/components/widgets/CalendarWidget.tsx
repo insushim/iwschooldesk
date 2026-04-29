@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getCalendarDays, isToday, isSameDay, formatDate, parseISO } from '../../lib/date-utils'
 import type { Schedule } from '../../types/schedule.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { importScheduleFile } from '../../lib/schedule-import'
+import { getRedDayInfo, getKoreanHoliday, isDuplicateOfHoliday } from '../../lib/holidays'
 
 /**
  * 달력 위젯 — 교사 참고용.
@@ -33,6 +35,7 @@ export function CalendarWidget() {
 
   useEffect(() => { reloadSchedules() }, [reloadSchedules])
   useDataChange('schedule', reloadSchedules)
+  useAutoRefresh(reloadSchedules)
 
   const days = useMemo(() => getCalendarDays(year, month), [year, month])
 
@@ -53,7 +56,11 @@ export function CalendarWidget() {
     })
   }
 
-  const selectedSchedules = selectedDate ? getSchedulesForDay(selectedDate) : []
+  const selectedSchedules = selectedDate
+    ? getSchedulesForDay(selectedDate).filter(
+        (s) => !isDuplicateOfHoliday(s.title, getKoreanHoliday(selectedDate)?.name ?? null)
+      )
+    : []
 
   /** 파일을 읽어 일정 bulk 추가. 지원 형식: .csv / .ics / .xlsx / .docx / .hwp. */
   /** 공유 라이브러리 호출 — 에러 상세 그대로 노출. */
@@ -121,6 +128,29 @@ export function CalendarWidget() {
             <FileUp strokeWidth={2.2} style={{ width: 'clamp(10px, 3cqmin, 16px)', height: 'clamp(10px, 3cqmin, 16px)' }} />
           </button>
           <button
+            onClick={async () => {
+              if (schedules.length === 0) {
+                setImportResult('삭제할 일정이 없어요')
+                setTimeout(() => setImportResult(null), 2500)
+                return
+              }
+              if (!window.confirm(`정말 ${schedules.length}개 일정을 모두 삭제할까요?\n\n되돌릴 수 없습니다.`)) return
+              const n = await window.api.schedule.deleteAll()
+              setImportResult(`${n}개 일정을 삭제했어요`)
+              setTimeout(() => setImportResult(null), 3000)
+            }}
+            className="flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/10"
+            style={{
+              width: 'clamp(22px, 6cqmin, 34px)',
+              height: 'clamp(22px, 6cqmin, 34px)',
+              color: '#EF4444',
+              border: '1px solid rgba(239,68,68,0.28)',
+            }}
+            title="모든 일정 삭제 (되돌릴 수 없음)"
+          >
+            <Trash2 strokeWidth={2.2} style={{ width: 'clamp(10px, 3cqmin, 16px)', height: 'clamp(10px, 3cqmin, 16px)' }} />
+          </button>
+          <button
             onClick={() => setCurrentDate(new Date(year, month + 1))}
             className="flex items-center justify-center rounded-lg hover:bg-[var(--bg-secondary)] transition-colors"
             style={{
@@ -135,7 +165,7 @@ export function CalendarWidget() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.ics,.xlsx,.xls,.docx,.doc,.hwp,.hwpx,text/calendar,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+          accept=".csv,.tsv,.ics,.ical,.xlsx,.xls,.xlsm,.ods,.docx,.doc,.hwp,.hwpx,.pdf,.txt,.md,text/calendar,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0]
@@ -164,7 +194,7 @@ export function CalendarWidget() {
         </div>
       )}
 
-      {/* Day Headers */}
+      {/* Day Headers — 학교는 주5일제. 토요일도 일요일과 같이 빨간 날로 표시. */}
       <div className="grid grid-cols-7 shrink-0" style={{ gap: 'clamp(0.5px, 0.3cqmin, 2px)', marginBottom: 'clamp(2px, 0.8cqmin, 5px)' }}>
         {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
           <div
@@ -175,7 +205,7 @@ export function CalendarWidget() {
               fontWeight: 800,
               padding: 'clamp(2px, 0.9cqmin, 5px) 0',
               letterSpacing: '-0.2px',
-              color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : 'var(--text-secondary)',
+              color: i === 0 || i === 6 ? '#EF4444' : 'var(--text-secondary)',
             }}
           >
             {d}
@@ -190,17 +220,21 @@ export function CalendarWidget() {
           const today = isToday(date)
           const selected = selectedDate && isSameDay(date, selectedDate)
           const daySchedules = getSchedulesForDay(date)
-          const dayOfWeek = date.getDay()
+          // 공휴일·토·일·재량휴업 여부 — 학교 주5일제라 토요일도 빨간날.
+          const redDay = getRedDayInfo(date, daySchedules.map((s) => s.title))
+          const holidayName = getKoreanHoliday(date)?.name ?? null
+          // 공휴일 빨간 라벨로 이미 표시된 항목은 사용자 일정 칩에서 제외 (중복 방지).
+          const visibleSchedules = holidayName
+            ? daySchedules.filter((s) => !isDuplicateOfHoliday(s.title, holidayName))
+            : daySchedules
 
           const dateColor = today
             ? '#fff'
             : selected
               ? '#047857'
-              : dayOfWeek === 0
+              : redDay.isOff
                 ? '#EF4444'
-                : dayOfWeek === 6
-                  ? '#3B82F6'
-                  : 'var(--text-primary)'
+                : 'var(--text-primary)'
 
           return (
             <motion.button
@@ -226,16 +260,18 @@ export function CalendarWidget() {
             >
               <span
                 style={{
-                  fontSize: 'clamp(10px, 3.2cqmin, 17px)',
+                  // 기본 날짜 숫자 — 조금 더 키워 가독성 up. clamp 범위 확대.
+                  fontSize: 'clamp(12px, 3.7cqmin, 20px)',
                   fontWeight: today ? 900 : 700,
                   color: dateColor,
                   lineHeight: 1,
                   textAlign: 'center',
+                  letterSpacing: '-0.02em',
                 }}
               >
                 {date.getDate()}
               </span>
-              {daySchedules.length > 0 && (
+              {(visibleSchedules.length > 0 || holidayName) && (
                 <div
                   style={{
                     display: 'flex',
@@ -245,7 +281,28 @@ export function CalendarWidget() {
                     minHeight: 0,
                   }}
                 >
-                  {daySchedules.slice(0, 3).map((s) => {
+                  {holidayName && (
+                    <div
+                      title={holidayName}
+                      style={{
+                        fontSize: 'clamp(7.5px, 1.8cqmin, 11px)',
+                        fontWeight: 800,
+                        lineHeight: 1.18,
+                        color: today ? '#fff' : '#B91C1C',
+                        background: today ? 'rgba(255,255,255,0.22)' : 'rgba(239,68,68,0.14)',
+                        padding: 'clamp(1px, 0.3cqmin, 2px) clamp(2px, 0.6cqmin, 4px)',
+                        borderRadius: 'clamp(2px, 0.6cqmin, 4px)',
+                        textAlign: 'center',
+                        whiteSpace: 'normal',
+                        wordBreak: 'keep-all',
+                        overflowWrap: 'anywhere',
+                        letterSpacing: '-0.3px',
+                      }}
+                    >
+                      {holidayName}
+                    </div>
+                  )}
+                  {visibleSchedules.slice(0, holidayName ? 2 : 3).map((s) => {
                     const sc = s.color ?? '#10B981'
                     return (
                       <div
@@ -274,20 +331,25 @@ export function CalendarWidget() {
                       </div>
                     )
                   })}
-                  {daySchedules.length > 3 && (
-                    <span
-                      style={{
-                        fontSize: 'clamp(6.5px, 1.5cqmin, 9.5px)',
-                        fontWeight: 800,
-                        color: today ? 'rgba(255,255,255,0.88)' : 'var(--text-muted)',
-                        lineHeight: 1.1,
-                        letterSpacing: '-0.2px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      +{daySchedules.length - 3}
-                    </span>
-                  )}
+                  {(() => {
+                    const shown = holidayName ? 2 : 3
+                    const remain = visibleSchedules.length - shown
+                    if (remain <= 0) return null
+                    return (
+                      <span
+                        style={{
+                          fontSize: 'clamp(6.5px, 1.5cqmin, 9.5px)',
+                          fontWeight: 800,
+                          color: today ? 'rgba(255,255,255,0.88)' : 'var(--text-muted)',
+                          lineHeight: 1.1,
+                          letterSpacing: '-0.2px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        +{remain}
+                      </span>
+                    )
+                  })()}
                 </div>
               )}
             </motion.button>
@@ -340,9 +402,37 @@ export function CalendarWidget() {
                   }}
                 >
                   {formatDate(selectedDate, 'M월 d일')}
-                  <span style={{ marginLeft: 6, fontSize: '0.8em', fontWeight: 700, color: 'var(--text-muted)' }}>
-                    ({['일', '월', '화', '수', '목', '금', '토'][selectedDate.getDay()]})
-                  </span>
+                  {(() => {
+                    const dow = selectedDate.getDay()
+                    const isWeekend = dow === 0 || dow === 6
+                    const hol = getKoreanHoliday(selectedDate)
+                    const color = isWeekend || hol ? '#EF4444' : 'var(--text-muted)'
+                    return (
+                      <span style={{ marginLeft: 6, fontSize: '0.8em', fontWeight: 700, color }}>
+                        ({['일', '월', '화', '수', '목', '금', '토'][dow]})
+                      </span>
+                    )
+                  })()}
+                  {(() => {
+                    const hol = getKoreanHoliday(selectedDate)
+                    if (!hol) return null
+                    return (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: '0.75em',
+                          fontWeight: 800,
+                          color: '#B91C1C',
+                          background: 'rgba(239,68,68,0.12)',
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          letterSpacing: '-0.2px',
+                        }}
+                      >
+                        {hol.name}
+                      </span>
+                    )
+                  })()}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -451,12 +541,14 @@ export function CalendarWidget() {
                           }}
                         />
                         <span
-                          className="truncate flex-1"
+                          className="content-wrap flex-1 min-w-0"
                           style={{
-                            fontSize: 13.5,
+                            // 행사 제목 폰트 살짝 업 — 가독성 개선.
+                            fontSize: 14.5,
                             fontWeight: 700,
                             color: `color-mix(in srgb, ${sc} 55%, #000)`,
                             letterSpacing: '-0.2px',
+                            lineHeight: 1.3,
                           }}
                         >
                           {s.title}

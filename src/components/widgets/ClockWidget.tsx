@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BellRing } from 'lucide-react'
+import { Bell, BellRing, Monitor, MonitorOff } from 'lucide-react'
 import { formatDate, getKoreanDay } from '../../lib/date-utils'
 import type { TimetablePeriod } from '../../types/timetable.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
+import { useDisplayBg } from '../../lib/display-bg'
+import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
 /**
  * 시계 위젯 — 전자칠판 시인성 우선.
@@ -19,6 +22,13 @@ export function ClockWidget() {
   const [periods, setPeriods] = useState<TimetablePeriod[]>([])
   // lock-screen / 절전에서 복귀 시 `WebkitBackgroundClip:text` 글자가 어그러지는 문제 — key 를 바꿔 강제 리마운트.
   const [renderKey, setRenderKey] = useState(0)
+  const [displayMode, setDisplayMode] = useState(false)
+  // 내 widget id — 배경화면 모드 상태 sync 용.
+  const myWidgetId = useRef<string>('widget-clock')
+  // 배경화면 모드: 클릭 통과 + 맨 뒤 고정 → 컨트롤 자체를 숨겨 혼란 방지.
+  const iAmWallpaper = useIAmWallpaper('clock')
+  // 디스플레이 모드 배경 팔레트
+  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg('clock')
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -64,6 +74,36 @@ export function ClockWidget() {
     return () => window.api.off('school-bell', handler)
   }, [])
 
+  // 배경화면 모드 + 마스터 디스플레이 모드 브로드캐스트와 display 모드 sync.
+  // "우리반 목표 포함 모든 위젯 디스플레이 모드 같이 적용" — 통일된 토글 상태 유지.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const map = await window.api.widget.getWallpaperModeMap()
+        if (!cancelled && Array.isArray(map) && map.includes(myWidgetId.current)) {
+          setDisplayMode(true)
+        }
+      } catch { /* noop */ }
+    })()
+    const offWallpaper = window.api.widget.onWallpaperModeChanged?.((p) => {
+      if (p.widgetId === myWidgetId.current) setDisplayMode(p.on)
+    })
+    const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      setDisplayMode(!!p.on)
+    })
+    return () => {
+      cancelled = true
+      if (offWallpaper) offWallpaper()
+      if (offAll) offAll()
+    }
+  }, [])
+
+  // displayMode → WidgetShell 헤더 숨김
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('widget:displayMode', { detail: { on: displayMode } }))
+  }, [displayMode])
+
   const currentPeriod = useMemo(() => {
     const day = now.getDay()
     if (day === 0 || day === 6) return null
@@ -83,16 +123,67 @@ export function ClockWidget() {
   const accent = hours24 < 12 ? '#0EA5E9' : '#7C3AED'
   const accentDark = hours24 < 12 ? '#0284C7' : '#6D28D9'
 
+  // 디스플레이 모드일 때 사용자가 고른 배경 프리셋 적용 (지정 없으면 기존 그라디언트).
+  const isLightText = displayMode && displayBg.textMode === 'light'
+  const rootBg = displayMode && displayBg.bg
+    ? displayBg.bg
+    : `radial-gradient(ellipse at 30% 0%, ${accent}14 0%, transparent 60%), radial-gradient(ellipse at 100% 100%, ${accent}10 0%, transparent 50%)`
+
   return (
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
         padding: 'clamp(14px, 2vw, 28px) clamp(20px, 2.4vw, 32px) clamp(20px, 2.6vw, 32px)',
-        background: `radial-gradient(ellipse at 30% 0%, ${accent}14 0%, transparent 60%), radial-gradient(ellipse at 100% 100%, ${accent}10 0%, transparent 50%)`,
+        background: rootBg,
+        transition: 'background 320ms ease',
+        color: isLightText ? '#fff' : undefined,
       }}
     >
-      {/* 상단: 날짜 + AM/PM 칩 */}
-      <div className="flex items-center justify-between shrink-0" style={{ marginBottom: 'clamp(4px, 0.8vw, 10px)' }}>
+      {/* 디스플레이 모드 — 레이어드 glow(은은한 빛·vignette) 오버레이. */}
+      {displayMode && displayBg.glow && (
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: displayBg.glow }}
+        />
+      )}
+      {/* 디스플레이 모드 토글 + 배경 팔레트 — 우상단 플로팅.
+          배경화면 모드(클릭 통과)에선 어차피 누를 수 없으므로 통째로 숨김. */}
+      {!iAmWallpaper && (
+      <div
+        className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
+        style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
+      >
+        {displayMode && (
+          <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
+        )}
+        <button
+          onClick={() => {
+            const next = !displayMode
+            setDisplayMode(next)
+            try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
+          }}
+          className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)]"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-widget)' }}
+          title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
+        >
+          {displayMode ? <MonitorOff size={13} strokeWidth={2.2} /> : <Monitor size={13} strokeWidth={2.2} />}
+        </button>
+      </div>
+      )}
+
+      {/* 상단: 날짜 + AM/PM 칩.
+          - 일반 모드: justify-between (좌우 양 끝)
+          - 디스플레이 모드: 가운데 정렬 + 좌우 동일 padding 으로 우측 컨트롤 자리만큼 좌측도 비워 시각적 대칭. */}
+      <div
+        className={`flex items-center shrink-0 ${displayMode ? 'justify-center' : 'justify-between'}`}
+        style={{
+          marginBottom: 'clamp(4px, 0.8vw, 10px)',
+          gap: displayMode ? 'clamp(10px, 1.4vw, 20px)' : 0,
+          paddingLeft: displayMode ? 'clamp(64px, 8vw, 96px)' : 0,
+          paddingRight: displayMode ? 'clamp(64px, 8vw, 96px)' : 'clamp(30px, 3.4vw, 44px)',
+        }}
+      >
         <div
           className="text-[var(--text-secondary)] truncate"
           style={{
@@ -139,11 +230,14 @@ export function ClockWidget() {
               fontWeight: 900,
               lineHeight: 0.95,
               letterSpacing: '-0.05em',
-              color: 'var(--text-primary)',
-              background: `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
+              // 디스플레이 모드에서 어두운 배경을 고른 경우(light 글씨) — 그라디언트 대신 흰색으로
+              // 대비를 최대화. 그 외엔 기존 브랜드 그라디언트 텍스트 유지.
+              color: isLightText ? '#FFFFFF' : 'var(--text-primary)',
+              background: isLightText ? 'none' : `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
+              WebkitBackgroundClip: isLightText ? 'border-box' : 'text',
+              WebkitTextFillColor: isLightText ? '#FFFFFF' : 'transparent',
+              backgroundClip: isLightText ? 'border-box' : 'text',
+              textShadow: isLightText ? '0 4px 18px rgba(0,0,0,0.35)' : undefined,
             }}
           >
             {hours}
@@ -167,11 +261,14 @@ export function ClockWidget() {
               fontWeight: 900,
               lineHeight: 0.95,
               letterSpacing: '-0.05em',
-              color: 'var(--text-primary)',
-              background: `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
+              // 디스플레이 모드에서 어두운 배경을 고른 경우(light 글씨) — 그라디언트 대신 흰색으로
+              // 대비를 최대화. 그 외엔 기존 브랜드 그라디언트 텍스트 유지.
+              color: isLightText ? '#FFFFFF' : 'var(--text-primary)',
+              background: isLightText ? 'none' : `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
+              WebkitBackgroundClip: isLightText ? 'border-box' : 'text',
+              WebkitTextFillColor: isLightText ? '#FFFFFF' : 'transparent',
+              backgroundClip: isLightText ? 'border-box' : 'text',
+              textShadow: isLightText ? '0 4px 18px rgba(0,0,0,0.35)' : undefined,
             }}
           >
             {minutes}

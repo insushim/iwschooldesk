@@ -3,6 +3,7 @@ import { CalendarCheck, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Schedule } from '../../types/schedule.types'
 import { useDataChange } from '../../hooks/useDataChange'
+import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 
 /**
  * "오늘" 위젯 — 학생 전자칠판용. 오늘의 특별 일정만 크게 보여줌.
@@ -47,6 +48,7 @@ export function TodayWidget() {
 
   useEffect(() => { reload() }, [reload])
   useDataChange('schedule', reload)
+  useAutoRefresh(reload)
 
   // 자정 넘기면 today 갱신
   useEffect(() => {
@@ -189,6 +191,9 @@ export function TodayWidget() {
                 const color = item.color ?? '#F59E0B'
                 const startTime = item.all_day ? null : (item.start_date ?? '').slice(11, 16)
                 // 범위 일정(주간 등) — 오늘이 N일차인지 계산.
+                // 제목에 "주간" 이 들어가면 학교 주간 의미로 주말(토·일) 제외 평일 수로 계산.
+                //   ex) 월~금 독서주간 → 5일차 표기, "5/5" 로 표시됨.
+                // 기존 데이터는 end_date 가 7일(월~일) 로 저장된 것도 있어 이 보정으로 자연스럽게 5일차로 보임.
                 const s0 = (item.start_date ?? '').slice(0, 10)
                 const s1 = (item.end_date ?? item.start_date ?? '').slice(0, 10)
                 const isRange = s0 !== s1
@@ -198,8 +203,27 @@ export function TodayWidget() {
                   const start = new Date(s0 + 'T00:00:00')
                   const end = new Date(s1 + 'T00:00:00')
                   const today0 = new Date(todayStr + 'T00:00:00')
-                  dayN = Math.round((today0.getTime() - start.getTime()) / 86400000) + 1
-                  dayTotal = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+                  const isWeekly = /주간/.test(item.title)
+                  if (isWeekly) {
+                    // 평일만 센다(월~금). 카운트가 커지지 않도록 최대 60일 제한.
+                    let total = 0
+                    let n = 0
+                    const cur = new Date(start)
+                    for (let i = 0; i < 60 && cur.getTime() <= end.getTime(); i++) {
+                      const dow = cur.getDay()
+                      const isWeekday = dow !== 0 && dow !== 6
+                      if (isWeekday) {
+                        total++
+                        if (cur.getTime() <= today0.getTime()) n++
+                      }
+                      cur.setDate(cur.getDate() + 1)
+                    }
+                    dayN = n
+                    dayTotal = total
+                  } else {
+                    dayN = Math.round((today0.getTime() - start.getTime()) / 86400000) + 1
+                    dayTotal = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+                  }
                 }
                 return (
                   <motion.div
@@ -246,15 +270,15 @@ export function TodayWidget() {
                     >
                       {String(idx + 1).padStart(2, '0')}
                     </span>
-                    {/* 제목 */}
+                    {/* 제목 — 창이 좁아지면 줄바꿈되며 잘리지 않음 */}
                     <span
-                      className="flex-1 truncate"
+                      className="flex-1 min-w-0 content-wrap"
                       style={{
-                        fontSize: 'clamp(16px, 3.6cqmin, 36px)',
+                        fontSize: 'clamp(13px, 3.2cqmin, 36px)',
                         fontWeight: 800,
                         color: 'var(--text-primary)',
                         letterSpacing: '-0.03em',
-                        lineHeight: 1.15,
+                        lineHeight: 1.2,
                       }}
                     >
                       {item.title}

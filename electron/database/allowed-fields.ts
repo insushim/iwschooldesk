@@ -54,6 +54,10 @@ export const ALLOWED_UPDATE_FIELDS = {
 /**
  * data:import 시 허용되는 테이블 목록(고정). JSON 파일에 등록되지 않은
  * 테이블 이름이 있으면 해당 블록만 무시한다.
+ *
+ * 주의: 학생기록(student_records, student_record_logs) 은 평문 JSON export
+ * 경로(`data:import`)에 포함되지 않는다. 암호화 백업(.sdbackup) 경로에서만
+ * BACKUP_IMPORT_TABLES 를 통해 복원된다.
  */
 export const ALLOWED_IMPORT_TABLES = new Set([
   'schedules', 'tasks', 'memos',
@@ -63,6 +67,16 @@ export const ALLOWED_IMPORT_TABLES = new Set([
   'settings', 'widget_positions',
   'routines', 'routine_items', 'routine_completions',
   'goals',
+])
+
+/**
+ * 암호화 백업(.sdbackup) 복원 시 허용 테이블.
+ * 학생기록까지 포함. 평문 export 에는 절대 포함되지 않는다.
+ */
+export const BACKUP_IMPORT_TABLES = new Set([
+  ...Array.from(ALLOWED_IMPORT_TABLES),
+  'student_records',
+  'student_record_logs',
 ])
 
 /**
@@ -96,7 +110,7 @@ export const ALLOWED_TABLE_COLUMNS: Record<string, Set<string>> = {
   ]),
   timetable_overrides: new Set([
     'id', 'date', 'period', 'subject', 'teacher', 'room', 'color', 'memo',
-    'created_at',
+    'kind', 'created_at',
   ]),
   checklists: new Set([
     'id', 'title', 'description', 'color', 'is_template', 'category',
@@ -130,5 +144,15 @@ export const ALLOWED_TABLE_COLUMNS: Record<string, Set<string>> = {
   ]),
   goals: new Set([
     'id', 'content', 'emoji', 'color', 'sort_order', 'created_at', 'updated_at',
+  ]),
+  // 암호화 백업 전용 — 평문 data:import 에서는 사용되지 않는다.
+  student_records: new Set([
+    'id', 'student_name', 'content', 'tag', 'is_deleted',
+    'created_at', 'updated_at',
+  ]),
+  student_record_logs: new Set([
+    'id', 'record_id', 'action', 'student_name',
+    'content_before', 'content_after', 'tag_before', 'tag_after',
+    'timestamp', 'prev_hash', 'hash',
   ]),
 }

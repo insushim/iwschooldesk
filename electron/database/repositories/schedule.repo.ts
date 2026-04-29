@@ -84,3 +84,10 @@ export function deleteSchedule(id: string): void {
   const db = getDatabase()
   db.prepare('DELETE FROM schedules WHERE id = ?').run(id)
 }
+
+/** 모든 일정을 한 번에 삭제. 학사일정 재임포트 테스트 등에서 유용. */
+export function deleteAllSchedules(): number {
+  const db = getDatabase()
+  const info = db.prepare('DELETE FROM schedules').run()
+  return info.changes
+}

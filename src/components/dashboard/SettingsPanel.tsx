@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/ui.store'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Dialog } from '../ui/Dialog'
+import { EncryptedBackupSection } from './EncryptedBackupSection'
 
 type SettingsTab = 'general' | 'theme' | 'timetable' | 'timer' | 'data' | 'shortcuts' | 'about'
 
@@ -188,6 +189,14 @@ export function SettingsPanel() {
         {activeTab === 'data' && (
           <div className="max-w-2xl space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">데이터 관리</h2>
+
+            <EncryptedBackupSection />
+
+            <div style={{ borderTop: '1px solid var(--border-widget)', paddingTop: 20 }}>
+              <h3 className="text-base font-semibold text-[var(--text-primary)]" style={{ marginBottom: 12 }}>
+                평문 JSON 백업 (임시용 · 학생기록 미포함)
+              </h3>
+            </div>
 
             {/* 공용 PC 사용 주의 — 배포 시 선생님들께 공유해야 할 핵심 안내 */}
             <div

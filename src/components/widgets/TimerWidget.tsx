@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Play, Pause, RotateCcw, Pencil, Apple, Timer as TimerIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useTimer } from '../../hooks/useTimer'
@@ -25,6 +25,22 @@ export function TimerWidget() {
   const [editMin, setEditMin] = useState('')
   const [editSec, setEditSec] = useState('')
   const secRef = useRef<HTMLInputElement>(null)
+  // 배경화면 모드 진입 시 타이머 위젯은 완전히 숨김 (자주 안 쓰는 도구라 배경에 방해만 됨).
+  const [iAmWallpaper, setIAmWallpaper] = useState(false)
+  const myWidgetId = useRef<string>('widget-timer')
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const map = await window.api.widget.getWallpaperModeMap()
+        if (!cancelled && Array.isArray(map) && map.includes(myWidgetId.current)) setIAmWallpaper(true)
+      } catch { /* noop */ }
+    })()
+    const off = window.api.widget.onWallpaperModeChanged?.((p) => {
+      if (p.widgetId === myWidgetId.current) setIAmWallpaper(p.on)
+    })
+    return () => { cancelled = true; if (off) off() }
+  }, [])
 
   const canEdit = timer.mode === 'free' && timer.state === 'idle'
 
@@ -72,6 +88,14 @@ export function TimerWidget() {
         background: `radial-gradient(ellipse at 50% 0%, ${palette.primary}10 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, ${palette.primary}08 0%, transparent 45%)`,
       }}
     >
+      {/* 배경화면 모드에선 타이머를 완전히 숨김. 창은 존재하지만 콘텐츠 없음. */}
+      {iAmWallpaper && (
+        <div className="w-full h-full" aria-hidden style={{ background: 'transparent' }} />
+      )}
+
+      {!iAmWallpaper && (
+      <>
+
       {/* Mode cards: 뽀모도로 / 자유 타이머 — 아주 좁으면 자동으로 상하 스택 */}
       <div
         className="w-full shrink-0"
@@ -391,6 +415,8 @@ export function TimerWidget() {
           )}
         </button>
       </div>
+      </>
+      )}
     </div>
   )
 }

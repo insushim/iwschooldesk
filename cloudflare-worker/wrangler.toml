@@ -1,0 +1,12 @@
+name = "schooldesk-meal"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# KV namespace 생성 후 id 를 채워 넣으세요:
+#   wrangler kv:namespace create CACHE
+[[kv_namespaces]]
+binding = "CACHE"
+id = "b1ca2659507b4c05a764101f5cb08e82"
+
+# 인증키는 secret 으로 등록하세요 (선택):
+#   wrangler secret put NEIS_API_KEY

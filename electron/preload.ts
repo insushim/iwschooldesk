@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
     create: (data: unknown) => ipcRenderer.invoke('schedule:create', data),
     update: (id: string, data: unknown) => ipcRenderer.invoke('schedule:update', id, data),
     delete: (id: string) => ipcRenderer.invoke('schedule:delete', id),
+    deleteAll: (): Promise<number> => ipcRenderer.invoke('schedule:deleteAll'),
   },
   task: {
     list: (filters?: unknown) => ipcRenderer.invoke('task:list', filters),
@@ -105,6 +106,12 @@ contextBridge.exposeInMainWorld('api', {
     verifyPassword: (pw: string) => ipcRenderer.invoke('studentRecord:verifyPassword', pw),
     clearPassword: (curPw: string) => ipcRenderer.invoke('studentRecord:clearPassword', curPw),
     exportLogs: () => ipcRenderer.invoke('studentRecord:exportLogs'),
+    exportCsv: () => ipcRenderer.invoke('studentRecord:exportCsv'),
+  },
+  meal: {
+    searchSchool: (name: string, apiKey?: string) => ipcRenderer.invoke('meal:searchSchool', name, apiKey),
+    fetchToday: (scCode: string, schoolCode: string, ymd: string, apiKey?: string) =>
+      ipcRenderer.invoke('meal:fetchToday', scCode, schoolCode, ymd, apiKey),
   },
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
@@ -140,6 +147,50 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('wallpaper-mode-changed', listener)
       return () => ipcRenderer.removeListener('wallpaper-mode-changed', listener)
     },
+    // 최소화(= 창 숨김). 복원은 WidgetLauncher 의 토글에서 openWindow → showInactive 로.
+    minimizeSelf: () => ipcRenderer.send('window:minimize'),
+    // 디스플레이 모드 마스터 토글 — 모든 위젯에 헤더 숨김 상태 동기화.
+    setAllDisplayMode: (on: boolean) => ipcRenderer.send('widget:setAllDisplayMode', on),
+    onAllDisplayModeChanged: (cb: (payload: { on: boolean }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, p: { on: boolean }) => cb(p)
+      ipcRenderer.on('all-display-mode-changed', listener)
+      return () => ipcRenderer.removeListener('all-display-mode-changed', listener)
+    },
+  },
+  backup: {
+    isConfigured: () => ipcRenderer.invoke('backup:isConfigured'),
+    generateMnemonic: (lang?: 'korean' | 'english'): Promise<string> =>
+      ipcRenderer.invoke('backup:generateMnemonic', lang),
+    verifyMnemonic: (phrase: string, lang?: 'korean' | 'english'): Promise<boolean> =>
+      ipcRenderer.invoke('backup:verifyMnemonic', phrase, lang),
+    setup: (opts: { password: string; mnemonic: string }) =>
+      ipcRenderer.invoke('backup:setup', opts),
+    clearSetup: (opts: { password: string }) =>
+      ipcRenderer.invoke('backup:clearSetup', opts),
+    exportEncrypted: (opts: { password: string }) =>
+      ipcRenderer.invoke('backup:exportEncrypted', opts),
+    previewEncrypted: (opts: { password?: string; mnemonic?: string }) =>
+      ipcRenderer.invoke('backup:previewEncrypted', opts),
+    importEncrypted: (opts: { password?: string; mnemonic?: string; replaceLocalSetup?: boolean }) =>
+      ipcRenderer.invoke('backup:importEncrypted', opts),
+    revealMnemonic: (opts: { password: string }) =>
+      ipcRenderer.invoke('backup:revealMnemonic', opts),
+    detectCloudFolders: () => ipcRenderer.invoke('backup:detectCloudFolders'),
+    getAutoConfig: () => ipcRenderer.invoke('backup:getAutoConfig'),
+    setAutoFolder: (opts: { basePath: string }) =>
+      ipcRenderer.invoke('backup:setAutoFolder', opts),
+    pickAutoFolder: () => ipcRenderer.invoke('backup:pickAutoFolder'),
+    setAutoFrequency: (opts: { frequency: 'off' | 'daily' | 'weekly' }) =>
+      ipcRenderer.invoke('backup:setAutoFrequency', opts),
+    runAutoNow: () => ipcRenderer.invoke('backup:runAutoNow'),
+    listBackupsInFolder: (opts: { folder?: string } = {}) =>
+      ipcRenderer.invoke('backup:listBackupsInFolder', opts),
+    importFromPath: (opts: {
+      filePath: string
+      password?: string
+      mnemonic?: string
+      replaceLocalSetup?: boolean
+    }) => ipcRenderer.invoke('backup:importFromPath', opts),
   },
   system: {
     minimize: () => ipcRenderer.send('window:minimize'),

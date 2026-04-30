@@ -230,13 +230,10 @@ export function ClockWidget() {
               fontWeight: 900,
               lineHeight: 0.95,
               letterSpacing: '-0.05em',
-              // 디스플레이 모드에서 어두운 배경을 고른 경우(light 글씨) — 그라디언트 대신 흰색으로
-              // 대비를 최대화. 그 외엔 기존 브랜드 그라디언트 텍스트 유지.
-              color: isLightText ? '#FFFFFF' : 'var(--text-primary)',
-              background: isLightText ? 'none' : `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
-              WebkitBackgroundClip: isLightText ? 'border-box' : 'text',
-              WebkitTextFillColor: isLightText ? '#FFFFFF' : 'transparent',
-              backgroundClip: isLightText ? 'border-box' : 'text',
+              // ★ 단색 사용 — WebkitBackgroundClip:'text' 트릭은 Chromium GPU race 에서 가끔 깨져
+              // 글자가 사라지고 background gradient(보라색)만 사각형으로 드러나는 증상이 있어 제거.
+              // 색감은 accentDark(오전 파랑/오후 보라)로 유지.
+              color: isLightText ? '#FFFFFF' : accentDark,
               textShadow: isLightText ? '0 4px 18px rgba(0,0,0,0.35)' : undefined,
             }}
           >
@@ -261,13 +258,8 @@ export function ClockWidget() {
               fontWeight: 900,
               lineHeight: 0.95,
               letterSpacing: '-0.05em',
-              // 디스플레이 모드에서 어두운 배경을 고른 경우(light 글씨) — 그라디언트 대신 흰색으로
-              // 대비를 최대화. 그 외엔 기존 브랜드 그라디언트 텍스트 유지.
-              color: isLightText ? '#FFFFFF' : 'var(--text-primary)',
-              background: isLightText ? 'none' : `linear-gradient(180deg, var(--text-primary) 0%, ${accentDark} 130%)`,
-              WebkitBackgroundClip: isLightText ? 'border-box' : 'text',
-              WebkitTextFillColor: isLightText ? '#FFFFFF' : 'transparent',
-              backgroundClip: isLightText ? 'border-box' : 'text',
+              // 같은 이유로 단색. 위 hours 와 동일 처리.
+              color: isLightText ? '#FFFFFF' : accentDark,
               textShadow: isLightText ? '0 4px 18px rgba(0,0,0,0.35)' : undefined,
             }}
           >

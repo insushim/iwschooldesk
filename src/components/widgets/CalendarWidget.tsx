@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Plus, FileUp, X, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, FileUp, X, Trash2, Pencil, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getCalendarDays, isToday, isSameDay, formatDate, parseISO } from '../../lib/date-utils'
 import type { Schedule } from '../../types/schedule.types'
@@ -20,6 +20,11 @@ export function CalendarWidget() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [adding, setAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  // 인라인 편집: 일정 칩을 클릭하면 그 자리에서 제목·색을 바로 수정.
+  // 시간·카테고리·반복 등 풍부한 편집은 대시보드 달력에서.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [editingColor, setEditingColor] = useState('#10B981')
   const [importResult, setImportResult] = useState<string | null>(null)
   const [showImportHint, setShowImportHint] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -373,7 +378,7 @@ export function CalendarWidget() {
               padding: 'clamp(10px, 3cqmin, 24px)',
               zIndex: 50,
             }}
-            onClick={() => { setSelectedDate(null); setAdding(false); setNewTitle('') }}
+            onClick={() => { setSelectedDate(null); setAdding(false); setNewTitle(''); setEditingId(null) }}
           >
             <motion.div
               initial={{ scale: 0.92, y: 6, opacity: 0 }}
@@ -449,7 +454,7 @@ export function CalendarWidget() {
                     <Plus size={14} strokeWidth={2.6} />
                   </button>
                   <button
-                    onClick={() => { setSelectedDate(null); setAdding(false); setNewTitle('') }}
+                    onClick={() => { setSelectedDate(null); setAdding(false); setNewTitle(''); setEditingId(null) }}
                     className="flex items-center justify-center transition-colors"
                     style={{
                       width: 28, height: 28, borderRadius: 9,
@@ -519,10 +524,109 @@ export function CalendarWidget() {
                 ) : (
                   selectedSchedules.map((s) => {
                     const sc = s.color ?? '#10B981'
+                    const isEditing = editingId === s.id
+                    if (isEditing) {
+                      // 인라인 편집 폼 — 제목 input + 8색 팔레트 + 저장/취소.
+                      const PALETTE = ['#2563EB', '#EF4444', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#F97316', '#14B8A6']
+                      const saveEdit = async (): Promise<void> => {
+                        const next = editingTitle.trim()
+                        if (!next) { setEditingId(null); return }
+                        await window.api.schedule.update(s.id, { title: next, color: editingColor })
+                        setEditingId(null)
+                        reloadSchedules()
+                      }
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex flex-col"
+                          style={{
+                            gap: 8,
+                            padding: '10px 10px',
+                            borderRadius: 10,
+                            background: `linear-gradient(135deg, ${editingColor}12 0%, ${editingColor}20 100%)`,
+                            border: `1.5px solid ${editingColor}55`,
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { void saveEdit() }
+                              if (e.key === 'Escape') setEditingId(null)
+                            }}
+                            className="w-full outline-none"
+                            style={{
+                              fontSize: 14,
+                              padding: '7px 10px',
+                              borderRadius: 8,
+                              backgroundColor: 'var(--bg-secondary)',
+                              color: 'var(--text-primary)',
+                              border: `1.5px solid ${editingColor}`,
+                              letterSpacing: '-0.2px',
+                              fontWeight: 700,
+                            }}
+                          />
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              {PALETTE.map((c) => (
+                                <button
+                                  key={c}
+                                  onClick={() => setEditingColor(c)}
+                                  className="transition-transform hover:scale-110 relative flex items-center justify-center"
+                                  style={{
+                                    width: 22, height: 22, borderRadius: 7,
+                                    background: c,
+                                    border: editingColor === c ? '2px solid #0F172A' : '1px solid rgba(255,255,255,0.5)',
+                                    boxShadow: editingColor === c ? '0 0 0 2px rgba(15,23,42,0.15)' : '0 1px 3px rgba(15,23,42,0.18)',
+                                  }}
+                                  title={c}
+                                >
+                                  {editingColor === c && <Check size={12} strokeWidth={3} color="#fff" />}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="flex items-center justify-center"
+                                style={{
+                                  width: 26, height: 26, borderRadius: 7,
+                                  color: 'var(--text-muted)',
+                                  background: 'var(--bg-secondary)',
+                                  border: '1px solid var(--border-widget)',
+                                }}
+                                title="취소 (Esc)"
+                              >
+                                <X size={13} strokeWidth={2.4} />
+                              </button>
+                              <button
+                                onClick={() => { void saveEdit() }}
+                                className="flex items-center justify-center"
+                                style={{
+                                  width: 26, height: 26, borderRadius: 7,
+                                  color: '#fff',
+                                  background: `linear-gradient(135deg, ${editingColor} 0%, color-mix(in srgb, ${editingColor} 70%, #000) 100%)`,
+                                  boxShadow: `0 3px 8px ${editingColor}55`,
+                                }}
+                                title="저장 (Enter)"
+                              >
+                                <Check size={13} strokeWidth={2.6} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
                     return (
                       <div
                         key={s.id}
-                        className="flex items-center group"
+                        className="flex items-center group cursor-pointer"
+                        onClick={() => {
+                          setEditingId(s.id)
+                          setEditingTitle(s.title)
+                          setEditingColor(s.color ?? '#10B981')
+                        }}
                         style={{
                           gap: 10,
                           padding: '8px 10px',
@@ -530,6 +634,7 @@ export function CalendarWidget() {
                           background: `linear-gradient(135deg, ${sc}10 0%, ${sc}1A 100%)`,
                           border: `1px solid ${sc}2E`,
                         }}
+                        title="클릭하여 수정"
                       >
                         <span
                           aria-hidden
@@ -543,7 +648,6 @@ export function CalendarWidget() {
                         <span
                           className="content-wrap flex-1 min-w-0"
                           style={{
-                            // 행사 제목 폰트 살짝 업 — 가독성 개선.
                             fontSize: 14.5,
                             fontWeight: 700,
                             color: `color-mix(in srgb, ${sc} 55%, #000)`,
@@ -553,8 +657,15 @@ export function CalendarWidget() {
                         >
                           {s.title}
                         </span>
+                        <Pencil
+                          size={11}
+                          strokeWidth={2.4}
+                          className="opacity-0 group-hover:opacity-70 transition-opacity shrink-0"
+                          style={{ color: `color-mix(in srgb, ${sc} 55%, #000)` }}
+                        />
                         <button
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.stopPropagation()
                             await window.api.schedule.delete(s.id)
                             reloadSchedules()
                           }}

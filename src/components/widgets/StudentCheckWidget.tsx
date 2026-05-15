@@ -85,11 +85,12 @@ export function StudentCheckWidget() {
   )
   // 배경화면 모드일 때 — 컨트롤은 숨기지만 타이틀은 보여준다. 학생 카드는 세로 중앙 정렬.
   const iAmWallpaper = useIAmWallpaper('studentcheck')
-  // 배경모드 진입 시 디스플레이 모드 자동 ON / 해제 시 자동 OFF.
+  // 배경모드 진입 시 디스플레이 모드 자동 ON. 해제 시엔 displayMode 를 그대로 유지해
+  // "디스플레이 모드 끄기" 버튼 한 번으로 풀리게 한다. (자동 OFF 시키면 wallpaper 끈 직후
+  // 아이콘이 켜기로 바뀌어 사용자가 첫 클릭을 켜기로 누르게 되는 UX 버그.)
   const prevWallpaperRef = useRef<boolean>(iAmWallpaper)
   useEffect(() => {
     if (iAmWallpaper && !prevWallpaperRef.current) setDisplayMode(true)
-    else if (!iAmWallpaper && prevWallpaperRef.current) setDisplayMode(false)
     prevWallpaperRef.current = iAmWallpaper
   }, [iAmWallpaper])
   // 마스터 디스플레이 모드 브로드캐스트와 sync — "모든 위젯 통일 적용".

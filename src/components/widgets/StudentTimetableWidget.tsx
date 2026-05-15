@@ -127,7 +127,9 @@ export function StudentTimetableWidget() {
       } catch { /* noop */ }
     })()
     const offWallpaper = window.api.widget.onWallpaperModeChanged?.((p) => {
-      if (p.widgetId === myWidgetId.current) setDisplayMode(p.on)
+      if (p.widgetId !== myWidgetId.current) return
+      // wallpaper ON 시에만 displayMode 자동 ON. OFF 는 sync 안 함 — 끄기 버튼 한 번에 풀리도록.
+      if (p.on) setDisplayMode(true)
     })
     const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
       setDisplayMode(!!p.on)

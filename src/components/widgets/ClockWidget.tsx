@@ -96,7 +96,12 @@ export function ClockWidget() {
       } catch { /* noop */ }
     })()
     const offWallpaper = window.api.widget.onWallpaperModeChanged?.((p) => {
-      if (p.widgetId === myWidgetId.current) setDisplayMode(p.on)
+      if (p.widgetId !== myWidgetId.current) return
+      // wallpaper ON 시에만 displayMode 를 자동 ON. wallpaper OFF 로는 displayMode 를
+      // 자동 OFF 시키지 않는다. (그렇지 않으면 wallpaper 끈 직후 아이콘이 "Monitor(켜기)"로
+      // 바뀌어, 사용자가 "디스플레이 모드 끄기"인 줄 알고 누른 첫 클릭이 사실은 켜기가 되어
+      // 두 번 눌러야 풀리는 UX 버그가 발생.)
+      if (p.on) setDisplayMode(true)
     })
     const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
       setDisplayMode(!!p.on)

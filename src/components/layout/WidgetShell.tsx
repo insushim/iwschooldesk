@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { X, Pin, PinOff, Eye, Type, Image as WallpaperIcon, MonitorOff } from 'lucide-react'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType } from '../../types/widget.types'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
 /** 자체 우상단 디스플레이 컨트롤(팔레트/모드 토글)을 직접 렌더하는 위젯 타입.
  *  이 위젯들은 shell 의 플로팅 컨트롤을 생략해 버튼 중복을 피한다. */
@@ -10,11 +9,18 @@ const WIDGETS_WITH_OWN_DISPLAY_CONTROLS = new Set<string>([
   'clock', 'goal', 'meal', 'studentcheck', 'studenttimetable',
 ])
 
-/** 디스플레이 모드에서 shell 의 플로팅 컨트롤(팔레트·해제 버튼)을 표시하지 않는 위젯.
+/** 디스플레이 모드에서 shell 의 플로팅 컨트롤(해제 버튼)을 표시하지 않는 위젯.
  *  본문이 풀스크린 콘텐츠라 컨트롤이 시각적으로 거슬리는 경우. 해제는 단축키 Ctrl+Alt+Shift+D
  *  또는 다른 위젯의 끄기 버튼으로. */
 const WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL = new Set<string>([
   'calendar',
+])
+
+/** 디스플레이 모드에서 shell floating 컨트롤을 **우하단**에 배치할 위젯.
+ *  나머지(메모·할일·루틴·체크리스트 등)는 헤더 자리(우상단). 사용자 요청 — 본문이
+ *  큰 정보 위주(학생기록·D-Day·오늘·타이머)인 위젯은 콘텐츠 가운데 시야 방해 없이 우하단. */
+const WIDGETS_FLOATING_AT_BOTTOM = new Set<string>([
+  'studentrecord', 'dday', 'today', 'timer',
 ])
 
 interface WidgetShellProps {
@@ -44,7 +50,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
   // 쉘 레벨 디스플레이 배경 프리셋 — 디스플레이 모드 켠 위젯의 body 배경 색.
   // 위젯별로 따로 저장 (e.g. 메모/시계 각자 다른 색 선택 가능).
   const bgScopeKey = useMemo(() => `shell:${widgetType ?? 'default'}`, [widgetType])
-  const { preset: shellBg, setPresetId: setShellBgId } = useDisplayBg(bgScopeKey)
+  const { preset: shellBg } = useDisplayBg(bgScopeKey)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const fontPopoverRef = useRef<HTMLDivElement | null>(null)
 
@@ -441,13 +447,12 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
             다른 위젯은 우상단에 항상 보이게(이전엔 hover 시만) + 크게(가독성 ↑) 표시. */}
         {shellDisplayMode && !iAmWallpaper && !WIDGETS_WITH_OWN_DISPLAY_CONTROLS.has(widgetType ?? '') && !WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL.has(widgetType ?? '') && (
           <div
-            // 헤더 자리(우상단) 배치 — 디스플레이 모드 시 shell 헤더가 숨겨지므로 그 영역에
-            // 컨트롤만 남겨 자연스럽게 통합. 각 위젯이 본문 헤더에 paddingRight 로 컨트롤 자리를
-            // 비워두어 자체 버튼(핀·휴지통·페이지네이션 등)과 겹치지 않게.
-            className="absolute top-2 right-2 flex items-center gap-1.5"
+            // 위젯 타입에 따라 우상단(헤더 자리) 또는 우하단으로 분기.
+            // - 메모·할일·루틴·체크리스트 등: 헤더 자리(우상단). 헤더에 paddingRight 80 으로 자리 확보.
+            // - 학생기록·D-Day·오늘·타이머: 우하단(콘텐츠 중심 위젯, 사용자 요청).
+            className={`absolute flex items-center gap-1.5 right-2 ${WIDGETS_FLOATING_AT_BOTTOM.has(widgetType ?? '') ? 'bottom-2' : 'top-2'}`}
             style={{ zIndex: 30, WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
           >
-            <DisplayBgPicker current={shellBg} onPick={setShellBgId} />
             <button
               onClick={exitAllDisplayMode}
               className="rounded-lg transition-all flex items-center justify-center hover:scale-105"

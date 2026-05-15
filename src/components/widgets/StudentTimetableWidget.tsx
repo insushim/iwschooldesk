@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Monitor, MonitorOff } from 'lucide-react'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 import type {
   TimetableSlot, TimetablePeriod, TimetableOverride, DayOfWeek,
 } from '../../types/timetable.types'
@@ -115,7 +114,7 @@ export function StudentTimetableWidget() {
   const myWidgetId = useRef<string>('widget-studenttimetable')
   // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
   const iAmWallpaper = useIAmWallpaper('studenttimetable')
-  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg('studenttimetable')
+  const { preset: displayBg } = useDisplayBg('studenttimetable')
 
   // 배경화면 모드 + 마스터 디스플레이 모드 브로드캐스트와 sync — "모든 위젯 통일 적용".
   useEffect(() => {
@@ -325,9 +324,6 @@ export function StudentTimetableWidget() {
         className="absolute z-50 flex items-center gap-1.5 top-2 right-2"
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
       >
-        {displayMode && (
-          <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
-        )}
         <button
           onClick={() => {
             const next = !displayMode

@@ -6,7 +6,6 @@ import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
 /**
  * 목표 위젯 텍스트 색상 프리셋.
@@ -86,7 +85,7 @@ export function GoalWidget() {
   // 배경화면 모드: 클릭 통과 + 맨 뒤 고정 → 컨트롤도 시각적으로 모두 숨긴다.
   // hook 내부에서 url hash 의 instance 까지 합쳐 'widget-goal[-pageN]' 매칭.
   const iAmWallpaper = useIAmWallpaper('goal')
-  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg(
+  const { preset: displayBg } = useDisplayBg(
     lockedPageIndex === 0 ? 'goal' : `goal:page${lockedPageIndex}`,
   )
   // 목표 글씨 색 — 사용자 선택(자동/흰색/검정/금색/…). 페이지별로 localStorage 에 저장.

@@ -6,7 +6,6 @@ import type { TimetablePeriod, TimetableSlot, TimetableOverride, DayOfWeek } fro
 import { useDataChange } from '../../hooks/useDataChange'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
 /**
  * 시계 위젯 — 전자칠판 시인성 우선.
@@ -31,7 +30,7 @@ export function ClockWidget() {
   // 배경화면 모드: 클릭 통과 + 맨 뒤 고정 → 컨트롤 자체를 숨겨 혼란 방지.
   const iAmWallpaper = useIAmWallpaper('clock')
   // 디스플레이 모드 배경 팔레트
-  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg('clock')
+  const { preset: displayBg } = useDisplayBg('clock')
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -178,9 +177,6 @@ export function ClockWidget() {
         className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
       >
-        {displayMode && (
-          <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
-        )}
         <button
           onClick={() => {
             const next = !displayMode

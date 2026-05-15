@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Utensils, Search, X, Settings, Monitor, MonitorOff, AlertCircle, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import type { MealConfig, MealMenu, NeisSchool } from '../../types/meal.types'
 
@@ -231,7 +230,7 @@ export function MealWidget() {
   // 디스플레이/배경화면 모드
   const [displayMode, setDisplayMode] = useState(false)
   const iAmWallpaper = useIAmWallpaper('meal')
-  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg('meal')
+  const { preset: displayBg } = useDisplayBg('meal')
   const myWidgetId = useRef<string>('widget-meal')
 
   // wallpaper / 마스터 디스플레이 모드 sync
@@ -461,13 +460,12 @@ export function MealWidget() {
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: displayBg.glow }} />
       )}
 
-      {/* 우상단 컨트롤 — wallpaper 모드면 숨김 */}
-      {!iAmWallpaper && (
+      {/* 우상단 컨트롤 — 일반 모드 진입 토글만. 디스플레이 모드에선 본문 칼로리 라인에 inline. */}
+      {!iAmWallpaper && !displayMode && (
         <div
           className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
           style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
         >
-          {displayMode && <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />}
           <button
             onClick={() => {
               const next = !displayMode
@@ -630,17 +628,42 @@ export function MealWidget() {
                   </li>
                 )
               })}
-              {active.calInfo && (
+              {(active.calInfo || (displayMode && !iAmWallpaper)) && (
                 <li
                   style={{
                     gridColumn: '1 / -1',
                     fontSize: '10.5px',
                     color: isLightText ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)',
-                    textAlign: 'right',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 8,
                     marginTop: 2,
                   }}
                 >
-                  {active.calInfo}
+                  {/* 디스플레이 모드 해제 버튼 — 칼로리 표시 왼쪽 inline (사용자 요청). */}
+                  {displayMode && !iAmWallpaper && (
+                    <button
+                      onClick={() => {
+                        setDisplayMode(false)
+                        try { window.api.widget.setAllDisplayMode?.(false) } catch { /* noop */ }
+                      }}
+                      className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        color: isLightText ? '#fff' : 'var(--accent)',
+                        background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
+                        border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
+                        boxShadow: isLightText ? '0 3px 9px rgba(0,0,0,0.22)' : '0 3px 9px rgba(37,99,235,0.16)',
+                        backdropFilter: 'blur(10px)',
+                      } as React.CSSProperties}
+                      title="디스플레이 모드 해제 (모든 위젯 동기)"
+                    >
+                      <MonitorOff size={12} strokeWidth={2.4} />
+                    </button>
+                  )}
+                  <span>{active.calInfo}</span>
                 </li>
               )}
             </motion.ul>

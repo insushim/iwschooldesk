@@ -6,7 +6,6 @@ import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { useDisplayBg } from '../../lib/display-bg'
-import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 import { importStudentsFile } from '../../lib/student-import'
 
 function todayStr(): string {
@@ -80,7 +79,7 @@ export function StudentCheckWidget() {
   // 교사가 배경색도 팔레트에서 고를 수 있어 교실 분위기에 맞게 전환.
   const [displayMode, setDisplayMode] = useState(false)
   // 배경 프리셋은 선택된 리스트(routine)마다 따로 저장 — "양치"는 하늘, "우유"는 노을처럼.
-  const { preset: displayBg, setPresetId: setDisplayBgId } = useDisplayBg(
+  const { preset: displayBg } = useDisplayBg(
     `studentcheck:${selectedId ?? 'none'}`,
   )
   // 배경화면 모드일 때 — 컨트롤은 숨기지만 타이틀은 보여준다. 학생 카드는 세로 중앙 정렬.
@@ -488,9 +487,6 @@ export function StudentCheckWidget() {
               <Plus size={15} strokeWidth={2.6} />
             </button>
           )}
-          {displayMode && (
-            <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
-          )}
           <button
             onClick={() => {
               const next = !displayMode
@@ -613,7 +609,6 @@ export function StudentCheckWidget() {
               >
                 <Plus size={13} strokeWidth={2.6} />
               </button>
-              <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
               <button
                 onClick={() => {
                   const next = !displayMode

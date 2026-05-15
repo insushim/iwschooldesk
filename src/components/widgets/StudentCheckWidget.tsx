@@ -322,11 +322,14 @@ export function StudentCheckWidget() {
     const t = newTitle.trim() || '오늘의 체크'
     const r = await window.api.routine.create({ title: t, kind: 'classroom', icon: newEmoji })
     await reload()
-    // 새 체크 리스트는 항상 새 위젯 창에서 띄운다. 본인 창의 selection은 유지.
-    try { await window.api.widget.openWindow('studentcheck', { instanceId: r.id }) } catch { /* ignore */ }
     setCreateMode(false); setNewTitle(''); setNewEmoji('')
-    // 처음 만든 리스트라 본인 창에 아직 선택된 게 없으면 그 리스트로 자동 선택
-    if (!selectedId && !lockedInstanceId) setSelectedId(r.id)
+    // 본인 창이 비어있고(선택된 리스트 X) 잠긴 창도 아니라면 자기 창에 그대로 표시 — 새 창 X.
+    // 이미 콘텐츠가 있는 창에서 만들면 새 창에 spawn 하여 기존 표시를 보존.
+    if (!selectedId && !lockedInstanceId) {
+      setSelectedId(r.id)
+      return
+    }
+    try { await window.api.widget.openWindow('studentcheck', { instanceId: r.id }) } catch { /* ignore */ }
   }
 
   /** 드롭다운에서 다른 routine 선택 — 본인 창은 그대로 두고 새 창을 spawn. */

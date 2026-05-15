@@ -202,12 +202,12 @@ export function ChecklistWidget() {
   const createBlank = async () => {
     const title = newListTitle.trim() || '새 체크리스트'
     const c = await window.api.checklist.create({ title, category: '일반', is_template: 0 })
-    const data = await reload()
+    await reload()
     setCreateMode(null)
     setNewListTitle('')
-    // 기본 창(미잠금)에서 첫 리스트면 자기 창 유지, 이상이면 새 창. 잠긴 창이면 항상 새 창.
-    const activeCount = data.filter((x) => !x.is_template).length
-    if (!lockedInstanceId && activeCount === 1) {
+    // 본 창이 비어있고(선택된 체크리스트 X) 잠긴 창도 아니라면 자기 창에 그대로 표시 — 새 창 X.
+    // 이미 콘텐츠가 보이는 창에서 추가하면 새 창 spawn 하여 기존 표시를 보존.
+    if (!selectedId && !lockedInstanceId) {
       setSelectedId(c.id)
       return
     }
@@ -227,10 +227,9 @@ export function ChecklistWidget() {
     for (const ti of tItems) {
       await window.api.checklist.addItem({ checklist_id: c.id, content: ti.content })
     }
-    const data = await reload()
+    await reload()
     setCreateMode(null)
-    const activeCount = data.filter((x) => !x.is_template).length
-    if (!lockedInstanceId && activeCount === 1) {
+    if (!selectedId && !lockedInstanceId) {
       setSelectedId(c.id)
       return
     }

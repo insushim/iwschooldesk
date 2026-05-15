@@ -161,23 +161,15 @@ export function RoutineWidget() {
     const t = newRoutineTitle.trim() || '내 루틴'
     // icon은 빈 문자열로 — 루틴에서 이모지 기능 제거. DB default(🔁)도 덮어쓴다.
     const r = await window.api.routine.create({ title: t, icon: '' })
-    const data = await reloadRoutines()
+    await reloadRoutines()
     setCreateMode(false); setNewRoutineTitle('')
 
-    // 생성 후 창 배치 규칙:
-    //  1) 잠긴 창에서 만든 경우 → 새 창 spawn (본 창은 자기 루틴 유지)
-    //  2) 기본(미잠금) 창에서 첫 루틴(0→1) → 자기 창에서 그대로 표시, 새 창 X
-    //  3) 기본 창에서 2번째 이상 → 새 창 spawn
-    if (lockedInstanceId) {
-      try { await window.api.widget.openWindow('routine', { instanceId: r.id }) } catch { /* ignore */ }
-      return
-    }
-    // 미잠금 창
-    if (data.length === 1) {
+    // 본 창이 비어있고(선택된 루틴 X) 잠긴 창도 아니라면 자기 창에 그대로 표시 — 새 창 X.
+    // 이미 루틴이 보이는 창에서 추가하면 새 창 spawn 하여 기존 루틴을 보존.
+    if (!selectedId && !lockedInstanceId) {
       setSelectedId(r.id)
       return
     }
-    // 이미 루틴이 있었던 상태에서 추가 → 새 루틴 창
     try { await window.api.widget.openWindow('routine', { instanceId: r.id }) } catch { /* ignore */ }
   }
 

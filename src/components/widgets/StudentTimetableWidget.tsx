@@ -317,11 +317,12 @@ export function StudentTimetableWidget() {
           style={{ background: displayBg.glow, zIndex: 0 }}
         />
       )}
-      {/* 디스플레이 모드 토글 + 배경 팔레트 — 우상단 플로팅.
+      {/* 디스플레이 모드 토글 + 배경 팔레트 — 디스플레이 ON 시엔 우하단으로 띄워
+          본문 우상단의 "3교시" 배지와 겹치지 않게. 평소엔 우상단 작은 토글만.
           배경화면 모드(클릭 통과)에선 어차피 누를 수 없으므로 통째로 숨김. */}
       {!iAmWallpaper && (
       <div
-        className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
+        className={`absolute z-50 flex items-center gap-1.5 ${displayMode ? 'bottom-2 right-2' : 'top-2 right-2'}`}
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
       >
         {displayMode && (

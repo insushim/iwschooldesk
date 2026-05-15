@@ -461,10 +461,12 @@ export function StudentCheckWidget() {
         />
       )}
 
-      {/* 우상단 컨트롤: [새 리스트(display 전용)] [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김 */}
+      {/* 컨트롤: [새 리스트(display 전용)] [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김.
+          디스플레이 모드일 땐 우하단에 띄워 본문 우상단의 0/2 진행률 배지와 겹치지 않게.
+          일반 모드(작은 모드 토글 버튼만)일 땐 우상단 그대로. */}
       {!iAmWallpaper && (
         <div
-          className="absolute top-1.5 right-1.5 flex items-center gap-1 z-50"
+          className={`absolute flex items-center gap-1 z-50 ${displayMode ? 'bottom-2 right-2 gap-1.5' : 'top-1.5 right-1.5'}`}
           style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
         >
           {displayMode && (

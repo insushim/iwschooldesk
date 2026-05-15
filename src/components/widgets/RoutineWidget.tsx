@@ -33,6 +33,13 @@ export function RoutineWidget() {
   const newRoutineInputRef = useRef<HTMLInputElement>(null)
   // 인라인 삭제 확인 — window.confirm() 의 Windows 포그라운드 락으로 인한 입력 불가 버그 회피.
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 디스플레이 모드 — shell floating 컨트롤이 헤더 우상단에 들어오므로 헤더 자체 컨트롤
+  // (+ 새 루틴, 휴지통) 옆에 paddingRight 80 으로 자리를 비워 겹침 방지.
+  const [displayMode, setDisplayMode] = useState(false)
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => setDisplayMode(!!p.on))
+    return () => { if (off) off() }
+  }, [])
 
   // createMode 진입 시 입력 포커스 강제 — Windows 포그라운드 락(window.confirm 이후) 우회.
   // 다중 타이머로 한 번 놓쳐도 다시 시도 — "만들기→삭제→재생성" 연쇄 시 입력 불가 버그 방지.
@@ -269,8 +276,9 @@ export function RoutineWidget() {
         background: 'radial-gradient(ellipse at 100% 0%, rgba(139,92,246,0.07) 0%, transparent 55%)',
       }}
     >
-      {/* 한 줄 헤더 — [Repeat SVG 칩][select-as-title(큰 그라디언트)][일차 pill][+새 루틴][🗑] */}
-      <div className="flex items-center shrink-0 mb-3" style={{ gap: 8 }}>
+      {/* 한 줄 헤더 — [Repeat SVG 칩][select-as-title(큰 그라디언트)][일차 pill][+새 루틴][🗑].
+          디스플레이 모드면 우측에 shell floating 컨트롤(팔레트·해제) 자리(80px) 비움. */}
+      <div className="flex items-center shrink-0 mb-3" style={{ gap: 8, paddingRight: displayMode ? 80 : 0 }}>
         <span
           className="flex items-center justify-center shrink-0"
           style={{

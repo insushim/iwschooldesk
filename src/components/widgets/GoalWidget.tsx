@@ -362,8 +362,11 @@ export function GoalWidget() {
       {/* 우상단 컨트롤 — [글씨색] [팔레트(display 전용)] [디스플레이 토글] [편집(일반)].
           z-50 + gap-1.5 로 중첩 없이, 버튼이 다른 콘텐츠보다 확실히 위에 오도록.
           ※ 배경화면 모드(iAmWallpaper)에선 어차피 클릭이 통과되어 누를 수 없으므로
-             전체 컨트롤을 숨겨 사용자 혼란을 방지한다. */}
-      {!iAmWallpaper && (
+             전체 컨트롤을 숨겨 사용자 혼란을 방지한다.
+             디스플레이 모드에서는 큰 글씨 본문에 시야 집중을 위해 모든 우상단 컨트롤
+             (글씨색 선택기·팔레트·해제 토글·편집) 일괄 숨김. 해제는 단축키
+             Ctrl+Alt+Shift+D 또는 다른 위젯의 끄기로. */}
+      {!iAmWallpaper && !displayMode && (
       <div
         className="absolute top-2 right-2 flex items-center gap-1.5 z-50"
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}

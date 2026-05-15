@@ -11,6 +11,13 @@ export function MemoWidget() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
+  // 디스플레이 모드 — 켜지면 shell 의 floating 컨트롤이 헤더 우상단 자리에 들어오므로
+  // 헤더의 페이지네이션 배지가 안 겹치게 paddingRight 80 으로 컨트롤 자리 확보.
+  const [displayMode, setDisplayMode] = useState(false)
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => setDisplayMode(!!p.on))
+    return () => { if (off) off() }
+  }, [])
 
   const reloadMemos = useCallback(() => {
     window.api.memo.list().then(setMemos)
@@ -102,10 +109,11 @@ export function MemoWidget() {
           : 'linear-gradient(180deg, #FEF3C7 0%, #FDE68A 100%)',
       }}
     >
-      {/* Header — 인덱스 배지 + 액션 버튼 세련된 배치 */}
+      {/* Header — 인덱스 배지 + 액션 버튼 세련된 배치.
+          디스플레이 모드면 우측에 shell floating 컨트롤(팔레트·해제) 자리(80px) 비움. */}
       <div
         className="flex items-center justify-between shrink-0"
-        style={{ padding: '10px 14px 6px' }}
+        style={{ padding: displayMode ? '10px 86px 6px 14px' : '10px 14px 6px' }}
       >
         <div className="flex items-center gap-1">
           <button

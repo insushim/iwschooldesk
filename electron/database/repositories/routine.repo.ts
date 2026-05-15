@@ -112,12 +112,20 @@ export function toggleRoutineCompletion(itemId: string, date: string): { is_comp
   }
 }
 
-/** 루틴 시작일 ~ 오늘까지 일수 (시작일 포함 = 1). "N일차" 표시용. */
+/** 루틴 시작일 ~ 오늘까지 **학일(평일)** 수. 토·일은 제외하여 학교 일과 기준 N일차 표시.
+ *  시작일이 평일이면 1부터 카운트, 토·일이면 다음 첫 평일이 1일차. */
 export function getRoutineDayNumber(startDate: string, today: string): number {
   const s = new Date(startDate + 'T00:00:00')
   const t = new Date(today + 'T00:00:00')
-  const diff = Math.floor((t.getTime() - s.getTime()) / (1000 * 60 * 60 * 24))
-  return diff + 1
+  if (t < s) return 0
+  let count = 0
+  const cursor = new Date(s)
+  while (cursor <= t) {
+    const dow = cursor.getDay() // 0=일, 6=토
+    if (dow !== 0 && dow !== 6) count++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return Math.max(count, 1)
 }
 
 /**

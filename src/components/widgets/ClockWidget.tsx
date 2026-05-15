@@ -221,14 +221,11 @@ export function ClockWidget() {
         style={{
           marginBottom: 'clamp(4px, 0.8vw, 10px)',
           gap: displayMode ? 'clamp(8px, 1.2vw, 16px)' : 0,
-          // 디스플레이 모드의 좌우 padding 은 우상단 컨트롤(팔레트·디스플레이 토글) 자리를 비우려는
-          // 시각적 대칭용. 64-96px 로 잡았더니 작은 위젯에서 날짜 pill 이 truncate 되어
-          // "5" 만 남는 재발 버그. 컨트롤 실제 너비(팔레트 32 + 모니터 32 + gap = ~70px) 보다
-          // 약간만 더 잡아 36-56px 로 축소. 큰 위젯에서도 시각적 대칭은 유지.
-          paddingLeft: (displayMode && !iAmWallpaper) ? 'clamp(36px, 4.4vw, 56px)' : 0,
-          paddingRight: (displayMode && !iAmWallpaper)
-            ? 'clamp(36px, 4.4vw, 56px)'
-            : iAmWallpaper ? 0 : 'clamp(30px, 3.4vw, 44px)',
+          // 디스플레이 모드에서는 컨트롤이 모두 숨겨지므로(WidgetShell·자체 컨트롤 모두) 좌우 padding
+          // 자체가 불필요. 작은 위젯에서 padding 때문에 날짜 pill("5월 15일 · 금요일")이 잘려 "5"만
+          // 남는 재발 버그를 padding 0 으로 근본 차단. justify-center 가 가운데 정렬 처리.
+          paddingLeft: 0,
+          paddingRight: (displayMode || iAmWallpaper) ? 0 : 'clamp(30px, 3.4vw, 44px)',
         }}
       >
         <div

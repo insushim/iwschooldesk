@@ -22,6 +22,13 @@ export function ChecklistWidget() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [createMode, setCreateMode] = useState<null | 'new' | 'template'>(null)
+  // 디스플레이 모드 — shell floating 컨트롤이 헤더 우상단 자리에 들어오므로 헤더의
+  // [템플릿][+새][🗑] 버튼과 안 겹치게 paddingRight 80 으로 자리 비움.
+  const [displayMode, setDisplayMode] = useState(false)
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => setDisplayMode(!!p.on))
+    return () => { if (off) off() }
+  }, [])
   const [newListTitle, setNewListTitle] = useState('')
   // 섹션 헤더별 "여기에 추가" 인라인 입력. key는 해당 섹션 헤더 item id.
   const [addUnderSection, setAddUnderSection] = useState<string | null>(null)
@@ -357,8 +364,9 @@ export function ChecklistWidget() {
         background: 'radial-gradient(ellipse at 100% 0%, rgba(37,99,235,0.05) 0%, transparent 55%)',
       }}
     >
-      {/* 한 줄 헤더 — [타이틀 select (클릭=다른 리스트 새 창)] [템플릿] [+새] [🗑] */}
-      <div className="flex items-center shrink-0 mb-3" style={{ gap: 6 }}>
+      {/* 한 줄 헤더 — [타이틀 select (클릭=다른 리스트 새 창)] [템플릿] [+새] [🗑].
+          디스플레이 모드면 우측에 shell floating 컨트롤 자리(80px) 비움. */}
+      <div className="flex items-center shrink-0 mb-3" style={{ gap: 6, paddingRight: displayMode ? 80 : 0 }}>
         {/* 타이틀 = select. 표시 div 위에 투명 select overlay — 그라디언트 텍스트 + 드롭다운 둘 다. */}
         <div className="relative shrink min-w-0 flex-1">
           <div

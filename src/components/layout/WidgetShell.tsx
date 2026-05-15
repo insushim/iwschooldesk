@@ -441,10 +441,10 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
             다른 위젯은 우상단에 항상 보이게(이전엔 hover 시만) + 크게(가독성 ↑) 표시. */}
         {shellDisplayMode && !iAmWallpaper && !WIDGETS_WITH_OWN_DISPLAY_CONTROLS.has(widgetType ?? '') && !WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL.has(widgetType ?? '') && (
           <div
-            // 우하단 배치 — 위젯 본문 우상단에 자주 있는 자체 버튼들(메모의 핀/휴지통/페이지네이션,
-            // 업무 추가 +, 학교 N일차 배지, 할일 등)과 겹치지 않게 분리. 우하단도 콘텐츠 위에
-            // 반투명 + blur로 떠 있어 본문 가독성은 그대로.
-            className="absolute bottom-2 right-2 flex items-center gap-1.5"
+            // 헤더 자리(우상단) 배치 — 디스플레이 모드 시 shell 헤더가 숨겨지므로 그 영역에
+            // 컨트롤만 남겨 자연스럽게 통합. 각 위젯이 본문 헤더에 paddingRight 로 컨트롤 자리를
+            // 비워두어 자체 버튼(핀·휴지통·페이지네이션 등)과 겹치지 않게.
+            className="absolute top-2 right-2 flex items-center gap-1.5"
             style={{ zIndex: 30, WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
           >
             <DisplayBgPicker current={shellBg} onPick={setShellBgId} />

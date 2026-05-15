@@ -169,9 +169,11 @@ export function ClockWidget() {
           style={{ background: displayBg.glow }}
         />
       )}
-      {/* 디스플레이 모드 토글 + 배경 팔레트 — 우상단 플로팅.
+      {/* 일반 모드의 작은 디스플레이 모드 진입 토글만 표시. 디스플레이 모드 진입 후엔
+          위젯 안 컨트롤(해제·팔레트) 모두 숨겨 큰 시각/날짜 표시에 집중.
+          해제는 단축키 Ctrl+Alt+Shift+D 또는 다른 위젯의 끄기로.
           배경화면 모드(클릭 통과)에선 어차피 누를 수 없으므로 통째로 숨김. */}
-      {!iAmWallpaper && (
+      {!iAmWallpaper && !displayMode && (
       <div
         className="absolute top-2 right-2 z-50 flex items-center gap-1.5"
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}

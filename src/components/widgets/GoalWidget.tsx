@@ -448,34 +448,25 @@ export function GoalWidget() {
             )}
           </AnimatePresence>
         </div>
-        {displayMode && (
-          <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
-        )}
+        {/* 디스플레이 모드 진입 후엔 팔레트·해제 버튼을 숨겨 큰 글씨 본문에 집중.
+            해제는 단축키 Ctrl+Alt+Shift+D 또는 다른 위젯의 끄기로.
+            글씨색 선택기(Brush)는 디스플레이 중 색 변경에 필요하므로 유지. */}
+        {!displayMode && (
         <button
           onClick={toggleMyDisplayMode}
           className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
-          style={displayMode
-            ? {
-                width: 26,
-                height: 26,
-                color: isLightText ? '#fff' : 'var(--accent)',
-                background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
-                border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
-                boxShadow: isLightText ? '0 3px 9px rgba(0,0,0,0.22)' : '0 3px 9px rgba(37,99,235,0.16)',
-                backdropFilter: 'blur(10px)',
-              }
-            : {
-                width: 26,
-                height: 26,
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border-widget)',
-                background: 'transparent',
-              }
-          }
-          title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 목표만 크게 보이기. 모든 위젯에 동일 적용.'}
+          style={{
+            width: 26,
+            height: 26,
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-widget)',
+            background: 'transparent',
+          }}
+          title="디스플레이 모드 — 목표만 크게 보이기. 모든 위젯에 동일 적용."
         >
-          {displayMode ? <MonitorOff size={13} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
+          <Monitor size={13} strokeWidth={2.2} />
         </button>
+        )}
         {!displayMode && (
           <button
             onClick={() => setEditOpen(true)}

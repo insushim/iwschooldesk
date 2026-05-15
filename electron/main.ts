@@ -368,7 +368,7 @@ function isLaunchedAtStartup(): boolean {
 type WidgetType =
   | 'calendar' | 'task' | 'memo' | 'timetable'
   | 'checklist' | 'timer' | 'dday' | 'clock' | 'routine' | 'goal' | 'studentcheck'
-  | 'studenttimetable' | 'today' | 'studentrecord' | 'meal'
+  | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard'
 
 const WIDGET_DEFAULTS: Record<WidgetType, { w: number; h: number }> = {
   calendar:  { w: 360, h: 420 },
@@ -386,6 +386,7 @@ const WIDGET_DEFAULTS: Record<WidgetType, { w: number; h: number }> = {
   today:     { w: 440, h: 320 },
   studentrecord: { w: 380, h: 460 },
   meal:      { w: 380, h: 360 },
+  noticeboard: { w: 420, h: 280 },
 }
 
 let mainWindow: BrowserWindow | null = null

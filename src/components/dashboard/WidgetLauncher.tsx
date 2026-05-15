@@ -3,12 +3,12 @@ import { motion } from 'framer-motion'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen, LayoutPanelLeft,
   CheckCheck, TimerReset, CalendarHeart, LayoutGrid, Power, Repeat, Target, Users,
-  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move,
+  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move, Megaphone,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType as AppWidgetType } from '../../types/widget.types'
 
-type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal'
+type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard'
 
 interface WidgetInfo {
   type: WidgetType
@@ -34,6 +34,7 @@ const WIDGETS: WidgetInfo[] = [
   { type: 'studentcheck', label: '학급 체크', desc: '학생이 직접 체크(우유/양치 등) · 자정 초기화', icon: Users, color: '#0EA5E9' },
   { type: 'studentrecord', label: '학생 기록', desc: '비밀번호 잠금 · 수정 로그 자동 기록 (법원 증거용)', icon: ShieldCheck, color: '#8B5CF6' },
   { type: 'meal',      label: '오늘의 급식', desc: 'NEIS API 연동 · 학교 검색 한 번이면 끝', icon: Utensils, color: '#F59E0B' },
+  { type: 'noticeboard', label: '알림판',    desc: '전자칠판용 공지 · 큰 글씨로 학생에게 안내', icon: Megaphone, color: '#DC2626' },
 ]
 
 export function WidgetLauncher() {

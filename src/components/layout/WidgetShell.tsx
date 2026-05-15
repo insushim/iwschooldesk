@@ -4,6 +4,12 @@ import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType } from '../../types/widget.ty
 import { useDisplayBg } from '../../lib/display-bg'
 import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 
+/** 자체 우상단 디스플레이 컨트롤(팔레트/모드 토글)을 직접 렌더하는 위젯 타입.
+ *  이 위젯들은 shell 의 플로팅 컨트롤을 생략해 버튼 중복을 피한다. */
+const WIDGETS_WITH_OWN_DISPLAY_CONTROLS = new Set<string>([
+  'clock', 'goal', 'meal', 'studentcheck', 'studenttimetable',
+])
+
 interface WidgetShellProps {
   title: string
   icon?: ReactNode
@@ -192,13 +198,15 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
       className="shell-card flex flex-col h-screen w-screen"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
-      {/* Draggable header — 배경화면 모드, 자식 위젯 디스플레이 모드, 쉘 자체 디스플레이 모드면 완전히 숨김. */}
+      {/* Draggable header — 배경화면 모드, 자식 위젯 디스플레이 모드, 쉘 자체 디스플레이 모드면 완전히 숨김.
+          Goal('우리반 목표') 위젯은 body 가 한 문장 큰 텍스트만 있어 헤더가 상대적으로 커 보이므로
+          전용 컴팩트 헤더 사용 (사용자 요청). */}
       {!iAmWallpaper && !childDisplayMode && !shellDisplayMode && (
       <div
-        className="flex items-center justify-between relative"
+        className={`flex items-center justify-between relative ${widgetType === 'goal' ? 'shell-header-compact' : ''}`}
         style={{
           WebkitAppRegion: 'drag',
-          padding: '10px 12px 10px 14px',
+          padding: widgetType === 'goal' ? '1px 12px 1px 14px' : '5px 12px 5px 14px',
           background: 'var(--shell-header-bg)',
           borderBottom: '1px solid var(--shell-header-border)',
         } as React.CSSProperties}
@@ -208,9 +216,9 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
             <span
               className="flex items-center justify-center shrink-0"
               style={{
-                width: 26,
-                height: 26,
-                borderRadius: 9,
+                width: widgetType === 'goal' ? 18 : 22,
+                height: widgetType === 'goal' ? 18 : 22,
+                borderRadius: widgetType === 'goal' ? 6 : 7,
                 background: chipBg,
                 color: accent,
                 boxShadow: `0 1px 0 rgba(255,255,255,0.4) inset, 0 0 0 1px ${iconColor ? `${iconColor}26` : 'rgba(37,99,235,0.18)'}`,
@@ -421,44 +429,39 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
           {children}
         </div>
 
-        {/* 디스플레이 모드 전용 플로팅 컨트롤.
-            위젯 내부의 팔레트/토글 버튼(시계·학생시간표·학급체크·목표)과 겹치지 않도록
-            좌하단(bottom-left) 에 위치. 기본 완전 투명(opacity:0) — 위젯에 마우스를 올려야 나타남. */}
-        {shellDisplayMode && !iAmWallpaper && (
+        {/* 디스플레이 모드 전용 플로팅 컨트롤 — 자체 컨트롤이 있는 위젯(clock/goal/meal/studentcheck/studenttimetable)
+            은 자체 우상단 버튼이 처리하므로 shell 컨트롤은 생략 (좌하단 중복 제거 사용자 요청).
+            다른 위젯은 우상단에 항상 보이게(이전엔 hover 시만) + 크게(가독성 ↑) 표시. */}
+        {shellDisplayMode && !iAmWallpaper && !WIDGETS_WITH_OWN_DISPLAY_CONTROLS.has(widgetType ?? '') && (
           <div
-            className="shell-float-controls absolute bottom-1.5 left-1.5 flex items-center gap-1"
-            style={{ zIndex: 30, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className="absolute top-2 right-2 flex items-center gap-1.5"
+            style={{ zIndex: 30, WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
           >
             <DisplayBgPicker current={shellBg} onPick={setShellBgId} />
             <button
               onClick={exitAllDisplayMode}
-              className="rounded-md transition-colors flex items-center justify-center"
+              className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
               title="디스플레이 모드 해제 (모든 위젯 · Ctrl+Alt+Shift+D)"
               style={{
-                width: 22,
-                height: 22,
-                color: shellBg.textMode === 'light' ? '#fff' : 'var(--text-secondary)',
+                width: 32,
+                height: 32,
+                color: shellBg.textMode === 'light' ? '#fff' : 'var(--accent)',
                 background: shellBg.textMode === 'light'
-                  ? 'rgba(255,255,255,0.14)'
-                  : 'rgba(15,23,42,0.06)',
+                  ? 'rgba(255,255,255,0.18)'
+                  : 'var(--accent-light)',
                 border: shellBg.textMode === 'light'
-                  ? '1px solid rgba(255,255,255,0.28)'
-                  : '1px solid var(--border-widget)',
+                  ? '1.5px solid rgba(255,255,255,0.42)'
+                  : '1.5px solid rgba(37,99,235,0.28)',
+                boxShadow: shellBg.textMode === 'light'
+                  ? '0 4px 12px rgba(0,0,0,0.25)'
+                  : '0 4px 12px rgba(37,99,235,0.18)',
                 backdropFilter: 'blur(10px)',
               }}
             >
-              <MonitorOff size={11} strokeWidth={2.2} />
+              <MonitorOff size={16} strokeWidth={2.4} />
             </button>
           </div>
         )}
-
-        {/* 평소엔 안 보이게 — 위젯 hover 시에만 opacity 1.0. 내부 콘텐츠와 시각적 충돌 최소화. */}
-        <style>{`
-          .shell-float-controls { opacity: 0; transition: opacity 0.2s ease; pointer-events: none; }
-          .shell-card:hover .shell-float-controls,
-          .shell-float-controls:hover,
-          .shell-float-controls:focus-within { opacity: 1; pointer-events: auto; }
-        `}</style>
       </div>
     </div>
   )

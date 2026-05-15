@@ -125,6 +125,21 @@ function DashboardApp() {
         const now = new Date()
         if (now.getDay() < 1 || now.getDay() > 5) return
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        const todayDow = now.getDay() - 1 // 0=월 ... 4=금
+
+        // ★ 오늘 해당 교시에 실제로 수업이 있는지 확인 — 없으면 종 울리지 않음.
+        //   수업 없는 요일(예: 수업 미설정 수요일) 또는 빈 subject 행만 있는 교시에 종이 울리던 버그 방지.
+        const [allSlots, todayOverrides] = await Promise.all([
+          window.api.timetable.getSlots(),
+          window.api.timetable.getOverrides(todayYmd).catch(() => []),
+        ])
+        const hasClassForPeriod = (period: number): boolean => {
+          const ov = todayOverrides.find((o) => o.period === period)
+          if (ov) return !!ov.subject?.trim()
+          const reg = allSlots.find((s) => s.day_of_week === todayDow && s.period === period)
+          return !!reg?.subject?.trim()
+        }
 
         // DB에 같은 start_time으로 중복 저장된 period가 있어도 첫 번째 하나만 사용
         const byStart = new Map<string, typeof periods[0]>()
@@ -136,7 +151,7 @@ function DashboardApp() {
         }
 
         const startP = byStart.get(timeStr)
-        if (startP) {
+        if (startP && hasClassForPeriod(startP.period)) {
           const cfg = bellSettings[startP.id] ?? { startBell: true, endBell: true }
           // key에 period.id를 넣지 않고 timeStr만 사용 → 시간당 1회 발사 보장
           const key = `start-${timeStr}`
@@ -150,7 +165,7 @@ function DashboardApp() {
         }
 
         const endP = byEnd.get(timeStr)
-        if (endP) {
+        if (endP && hasClassForPeriod(endP.period)) {
           const cfg = bellSettings[endP.id] ?? { startBell: true, endBell: true }
           const key = `end-${timeStr}`
           if (cfg.endBell && !bellFiredRef.current.has(key)) {

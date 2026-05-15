@@ -407,6 +407,16 @@ let displayModeGlobalOn = false
 const lockedCompactWindows = new Set<number>()
 /** 잠금 직전 "확장 상태" 창 높이 저장 — 잠금 해제 시 복구용. key = win.id */
 const lockedCompactPrevHeight = new Map<number, number>()
+/**
+ * 시작 직후 N 초간 'move'/'resize' 이벤트로 인한 DB 저장을 차단하는 grace window.
+ * Windows 가 부팅 직후 외부 모니터 미인식 상태에서 saved 좌표를 화면 밖으로 판단하면
+ * BrowserWindow 를 메인 화면 좌상단(0,0) 근처로 강제 이동시키는데, 이때 'move' 이벤트가
+ * 발사되어 그 잘못된 좌표가 DB 에 저장되면 다음 부팅 때마다 영구히 같은 자리로 모임.
+ * 이 grace window 안에서는 reconcile 로직만 좌표를 갱신할 수 있다.
+ */
+const startupGraceWidgets = new Set<string>()
+/** 인스턴스 spread 시 같은 widgetType 이 겹치지 않도록 사용하는 누적 카운터 */
+let widgetSpawnCounter = 0
 
 /**
  * 기본 위젯 스타일.
@@ -449,16 +459,22 @@ function stopBottomTickTimer(): void {
 /**
  * 배경화면 모드에 들어가면 "창 자체를 감춰야" 하는 위젯 타입 목록.
  * (빈 콘텐츠로 렌더만 해두면 드래그 가능한 빈 창이 남아 바탕에 흔적으로 남음 — 완전 hide)
- * 학급 체크는 바탕화면에서도 학생들이 봐야 하므로 숨기지 않음.
+ * 사용자 요청: 타이머는 배경화면 모드에서도 보이게 → hide 대상에서 제외.
  */
-const HIDE_ON_WALLPAPER_TYPES = new Set<string>(['timer'])
+const HIDE_ON_WALLPAPER_TYPES = new Set<string>([])
 // 단축키 toggle 시 wallpaper 모드 가능한 위젯 타입 — src/types/widget.types.ts 와 동기.
+// studentcheck 제외 — 사용자 요청 ("학급 체크는 배경화면 모드 빼달라").
+// timer 제외 — 사용자 요청 ("타이머는 배경화면 모드 삭제. 전체 배경화면 모드 시 디스플레이 모드로 동기").
+//   전체 배경화면 모드 시 enterAllWallpaperMode 가 broadcastAllDisplayMode(true) 도 호출하므로
+//   타이머는 WidgetShell 의 shellDisplayMode 만 켜져 헤더가 숨겨진 디스플레이 모드 모양이 됨.
 const WALLPAPER_ELIGIBLE_TYPES_M = new Set<string>([
-  'timetable', 'studentcheck', 'calendar', 'goal',
-  'studenttimetable', 'dday', 'clock', 'timer', 'today', 'meal',
+  'timetable', 'calendar', 'goal',
+  'studenttimetable', 'dday', 'clock', 'today', 'meal',
 ])
 
-/** 열린 모든 wallpaper-eligible 위젯을 한 번에 wallpaper 모드 ON. */
+/** 열린 모든 wallpaper-eligible 위젯을 한 번에 wallpaper 모드 ON.
+ *  사용자 요청: wallpaper 모드 진입 시 wallpaper 가 안 되는 다른 위젯들은 디스플레이 모드로
+ *  전환 → 전자칠판/발표용으로 한 번에 깔끔하게 정렬되도록. */
 function enterAllWallpaperMode(): void {
   for (const [id] of widgetWindows) {
     if (wallpaperWidgets.has(id)) continue       // 이미 ON
@@ -467,6 +483,8 @@ function enterAllWallpaperMode(): void {
     if (!WALLPAPER_ELIGIBLE_TYPES_M.has(widgetType)) continue
     try { setWallpaperMode(id, true) } catch { /* noop */ }
   }
+  // wallpaper 가 아닌 나머지 위젯들도 헤더 숨기고 뒤로 보내기 — 디스플레이 모드 활성화.
+  try { broadcastAllDisplayMode(true) } catch { /* noop */ }
 }
 
 /** 배경화면 모드 ON/OFF. 실패해도 예외 전파 안 함(UX 우선). */
@@ -742,24 +760,103 @@ const WIDGET_ORDER: WidgetType[] = [
   'routine', 'goal', 'studentcheck',
 ]
 
-function getSpreadPosition(widgetType: WidgetType, w: number, h: number): { x: number; y: number } {
+function getSpreadPosition(widgetType: WidgetType, _w: number, _h: number): { x: number; y: number } {
   const work = screen.getPrimaryDisplay().workArea
-  // 동일 widgetType 인스턴스가 여러 개일 때 같은 좌표에 겹치지 않도록
-  // widgetWindows.size 를 보조 오프셋으로 사용.
   const baseIdx = WIDGET_ORDER.indexOf(widgetType)
-  const safeIdx = baseIdx < 0 ? widgetWindows.size : (baseIdx + widgetWindows.size * 0)
-  const gap = 16
-  const cols = Math.max(1, Math.floor((work.width - 40) / (w + gap)))
-  const col = safeIdx % cols
-  const row = Math.floor(safeIdx / cols)
-  const x = work.x + 20 + col * (w + gap)
-  const y = work.y + 20 + row * (h + gap + 40)
-  // spread 결과는 항상 메인 화면 workArea 안 — clamp 가 null 반환할 일 없지만
-  // 만에 하나(매우 작은 디스플레이) 대비 fallback.
-  return clampToScreen(x, y, w, h) ?? { x: work.x + 20, y: work.y + 20 }
+  const safeIdx = baseIdx < 0 ? widgetSpawnCounter : (baseIdx + widgetSpawnCounter)
+  widgetSpawnCounter += 1
+  // ★ 통일 그리드 + cycle wrap.
+  //   - 통일 셀: 위젯별 너비 차이로 같은 row 의 col 위치가 어긋나는 겹침을 차단.
+  //   - cycle wrap: 14 개 위젯을 일렬로 쌓으면 row 가 커져 화면 밖(y=2000+)으로 떨어짐 (사용자
+  //     로그 검증). 그리드가 화면을 채우면 처음으로 돌아오면서 30px diagonal offset 을 줘서
+  //     overflow cycle 의 위젯도 starting 좌표 unique 유지 + 화면 안 보장.
+  //   - CELL_W=380 / CELL_H=380 = WIDGET_DEFAULTS 의 흔한 사이즈(280~440w, 200~480h) 평균.
+  //     사용자가 default 보다 크게 리사이즈한 위젯(calendar 742w 등)은 옆 셀 영역에 시각적으로
+  //     걸칠 수 있지만 시작 좌표는 여전히 unique → 사용자가 드래그로 정리 가능.
+  const CELL_W = 380
+  const CELL_H = 380
+  const safeWidth = Math.max(800, work.width)
+  const safeHeight = Math.max(600, work.height)
+  const cols = Math.max(2, Math.floor((safeWidth - 40) / CELL_W))
+  const rows = Math.max(2, Math.floor((safeHeight - 40) / CELL_H))
+  const totalCells = cols * rows
+  // safeIdx 가 totalCells 를 넘으면 cycle 시작 — 같은 (col,row) 에 다시 가지만 30px diagonal
+  // offset 으로 starting 좌표는 unique. 화면 밖으로는 절대 안 나감.
+  const cycleIdx = safeIdx % totalCells
+  const overflowCycle = Math.floor(safeIdx / totalCells)
+  const wrapOffset = overflowCycle * 30
+  const col = cycleIdx % cols
+  const row = Math.floor(cycleIdx / cols)
+  const rawX = work.x + 20 + col * CELL_W + wrapOffset
+  const rawY = work.y + 20 + row * CELL_H + wrapOffset
+  return { x: rawX, y: rawY }
 }
 
-function createWidgetWindow(widgetType: WidgetType, instanceId?: string): BrowserWindow | null {
+/**
+ * 저장된 위젯 좌표들이 "한곳에 모여있는" 클러스터인지 감지.
+ *
+ * 사용자 신고: Windows 에서 5 일만에 앱을 켰더니 모든 위젯이 한 점에 모여있음.
+ * 원인: 디스플레이 변경(외부 모니터 분리/스케일 변경) 후 OS 가 화면 밖이 된 위젯들을
+ * 메인 화면 좌상단 부근으로 강제 이동시킴 → 'move' 이벤트 → DB 에 (작은 값, 작은 값)
+ * 좌표가 저장됨 → 다음 부팅 때마다 같은 자리에 모임.
+ *
+ * isAnomalousFullscreen 는 풀스크린(≥85% workArea) 만 잡으므로 좌상단 클러스터를 못 막음.
+ * 이 함수는 visible=1 위젯들의 중심점이 100px 반경 안에 3 개 이상 모여있으면 클러스터로 판단.
+ *
+ * 반환: 클러스터로 판정된 widget_id 들의 Set. 호출자는 이 위젯들의 saved 좌표를 무시하고
+ * getSpreadPosition 으로 재배치해야 한다.
+ */
+type WidgetPositionRow = ReturnType<typeof getWidgetPositions>[number]
+function detectClusteredWidgets(positions: WidgetPositionRow[]): Set<string> {
+  const visible = positions.filter((p) =>
+    p.is_visible === 1
+    && typeof p.x === 'number'
+    && typeof p.y === 'number'
+    && typeof p.width === 'number'
+    && typeof p.height === 'number'
+  )
+  if (visible.length < 3) return new Set()
+
+  const RADIUS = 120 // px — "거의 같은 자리" 기준
+  const centers = visible.map((p) => ({
+    id: p.widget_id,
+    cx: (p.x as number) + (p.width as number) / 2,
+    cy: (p.y as number) + (p.height as number) / 2,
+  }))
+
+  // 모든 쌍에 대해 인접 그래프 → 가장 큰 연결 컴포넌트 ≥ 3 이면 클러스터.
+  const adj = new Map<string, Set<string>>(centers.map((c) => [c.id, new Set<string>()]))
+  for (let i = 0; i < centers.length; i++) {
+    for (let j = i + 1; j < centers.length; j++) {
+      const a = centers[i], b = centers[j]
+      const dx = a.cx - b.cx, dy = a.cy - b.cy
+      if (dx * dx + dy * dy <= RADIUS * RADIUS) {
+        adj.get(a.id)!.add(b.id)
+        adj.get(b.id)!.add(a.id)
+      }
+    }
+  }
+
+  // BFS 로 가장 큰 컴포넌트 찾기.
+  const visited = new Set<string>()
+  let largest = new Set<string>()
+  for (const c of centers) {
+    if (visited.has(c.id)) continue
+    const comp = new Set<string>()
+    const queue = [c.id]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      if (comp.has(cur)) continue
+      comp.add(cur)
+      visited.add(cur)
+      for (const n of adj.get(cur) ?? []) if (!comp.has(n)) queue.push(n)
+    }
+    if (comp.size > largest.size) largest = comp
+  }
+  return largest.size >= 3 ? largest : new Set()
+}
+
+function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options?: { ignoreSavedPosition?: boolean }): BrowserWindow | null {
   // 동일 widgetType의 다중 인스턴스를 지원하기 위해 instanceId(예: routine id)가 있으면
   // widget id와 url hash에 함께 반영. 기본 인스턴스는 기존과 동일한 'widget-<type>'.
   const widgetId = instanceId ? `widget-${widgetType}-${instanceId}` : `widget-${widgetType}`
@@ -787,7 +884,9 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string): Browse
   const width = (!savedAnomalous && saved?.width) ? saved.width : defaults.w
   const height = (!savedAnomalous && saved?.height) ? saved.height : defaults.h
 
-  const hasSavedPos = !savedAnomalous
+  // ignoreSavedPosition: 호출자가 "saved 좌표가 신뢰 불가" 라고 명시 (클러스터 감지된 경우).
+  const hasSavedPos = !options?.ignoreSavedPosition
+    && !savedAnomalous
     && typeof saved?.x === 'number'
     && typeof saved?.y === 'number'
   const clamped = hasSavedPos ? clampToScreen(saved!.x!, saved!.y!, width, height) : null
@@ -887,6 +986,14 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string): Browse
 
   const persistBounds = () => {
     if (win.isDestroyed()) return
+    // ★ 시작 직후 grace window 안에서는 'move'/'resize' 로 인한 저장 차단.
+    // Windows 가 디스플레이 미인식 상태에서 위젯을 좌상단(0,0) 근처로 강제 이동시키면
+    // 'move' 이벤트가 발사되는데, 그 좌표를 DB 에 저장하면 모든 위젯이 한곳에 모이는
+    // 증상이 영구화됨. reconcile 로직(display-added 등)만이 grace window 안에서 좌표 갱신 가능.
+    if (startupGraceWidgets.has(widgetId)) {
+      wDebug(`persistBounds[${widgetId}]: SKIP within startup grace window`)
+      return
+    }
     const b = win.getBounds()
     // ★ OS 가 부팅 직후 디스플레이 미인식 상태에서 위젯을 메인 화면 풀스크린에 가깝게
     // 강제 이동시킨 경우, 그 좌표를 DB 에 저장해버리면 다음 부팅 때마다 같은 자리에
@@ -996,9 +1103,47 @@ function closeWidgetWindow(widgetType: WidgetType): void {
   if (win && !win.isDestroyed()) win.close()
 }
 
+/**
+ * 모든 위젯을 spread 위치로 재배치 + DB 갱신.
+ * 화면 밖으로 밀려난 위젯들을 화면 안으로 복귀시킬 때 사용.
+ * 트레이 메뉴 + 대시보드 버튼 양쪽에서 호출.
+ */
+function resetAllWidgetPositions(): void {
+  widgetSpawnCounter = 0  // spread 카운터 리셋 — 새 그리드로 깔끔하게.
+  for (const [id, w] of widgetWindows) {
+    try {
+      if (w.isDestroyed()) continue
+      const b = w.getBounds()
+      const widgetType = id.replace(/^widget-/, '').split('-')[0] as WidgetType
+      const pos = getSpreadPosition(widgetType, b.width, b.height)
+      wDebug(`reset-positions[${id}]: ${b.width}x${b.height}@(${b.x},${b.y}) → @(${pos.x},${pos.y})`)
+      w.setBounds({ x: pos.x, y: pos.y, width: b.width, height: b.height })
+      saveWidgetPosition({
+        widget_id: id,
+        widget_type: widgetType,
+        x: pos.x, y: pos.y,
+        width: b.width, height: b.height,
+      })
+    } catch (err) { _crashLog(`reset-positions:${id}`, err) }
+  }
+}
+
 function restoreVisibleWidgets(): void {
   let positions: ReturnType<typeof getWidgetPositions> = []
   try { positions = getWidgetPositions() } catch (err) { _crashLog('getWidgetPositions', err); return }
+
+  // ★ 클러스터 감지: visible 위젯들의 중심점이 한곳에 3 개 이상 모여있으면 saved 좌표 신뢰 불가.
+  //   (Windows 가 디스플레이 변경 후 위젯들을 좌상단 근처로 모은 결과가 DB 에 영구화된 상태)
+  const clustered = detectClusteredWidgets(positions)
+  if (clustered.size > 0) {
+    wDebug(`restoreVisibleWidgets: detected cluster of ${clustered.size} widgets — bypassing saved positions: ${[...clustered].join(', ')}`)
+  }
+
+  // ★ Startup grace: 복원 직후 ~5 초 동안 OS 가 강제 이동시키는 'move' 이벤트로 좌표가
+  //   DB 에 덮어써지는 것을 차단. 이 윈도우 안에서는 reconcile 로직만 좌표 갱신 가능.
+  const GRACE_MS = 5000
+  const graceIds: string[] = []
+
   for (const p of positions) {
     if (p.is_visible !== 1) continue
     try {
@@ -1008,12 +1153,46 @@ function restoreVisibleWidgets(): void {
       const instanceId = p.widget_id.startsWith(prefix + '-')
         ? p.widget_id.slice(prefix.length + 1)
         : undefined
-      createWidgetWindow(p.widget_type as WidgetType, instanceId)
+      // grace 는 createWidgetWindow 내부에서 발생할 수 있는 즉시 'move' 도 막아야 하므로
+      // 생성 직전에 등록.
+      startupGraceWidgets.add(p.widget_id)
+      graceIds.push(p.widget_id)
+      const ignoreSavedPosition = clustered.has(p.widget_id)
+      createWidgetWindow(p.widget_type as WidgetType, instanceId, { ignoreSavedPosition })
     } catch (err) {
       // 한 위젯 복원 실패가 다른 위젯 복원을 막지 않도록 개별 격리.
       _crashLog(`restoreWidget:${p.widget_type}`, err)
     }
   }
+
+  // ★ 클러스터 감지된 위젯들은 새 spread 좌표를 즉시 DB 에 반영. grace 윈도우 안에서는
+  //   persistBounds 가 차단되므로 명시적으로 한 번 저장.
+  if (clustered.size > 0) {
+    for (const id of clustered) {
+      const w = widgetWindows.get(id)
+      if (!w || w.isDestroyed()) continue
+      try {
+        const b = w.getBounds()
+        if (!isOnScreen(b.x, b.y, b.width, b.height)) continue
+        if (isAnomalousFullscreen(b.width, b.height)) continue
+        const widgetType = id.replace(/^widget-/, '').split('-')[0] as WidgetType
+        saveWidgetPosition({
+          widget_id: id,
+          widget_type: widgetType,
+          x: b.x, y: b.y,
+          width: b.width, height: b.height,
+        })
+      } catch (err) { _crashLog(`restoreCluster:save:${id}`, err) }
+    }
+  }
+
+  // grace 해제 — 5 초 후. 사용자가 그 안에 위젯을 드래그해도 좌표가 저장 안 되는 단점은
+  // 매우 작은 가격(드래그 직후 0.5~5 초 내 다시 드래그하지 않을 가능성 매우 높음)으로
+  // OS 강제 이동에 의한 영구 클러스터링 방지라는 큰 이득과 교환.
+  setTimeout(() => {
+    for (const id of graceIds) startupGraceWidgets.delete(id)
+    wDebug(`restoreVisibleWidgets: startup grace window closed (${graceIds.length} widgets)`)
+  }, GRACE_MS)
 }
 
 function findTrayIconPath(): string | null {
@@ -1109,6 +1288,10 @@ function createTray(): void {
           if (!w.isDestroyed()) w.close()
         }
       },
+    },
+    {
+      label: '위젯 위치 초기화 (사라진 위젯 찾기)',
+      click: () => resetAllWidgetPositions(),
     },
     { type: 'separator' },
     {
@@ -1316,6 +1499,10 @@ function registerWindowIpc(): void {
     }
     return 1
   })
+  ipcMain.handle('widget:resetPositions', () => {
+    resetAllWidgetPositions()
+    return true
+  })
   ipcMain.handle('widget:listOpen', () => {
     const open: string[] = []
     for (const [id, w] of widgetWindows) {
@@ -1503,20 +1690,63 @@ app.whenReady().then(async () => {
   const reconcileWidgetsToScreens = (reason: string): void => {
     if (widgetWindows.size === 0) return
     wDebug(`reconcileWidgetsToScreens: ${reason} (${widgetWindows.size} widgets)`)
+
+    // ★ 클러스터 감지: 디스플레이 변경(특히 배율 변경) 시 Windows 가 위젯들을 메인 화면
+    //    좌상단 부근으로 강제 이동시키면 사이즈는 정상·화면 안이라 기존 가드를 통과해버림.
+    //    현재 라이브 bounds 의 중심점이 120px 반경에 3 개 이상 모이면 클러스터로 판정 → 강제 respread.
+    const RADIUS = 120
+    const liveCenters = [...widgetWindows.entries()]
+      .filter(([, w]) => !w.isDestroyed())
+      .map(([id, w]) => {
+        const b = w.getBounds()
+        return { id, b, cx: b.x + b.width / 2, cy: b.y + b.height / 2 }
+      })
+
+    const adj = new Map<string, Set<string>>(liveCenters.map((c) => [c.id, new Set<string>()]))
+    for (let i = 0; i < liveCenters.length; i++) {
+      for (let j = i + 1; j < liveCenters.length; j++) {
+        const a = liveCenters[i], bb = liveCenters[j]
+        const dx = a.cx - bb.cx, dy = a.cy - bb.cy
+        if (dx * dx + dy * dy <= RADIUS * RADIUS) {
+          adj.get(a.id)!.add(bb.id)
+          adj.get(bb.id)!.add(a.id)
+        }
+      }
+    }
+    const visited = new Set<string>()
+    let largest = new Set<string>()
+    for (const c of liveCenters) {
+      if (visited.has(c.id)) continue
+      const comp = new Set<string>()
+      const queue = [c.id]
+      while (queue.length > 0) {
+        const cur = queue.shift()!
+        if (comp.has(cur)) continue
+        comp.add(cur); visited.add(cur)
+        for (const n of adj.get(cur) ?? []) if (!comp.has(n)) queue.push(n)
+      }
+      if (comp.size > largest.size) largest = comp
+    }
+    const clustered = largest.size >= 3 ? largest : new Set<string>()
+    if (clustered.size > 0) {
+      wDebug(`reconcileWidgetsToScreens: live cluster of ${clustered.size} detected → forcing respread: ${[...clustered].join(', ')}`)
+    }
+
     for (const [id, w] of widgetWindows) {
       try {
         if (w.isDestroyed()) continue
         const b = w.getBounds()
         const offScreen = !isOnScreen(b.x, b.y, b.width, b.height)
         const anomalous = isAnomalousFullscreen(b.width, b.height)
-        if (!offScreen && !anomalous) continue
+        const isClusteredId = clustered.has(id)
+        if (!offScreen && !anomalous && !isClusteredId) continue
 
         const widgetType = id.replace(/^widget-/, '').split('-')[0] as WidgetType
         const defaults = WIDGET_DEFAULTS[widgetType]
         const newW = anomalous ? defaults.w : b.width
         const newH = anomalous ? defaults.h : b.height
         const pos = getSpreadPosition(widgetType, newW, newH)
-        wDebug(`reconcile[${id}]: ${b.width}x${b.height}@(${b.x},${b.y}) offScreen=${offScreen} anomalous=${anomalous} → ${newW}x${newH}@(${pos.x},${pos.y})`)
+        wDebug(`reconcile[${id}]: ${b.width}x${b.height}@(${b.x},${b.y}) offScreen=${offScreen} anomalous=${anomalous} clustered=${isClusteredId} → ${newW}x${newH}@(${pos.x},${pos.y})`)
         w.setBounds({ x: pos.x, y: pos.y, width: newW, height: newH })
         // 새 좌표는 정상이므로 persistBounds 의 가드 통과 → DB 갱신.
         try {
@@ -1530,9 +1760,33 @@ app.whenReady().then(async () => {
       } catch (err) { _crashLog(`reconcile:${id}`, err) }
     }
   }
-  screen.on('display-added', () => reconcileWidgetsToScreens('display-added'))
-  screen.on('display-removed', () => reconcileWidgetsToScreens('display-removed'))
-  screen.on('display-metrics-changed', () => reconcileWidgetsToScreens('display-metrics-changed'))
+
+  // ★ 디스플레이 이벤트가 연속으로 여러 번 발사될 수 있으므로 (배율 변경 시 Windows 가
+  //    metrics-changed 를 수 차례 발사) 짧은 debounce + 후행 트리거 한 번 더로 수렴.
+  let reconcileTimer: NodeJS.Timeout | null = null
+  const scheduleReconcile = (reason: string): void => {
+    if (reconcileTimer) clearTimeout(reconcileTimer)
+    reconcileTimer = setTimeout(() => {
+      reconcileWidgetsToScreens(reason)
+      // OS 가 우리 setBounds 직후 다시 한 번 자기 멋대로 옮길 수 있어 1.2 초 후 재검증.
+      setTimeout(() => reconcileWidgetsToScreens(`${reason}+verify`), 1200)
+    }, 250)
+  }
+  // ★ 디스플레이 이벤트 발생 직후 ~3 초 간 모든 위젯에 grace 등록 — Windows 가 위젯들을
+  //    좌상단으로 강제 이동시키며 발사하는 'move' 이벤트가 잘못된 좌표를 DB 에 영구화하는 것을
+  //    차단. reconcile 자체는 saveWidgetPosition 직접 호출이라 grace 영향 없음.
+  const DISPLAY_GRACE_MS = 3000
+  const armDisplayGrace = (): void => {
+    const ids = [...widgetWindows.keys()]
+    for (const id of ids) startupGraceWidgets.add(id)
+    setTimeout(() => {
+      for (const id of ids) startupGraceWidgets.delete(id)
+      wDebug(`display grace closed (${ids.length} widgets)`)
+    }, DISPLAY_GRACE_MS)
+  }
+  screen.on('display-added', () => { armDisplayGrace(); scheduleReconcile('display-added') })
+  screen.on('display-removed', () => { armDisplayGrace(); scheduleReconcile('display-removed') })
+  screen.on('display-metrics-changed', () => { armDisplayGrace(); scheduleReconcile('display-metrics-changed') })
   // 부팅 직후 자동 시작 케이스 — 디스플레이 인식이 늦을 수 있어 1.5 초 후 한 번 더 검사.
   setTimeout(() => reconcileWidgetsToScreens('post-startup-1500ms'), 1500)
 })

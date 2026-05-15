@@ -17,6 +17,26 @@
   ${endIf}
 !macroend
 
+; ★ 설치 시작 직전 — 사용자 클릭 없이 SchoolDesk 모든 프로세스 자동 강제 종료.
+;   사용자 요청: "수동 종료 없이 자동 종료" — 다이얼로그 일절 없음, 그냥 죽이고 설치 진행.
+!macro customInit
+  ; 1차 — taskkill /F /T 로 main + GPU + renderer + utility + tray 전부 자식 트리 종료
+  nsExec::Exec 'taskkill /F /IM SchoolDesk.exe /T'
+  Sleep 1500
+  ; 2차 — 잔여 프로세스 정리 (재기동 race condition 대비)
+  nsExec::Exec 'taskkill /F /IM SchoolDesk.exe /T'
+  Sleep 500
+  ; 3차 — wmic 으로 PID 기반 직접 삭제 (가장 강력)
+  nsExec::Exec 'wmic process where "name=\"SchoolDesk.exe\"" delete'
+  Sleep 500
+!macroend
+
+; 설치 중에도 한 번 더 (자동 시작 등 외부 트리거로 다시 뜨는 케이스 방어)
+!macro customInstall
+  nsExec::Exec 'taskkill /F /IM SchoolDesk.exe /T'
+  Sleep 500
+!macroend
+
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 \

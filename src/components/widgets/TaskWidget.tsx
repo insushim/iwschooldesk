@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Check, AlertCircle } from 'lucide-react'
+import { Plus, Check, AlertCircle, ListTodo } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Task } from '../../types/task.types'
 import { PRIORITY_COLORS } from '../../types/task.types'
@@ -22,6 +22,12 @@ export function TaskWidget() {
   const [newTitle, setNewTitle] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
+  // 디스플레이 모드 상태 — shell 헤더가 숨겨지면 위젯이 무엇인지 알 수 없어 "할일" 제목을 본문 맨 위에 노출.
+  const [displayMode, setDisplayMode] = useState(false)
+  useEffect(() => {
+    const off = window.api.widget.onAllDisplayModeChanged?.((p) => setDisplayMode(!!p.on))
+    return () => { if (off) off() }
+  }, [])
 
   const loadTasks = async () => {
     const data = await window.api.task.list()
@@ -104,6 +110,32 @@ export function TaskWidget() {
         background: 'radial-gradient(ellipse at 0% 0%, rgba(37,99,235,0.05) 0%, transparent 55%)',
       }}
     >
+      {/* 디스플레이 모드 — shell 헤더가 숨겨지므로 본문 맨 위에 "할일" 제목을 노출 (사용자 요청).
+          우상단 디스플레이 토글 버튼과 안 겹치게 paddingRight 확보. */}
+      {displayMode && (
+        <div
+          className="flex items-center gap-2 shrink-0 mb-3"
+          style={{ paddingRight: 80 }}
+        >
+          <span
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 28, height: 28, borderRadius: 9,
+              background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+              color: '#fff', boxShadow: '0 4px 12px rgba(245,158,11,0.3)',
+            }}
+          >
+            <ListTodo size={16} strokeWidth={2.4} />
+          </span>
+          <span
+            className="text-[var(--text-primary)]"
+            style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em' }}
+          >
+            할일
+          </span>
+        </div>
+      )}
+
       {/* Filter cards: 전체 · 오늘 · 이번주 · 지남 — 그라디언트 active state */}
       <div className="grid grid-cols-4 gap-1.5 mb-3 shrink-0">
         {FILTERS.map((f) => {

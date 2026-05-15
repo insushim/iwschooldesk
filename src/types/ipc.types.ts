@@ -120,6 +120,7 @@ export interface ElectronAPI {
     getPeriods: () => Promise<TimetablePeriod[]>
     updatePeriods: (periods: TimetablePeriod[]) => Promise<void>
     getOverrides: (date: string) => Promise<TimetableOverride[]>
+    getOverridesRange: (startDate: string, endDate: string) => Promise<TimetableOverride[]>
     createOverride: (data: CreateOverrideInput) => Promise<TimetableOverride>
     deleteOverride: (id: string) => Promise<void>
   }
@@ -184,6 +185,7 @@ export interface ElectronAPI {
     closeWindow: (type: string) => Promise<void>
     isOpen: (type: string) => Promise<boolean>
     listOpen: () => Promise<string[]>
+    resetPositions: () => Promise<boolean>
     setOpacity: (value: number) => void
     setAlwaysOnTop: (flag: boolean) => void
     getAlwaysOnTop: () => Promise<boolean>

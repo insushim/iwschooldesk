@@ -26,27 +26,48 @@ function shortSubject(s: string): string {
   return SUBJECT_SHORT[s] ?? s.slice(0, 3)
 }
 
+/** 이번 주 월요일~금요일 날짜 문자열 5개 반환 (YYYY-MM-DD). 토/일이면 다음 주 월요일부터. */
+function weekMonToFri(base: Date): { mon: string; fri: string; daysByIdx: string[] } {
+  const d = new Date(base)
+  d.setHours(0, 0, 0, 0)
+  const dow = d.getDay() // 0=일, 1=월, ..., 6=토
+  // 토(6) 또는 일(0)이면 다음 주 월요일로 이동, 평일이면 이번 주 월요일로.
+  const offsetToMon = dow === 0 ? 1 : dow === 6 ? 2 : 1 - dow
+  d.setDate(d.getDate() + offsetToMon)
+  const daysByIdx: string[] = []
+  for (let i = 0; i < 5; i++) {
+    const day = new Date(d)
+    day.setDate(d.getDate() + i)
+    daysByIdx.push(ymd(day))
+  }
+  return { mon: daysByIdx[0], fri: daysByIdx[4], daysByIdx }
+}
+
 export function TimetableWidget() {
   const [slots, setSlots] = useState<TimetableSlot[]>([])
   const [periods, setPeriods] = useState<TimetablePeriod[]>([])
-  const [todayOverrides, setTodayOverrides] = useState<TimetableOverride[]>([])
+  // 이번주 월~금 전체 강사수업/임시수업 — 사용자 요청: 월요일에 그 주 전체를 미리 봐야 함.
+  const [weekOverrides, setWeekOverrides] = useState<TimetableOverride[]>([])
   const [now, setNow] = useState(new Date())
-  const todayStr_ = ymd(now)
+
+  // 이번 주 월~금 날짜 5개 — todayIdx 매핑용. now 가 바뀌면(자정 넘김) 재계산.
+  const weekDays = useMemo(() => weekMonToFri(now), [now])
 
   const reload = useCallback(() => {
+    const wk = weekMonToFri(new Date())
     Promise.all([
       window.api.timetable.getSlots(),
       window.api.timetable.getPeriods(),
-      window.api.timetable.getOverrides(ymd(new Date())),
-    ]).then(([s, p, o]) => { setSlots(s); setPeriods(p); setTodayOverrides(o) })
+      window.api.timetable.getOverridesRange(wk.mon, wk.fri),
+    ]).then(([s, p, o]) => { setSlots(s); setPeriods(p); setWeekOverrides(o) })
   }, [])
 
   useEffect(() => { reload() }, [reload])
-  // 자정을 넘기면 오늘 override를 새로 가져온다
+  // 자정을 넘기면 이번 주 override 를 새로 가져온다 — 주 경계 넘기면 다음 주 데이터로 자동 전환.
   useEffect(() => {
-    window.api.timetable.getOverrides(todayStr_).then(setTodayOverrides).catch(() => setTodayOverrides([]))
-  }, [todayStr_])
-  // 메인 대시보드에서 시간표/강사 수업 편집 시 위젯 자동 갱신 (slots·periods·오늘 override까지)
+    window.api.timetable.getOverridesRange(weekDays.mon, weekDays.fri).then(setWeekOverrides).catch(() => setWeekOverrides([]))
+  }, [weekDays.mon, weekDays.fri])
+  // 메인 대시보드에서 시간표/강사 수업 편집 시 위젯 자동 갱신 (slots·periods·이번주 override까지)
   useDataChange('timetable', reload)
   useAutoRefresh(reload)
 
@@ -75,31 +96,31 @@ export function TimetableWidget() {
   const slotMap = useMemo(() => {
     const m = new Map<string, TimetableSlot>()
     for (const s of slots) m.set(`${s.day_of_week}-${s.period}`, s)
-    // 오늘 컬럼에 한해 override 우선 적용 — 강사 수업이 추가되면 즉시 반영.
-    if (todayIdx !== -1 && todayOverrides.length > 0) {
-      for (const o of todayOverrides) {
-        if (o.date !== todayStr_) continue
-        m.set(`${todayIdx}-${o.period}`, {
-          id: `override-${o.id}`,
-          day_of_week: todayIdx,
-          period: o.period,
-          subject: o.subject,
-          class_name: '',
-          teacher: o.teacher ?? '',
-          room: o.room ?? '',
-          color: o.color || '#8B5CF6',
-          memo: o.memo ?? '',
-          semester: '',
-          timetable_set: 'default',
-          is_specialist: 1,
-          specialist_teacher: o.teacher ?? '',
-          created_at: o.created_at,
-          updated_at: o.created_at,
-        })
-      }
+    // 이번 주 월~금 override 를 모두 해당 요일 컬럼에 적용 — 사용자가 월요일에 그 주 전체
+    // 강사 수업 일정을 미리 볼 수 있어야 함 (이전: 오늘 컬럼만 적용 → 당일에야 보였던 버그).
+    for (const o of weekOverrides) {
+      const dayIdx = weekDays.daysByIdx.indexOf(o.date)
+      if (dayIdx < 0 || dayIdx > 4) continue
+      m.set(`${dayIdx}-${o.period}`, {
+        id: `override-${o.id}`,
+        day_of_week: dayIdx as DayOfWeek,
+        period: o.period,
+        subject: o.subject,
+        class_name: '',
+        teacher: o.teacher ?? '',
+        room: o.room ?? '',
+        color: o.color || '#8B5CF6',
+        memo: o.memo ?? '',
+        semester: '',
+        timetable_set: 'default',
+        is_specialist: 1,
+        specialist_teacher: o.teacher ?? '',
+        created_at: o.created_at,
+        updated_at: o.created_at,
+      })
     }
     return m
-  }, [slots, todayOverrides, todayIdx, todayStr_])
+  }, [slots, weekOverrides, weekDays.daysByIdx])
 
   // 교사용 주간 격자 — StudentTimetable 의 거대한 단일뷰와 달리, 한눈에 주간 전체를 본다.
   // 학생체크 / 학생시간표의 톤과 맞추기: cqmin 기반 유동 스케일, 날짜·교시 헤더는 미니멀한 pill,

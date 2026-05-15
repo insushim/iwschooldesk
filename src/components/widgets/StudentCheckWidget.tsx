@@ -460,12 +460,32 @@ export function StudentCheckWidget() {
         />
       )}
 
-      {/* 우상단 컨트롤: [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김 */}
+      {/* 우상단 컨트롤: [새 리스트(display 전용)] [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김 */}
       {!iAmWallpaper && (
         <div
-          className="absolute top-1.5 right-1.5 flex items-center gap-0.5 z-50"
+          className="absolute top-1.5 right-1.5 flex items-center gap-1 z-50"
           style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
         >
+          {displayMode && (
+            <button
+              onClick={() => setCreateMode(true)}
+              className="flex items-center justify-center transition-all hover:scale-105"
+              title="새 체크 리스트 추가"
+              style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: isLightText
+                  ? 'rgba(255,255,255,0.22)'
+                  : 'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
+                color: '#fff',
+                border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : 'none',
+                boxShadow: isLightText
+                  ? '0 4px 12px rgba(0,0,0,0.25)'
+                  : '0 4px 12px rgba(14,165,233,0.32)',
+              }}
+            >
+              <Plus size={15} strokeWidth={2.6} />
+            </button>
+          )}
           {displayMode && (
             <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
           )}
@@ -475,13 +495,25 @@ export function StudentCheckWidget() {
               setDisplayMode(next)
               try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
             }}
-            className="p-1 rounded-md transition-colors"
+            className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
             style={{
-              color: isLightText ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)',
+              width: displayMode ? 32 : 22,
+              height: displayMode ? 32 : 22,
+              color: isLightText ? '#fff' : (displayMode ? 'var(--accent)' : 'var(--text-muted)'),
+              background: displayMode
+                ? (isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)')
+                : 'transparent',
+              border: displayMode
+                ? (isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)')
+                : 'none',
+              boxShadow: displayMode
+                ? (isLightText ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(37,99,235,0.18)')
+                : 'none',
+              backdropFilter: displayMode ? 'blur(10px)' : undefined,
             }}
             title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
           >
-            {displayMode ? <MonitorOff size={12} strokeWidth={2.2} /> : <Monitor size={12} strokeWidth={2.2} />}
+            {displayMode ? <MonitorOff size={16} strokeWidth={2.4} /> : <Monitor size={12} strokeWidth={2.2} />}
           </button>
         </div>
       )}

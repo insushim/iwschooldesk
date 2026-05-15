@@ -38,7 +38,7 @@ export interface WidgetPosition {
  * 타이머/메모/할일/체크리스트 등 상호작용이 많은 위젯은 의도적으로 제외.
  */
 export const WALLPAPER_ELIGIBLE_TYPES: ReadonlySet<WidgetType> = new Set<WidgetType>([
-  'timetable', 'studentcheck', 'calendar', 'goal', 'studenttimetable', 'dday', 'clock', 'timer', 'today', 'meal',
+  'timetable', 'calendar', 'goal', 'studenttimetable', 'dday', 'clock', 'today', 'meal',
 ])
 
 export interface WidgetConfig {

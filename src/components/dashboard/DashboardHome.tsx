@@ -87,7 +87,7 @@ function LiveClock() {
 }
 
 /* ─── 현재 교시 표시 ─── */
-function CurrentPeriod({ slots, periods }: { slots: TimetableSlot[]; periods: TimetablePeriod[] }) {
+function CurrentPeriod({ slots, periods, overrides }: { slots: TimetableSlot[]; periods: TimetablePeriod[]; overrides: TimetableOverride[] }) {
   const [now, setNow] = useState(new Date())
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30000)
@@ -103,7 +103,13 @@ function CurrentPeriod({ slots, periods }: { slots: TimetableSlot[]; periods: Ti
 
   if (!current) return null
 
+  // ★ 오늘 해당 교시에 실제 수업(subject 가 비어있지 않은 슬롯 또는 강사 override)이 있을 때만 표시.
+  //   수업 없는 요일(예: 수업 미설정 수요일)에 "N교시 진행중" 으로 잘못 표시되던 버그 방지.
+  const ov = overrides.find((o) => o.period === current.period)
   const slot = slots.find((s) => s.day_of_week === dayIdx && s.period === current.period)
+  const resolvedSubject = ov?.subject?.trim() || slot?.subject?.trim() || ''
+  if (current.period > 0 && !resolvedSubject) return null
+
   const endParts = current.end_time.split(':')
   const endMin = parseInt(endParts[0]) * 60 + parseInt(endParts[1])
   const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -113,7 +119,7 @@ function CurrentPeriod({ slots, periods }: { slots: TimetableSlot[]; periods: Ti
     <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-[var(--accent)]/8 border border-[var(--accent)]/15">
       <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
       <span className="text-sm font-bold text-[var(--accent)]">
-        {current.period === 0 ? '아침활동' : `${current.period}교시`} {slot ? `— ${slot.subject}` : ''}
+        {current.period === 0 ? '아침활동' : `${current.period}교시`} {resolvedSubject ? `— ${resolvedSubject}` : ''}
       </span>
       <span className="text-xs text-[var(--text-muted)]">({current.start_time}~{current.end_time})</span>
       <span className="text-sm font-bold text-[var(--accent)] tabular-nums ml-auto">{remaining}분 남음</span>
@@ -552,7 +558,7 @@ export function DashboardHome() {
           </div>
         </div>
         <div className="flex items-center gap-4 mr-2">
-          <CurrentPeriod slots={slots} periods={periods} />
+          <CurrentPeriod slots={slots} periods={periods} overrides={overrides} />
           <LiveClock />
         </div>
       </motion.div>

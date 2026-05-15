@@ -41,18 +41,25 @@ export function DisplayBgPicker({
     <div ref={rootRef} className={`relative ${className ?? ''}`}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="p-1 rounded-md transition-colors"
+        className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
         style={{
-          color: current.textMode === 'light' ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)',
-          backgroundColor: open
-            ? current.textMode === 'light'
-              ? 'rgba(255,255,255,0.14)'
-              : 'rgba(15,23,42,0.08)'
-            : 'transparent',
+          width: 32,
+          height: 32,
+          color: current.textMode === 'light' ? '#fff' : 'var(--accent)',
+          background: current.textMode === 'light'
+            ? open ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.18)'
+            : open ? 'rgba(37,99,235,0.18)' : 'var(--accent-light)',
+          border: current.textMode === 'light'
+            ? '1.5px solid rgba(255,255,255,0.42)'
+            : '1.5px solid rgba(37,99,235,0.28)',
+          boxShadow: current.textMode === 'light'
+            ? '0 4px 12px rgba(0,0,0,0.25)'
+            : '0 4px 12px rgba(37,99,235,0.18)',
+          backdropFilter: 'blur(10px)',
         }}
         title="배경색 변경"
       >
-        <Palette size={13} strokeWidth={2.2} />
+        <Palette size={16} strokeWidth={2.4} />
       </button>
 
       <AnimatePresence>

@@ -81,6 +81,14 @@ export function getOverrides(date: string): TimetableOverride[] {
   return db.prepare('SELECT * FROM timetable_overrides WHERE date = ? ORDER BY period').all(date) as TimetableOverride[]
 }
 
+/** 주간 미리 보기용 — startDate(포함) ~ endDate(포함) 범위의 모든 강사 수업/임시 시간표 반환 */
+export function getOverridesRange(startDate: string, endDate: string): TimetableOverride[] {
+  const db = getDatabase()
+  return db.prepare(
+    'SELECT * FROM timetable_overrides WHERE date >= ? AND date <= ? ORDER BY date, period'
+  ).all(startDate, endDate) as TimetableOverride[]
+}
+
 export function createOverride(data: CreateOverrideInput): TimetableOverride {
   const db = getDatabase()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')

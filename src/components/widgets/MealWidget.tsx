@@ -444,7 +444,12 @@ export function MealWidget() {
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
-        padding: 'clamp(12px, 2vw, 22px) clamp(16px, 2.4vw, 26px) clamp(14px, 2.4vw, 24px)',
+        // containerType: size → cqmin 단위가 위젯 크기에 비례 → 박스 줄여도 텍스트가 같이 줄어 잘림 방지
+        containerType: 'size',
+        // 배경화면 모드: 컨트롤 숨겨져 여백 헛공간 → 위아래 padding 축소
+        padding: iAmWallpaper
+          ? 'clamp(8px, 2cqmin, 14px) clamp(12px, 3cqmin, 20px)'
+          : 'clamp(12px, 2.5cqmin, 22px) clamp(16px, 3cqmin, 26px) clamp(14px, 3cqmin, 24px)',
         background: rootBg,
         transition: 'background 320ms ease',
         color: isLightText ? '#fff' : undefined,
@@ -467,14 +472,28 @@ export function MealWidget() {
               setDisplayMode(next)
               try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
             }}
-            className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)]"
-            style={{
-              color: isLightText ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)',
-              border: isLightText ? '1px solid rgba(255,255,255,0.18)' : '1px solid var(--border-widget)',
-            }}
-            title={displayMode ? '디스플레이 모드 해제' : '디스플레이 모드'}
+            className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
+            style={displayMode
+              ? {
+                  width: 32,
+                  height: 32,
+                  color: isLightText ? '#fff' : 'var(--accent)',
+                  background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
+                  border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
+                  boxShadow: isLightText ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(37,99,235,0.18)',
+                  backdropFilter: 'blur(10px)',
+                }
+              : {
+                  width: 26,
+                  height: 26,
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-widget)',
+                  background: 'transparent',
+                }
+            }
+            title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드'}
           >
-            {displayMode ? <MonitorOff size={13} strokeWidth={2.2} /> : <Monitor size={13} strokeWidth={2.2} />}
+            {displayMode ? <MonitorOff size={16} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
           </button>
           {!displayMode && (
             <button
@@ -504,7 +523,7 @@ export function MealWidget() {
           <div
             className="truncate"
             style={{
-              fontSize: 'clamp(12px, 1.4vw, 16px)', fontWeight: 800, letterSpacing: '-0.02em',
+              fontSize: 'clamp(14px, 3.4cqmin, 19px)', fontWeight: 800, letterSpacing: '-0.02em',
               color: isLightText ? '#fff' : 'var(--text-primary)',
             }}
           >
@@ -578,28 +597,27 @@ export function MealWidget() {
                   <li
                     key={i}
                     style={{
-                      // 글씨 크기 ↑ — 이전 13~17px → 16~22px.
-                      fontSize: 'clamp(16px, 2vw, 22px)',
+                      // cqmin 으로 위젯 크기에 비례 → 박스 줄여도 글씨도 같이 줄어 잘림 방지. 사용자 요청으로 가독성 ↑.
+                      fontSize: 'clamp(15px, 5.4cqmin, 28px)',
                       fontWeight: 700,
                       color: isLightText ? '#fff' : 'var(--text-primary)',
-                      padding: 'clamp(8px, 1.2vw, 14px) clamp(10px, 1.4vw, 16px)',
+                      padding: 'clamp(6px, 2cqmin, 14px) clamp(8px, 2.6cqmin, 16px)',
                       borderRadius: 10,
                       background: isLightText ? 'rgba(255,255,255,0.12)' : 'rgba(245,158,11,0.08)',
                       borderLeft: `3px solid ${isLightText ? 'rgba(255,255,255,0.5)' : '#F59E0B'}`,
                       letterSpacing: '-0.015em',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 'clamp(6px, 0.8vw, 10px)',
+                      gap: 'clamp(4px, 1.4cqmin, 10px)',
                       lineHeight: 1.25,
                       wordBreak: 'keep-all',
                       overflowWrap: 'break-word',
                     }}
                   >
-                    {/* 이모지 슬롯 — pickEmoji 가 항상 fallback 반환하므로 모든 메뉴에 이모지가 붙어 줄맞춤 자동. */}
                     <span
                       aria-hidden
                       style={{
-                        fontSize: 'clamp(20px, 2.4vw, 28px)',
+                        fontSize: 'clamp(18px, 6.4cqmin, 34px)',
                         flexShrink: 0,
                         lineHeight: 1,
                       }}

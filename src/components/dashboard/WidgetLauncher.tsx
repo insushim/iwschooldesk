@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen, LayoutPanelLeft,
   CheckCheck, TimerReset, CalendarHeart, LayoutGrid, Power, Repeat, Target, Users,
-  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils,
+  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType as AppWidgetType } from '../../types/widget.types'
@@ -98,6 +98,12 @@ export function WidgetLauncher() {
     await refresh()
   }
 
+  const resetPositions = async () => {
+    // 화면 밖으로 사라진 위젯을 spread 위치로 일괄 복귀.
+    await window.api.widget.resetPositions()
+    await refresh()
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 pr-10 max-w-5xl">
@@ -137,6 +143,20 @@ export function WidgetLauncher() {
             >
               <Power size={12} />
               <span className="whitespace-nowrap">전체 끄기</span>
+            </button>
+            <button
+              onClick={resetPositions}
+              title="화면 밖으로 사라진 위젯을 다시 화면 안으로 정렬합니다"
+              style={{
+                padding: '10px 18px',
+                borderColor: 'rgba(245,158,11,0.3)',
+                backgroundColor: 'rgba(245,158,11,0.1)',
+                color: '#B45309',
+              }}
+              className="flex items-center gap-1.5 rounded-lg text-xs font-semibold border hover:opacity-85 transition-all whitespace-nowrap"
+            >
+              <Move size={12} />
+              <span className="whitespace-nowrap">위젯 위치 초기화</span>
             </button>
           </div>
         </div>

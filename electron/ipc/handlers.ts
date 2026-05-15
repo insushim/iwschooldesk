@@ -127,6 +127,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('timetable:getPeriods', () => timetableRepo.getPeriods())
   ipcMain.handle('timetable:updatePeriods', (_e, periods) => { const r = timetableRepo.updatePeriods(periods); broadcastChange('timetable'); return r })
   ipcMain.handle('timetable:getOverrides', (_e, date) => timetableRepo.getOverrides(date))
+  ipcMain.handle('timetable:getOverridesRange', (_e, startDate, endDate) => timetableRepo.getOverridesRange(startDate, endDate))
   ipcMain.handle('timetable:createOverride', (_e, data) => { const r = timetableRepo.createOverride(data); broadcastChange('timetable'); return r })
   ipcMain.handle('timetable:deleteOverride', (_e, id) => { timetableRepo.deleteOverride(id); broadcastChange('timetable') })
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bell, BellRing, Monitor, MonitorOff } from 'lucide-react'
 import { formatDate, getKoreanDay } from '../../lib/date-utils'
-import type { TimetablePeriod } from '../../types/timetable.types'
+import type { TimetablePeriod, TimetableSlot, TimetableOverride, DayOfWeek } from '../../types/timetable.types'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { useDisplayBg } from '../../lib/display-bg'
@@ -20,6 +20,9 @@ import { DisplayBgPicker } from '../ui/DisplayBgPicker'
 export function ClockWidget() {
   const [now, setNow] = useState(new Date())
   const [periods, setPeriods] = useState<TimetablePeriod[]>([])
+  // "지금은 N교시" 표시는 오늘 실제 수업이 있을 때만 정확. slots/overrides 도 함께 조회.
+  const [slots, setSlots] = useState<TimetableSlot[]>([])
+  const [todayOverrides, setTodayOverrides] = useState<TimetableOverride[]>([])
   // lock-screen / 절전에서 복귀 시 `WebkitBackgroundClip:text` 글자가 어그러지는 문제 — key 를 바꿔 강제 리마운트.
   const [renderKey, setRenderKey] = useState(0)
   const [displayMode, setDisplayMode] = useState(false)
@@ -33,6 +36,9 @@ export function ClockWidget() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
     window.api.timetable.getPeriods().then(setPeriods)
+    window.api.timetable.getSlots().then(setSlots).catch(() => {})
+    const ymd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
+    window.api.timetable.getOverrides(ymd).then(setTodayOverrides).catch(() => {})
     return () => clearInterval(timer)
   }, [])
 
@@ -54,9 +60,12 @@ export function ClockWidget() {
     }
   }, [])
 
-  // 시간표(교시) 변경 시 자동 갱신
+  // 시간표(교시·슬롯·오늘 강사 override) 변경 시 자동 갱신
   useDataChange('timetable', () => {
     window.api.timetable.getPeriods().then(setPeriods).catch(() => {})
+    window.api.timetable.getSlots().then(setSlots).catch(() => {})
+    const ymd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
+    window.api.timetable.getOverrides(ymd).then(setTodayOverrides).catch(() => {})
   })
 
   // 수업 시작/끝 벨 이벤트 — 듀얼 모니터 전자칠판의 시계에 시각 알림 표시.
@@ -108,8 +117,16 @@ export function ClockWidget() {
     const day = now.getDay()
     if (day === 0 || day === 6) return null
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    return periods.find((p) => !p.is_break && timeStr >= p.start_time && timeStr < p.end_time) ?? null
-  }, [now, periods])
+    const p = periods.find((pp) => !pp.is_break && timeStr >= pp.start_time && timeStr < pp.end_time)
+    if (!p) return null
+    // ★ 오늘 해당 교시에 실제 수업이 있는지 확인 — 빈 슬롯/수업 없는 요일에 "N교시 진행중" 으로
+    //   잘못 표시되던 버그 방지. override 가 있으면 그게 우선, 없으면 정기 슬롯의 subject 가 비어있지 않아야 함.
+    const dow = (day - 1) as DayOfWeek
+    const ov = todayOverrides.find((o) => o.period === p.period)
+    if (ov) return ov.subject?.trim() ? p : null
+    const reg = slots.find((s) => s.day_of_week === dow && s.period === p.period)
+    return reg?.subject?.trim() ? p : null
+  }, [now, periods, slots, todayOverrides])
 
   const hours24 = now.getHours()
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12
@@ -163,11 +180,28 @@ export function ClockWidget() {
             setDisplayMode(next)
             try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
           }}
-          className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)]"
-          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-widget)' }}
+          className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
+          style={displayMode
+            ? {
+                width: 32,
+                height: 32,
+                color: isLightText ? '#fff' : 'var(--accent)',
+                background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
+                border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
+                boxShadow: isLightText ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(37,99,235,0.18)',
+                backdropFilter: 'blur(10px)',
+              }
+            : {
+                width: 26,
+                height: 26,
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-widget)',
+                background: 'transparent',
+              }
+          }
           title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
         >
-          {displayMode ? <MonitorOff size={13} strokeWidth={2.2} /> : <Monitor size={13} strokeWidth={2.2} />}
+          {displayMode ? <MonitorOff size={16} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
         </button>
       </div>
       )}
@@ -179,17 +213,39 @@ export function ClockWidget() {
         className={`flex items-center shrink-0 ${displayMode ? 'justify-center' : 'justify-between'}`}
         style={{
           marginBottom: 'clamp(4px, 0.8vw, 10px)',
-          gap: displayMode ? 'clamp(10px, 1.4vw, 20px)' : 0,
-          paddingLeft: displayMode ? 'clamp(64px, 8vw, 96px)' : 0,
-          paddingRight: displayMode ? 'clamp(64px, 8vw, 96px)' : 'clamp(30px, 3.4vw, 44px)',
+          gap: displayMode ? 'clamp(8px, 1.2vw, 16px)' : 0,
+          // 디스플레이 모드의 좌우 큰 padding 은 우상단 컨트롤(팔레트·디스플레이 토글) 자리를 비우려는
+          // 시각적 대칭용. 배경화면 모드(iAmWallpaper) 에선 그 컨트롤이 숨겨져 헛공간이 됨 →
+          // pill 추가된 날짜가 truncate 되어 "5" 만 남는 버그(사용자 스크린샷 검증).
+          paddingLeft: (displayMode && !iAmWallpaper) ? 'clamp(64px, 8vw, 96px)' : 0,
+          paddingRight: (displayMode && !iAmWallpaper)
+            ? 'clamp(64px, 8vw, 96px)'
+            : iAmWallpaper ? 0 : 'clamp(30px, 3.4vw, 44px)',
         }}
       >
         <div
-          className="text-[var(--text-secondary)] truncate"
+          className="truncate inline-flex items-center"
           style={{
             fontSize: 'clamp(11px, 1.3vw, 18px)',
             fontWeight: 700,
             letterSpacing: '-0.3px',
+            // 배경화면 모드(transparent window 라 바탕화면이 비쳐 작은 글자가 묻힘) 와 디스플레이
+            // 모드에선 AM/PM 칩과 동일한 pill 처리로 어떤 바탕화면에서도 보장된 가독성 확보.
+            ...((iAmWallpaper || displayMode) ? {
+              color: isLightText ? '#fff' : '#0F172A',
+              background: isLightText
+                ? 'rgba(15,23,42,0.55)'
+                : 'rgba(255,255,255,0.88)',
+              padding: 'clamp(3px, 0.4vw, 6px) clamp(8px, 0.9vw, 12px)',
+              borderRadius: 999,
+              border: isLightText
+                ? '1px solid rgba(255,255,255,0.22)'
+                : '1px solid rgba(15,23,42,0.08)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              backdropFilter: 'blur(6px)',
+            } : {
+              color: 'var(--text-secondary)',
+            }),
           }}
         >
           {formatDate(now, 'M월 d일')} · {getKoreanDay(now)}요일
@@ -413,7 +469,8 @@ export function ClockWidget() {
                 }}
               >
                 {bellEvent.periodLabel}
-                {bellEvent.periodNumber > 0 && (
+                {/* periodLabel 이 이미 "5교시" 형식이면 "· 5교시" 추가 시 "5교시 · 5교시" 중복 표시되던 버그 → 라벨에 같은 교시 표기가 없을 때만 보조 표시 */}
+                {bellEvent.periodNumber > 0 && !bellEvent.periodLabel.includes(`${bellEvent.periodNumber}교시`) && (
                   <span style={{ marginLeft: 8, opacity: 0.7 }}>· {bellEvent.periodNumber}교시</span>
                 )}
               </div>

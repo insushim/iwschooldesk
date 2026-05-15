@@ -201,7 +201,7 @@ export function CalendarWidget() {
             key={d}
             className="text-center"
             style={{
-              fontSize: 'clamp(9.5px, 2.8cqmin, 15px)',
+              fontSize: 'clamp(11px, 3.2cqmin, 16px)',
               fontWeight: 800,
               padding: 'clamp(2px, 0.9cqmin, 5px) 0',
               letterSpacing: '-0.2px',
@@ -261,7 +261,7 @@ export function CalendarWidget() {
               <span
                 style={{
                   // 기본 날짜 숫자 — 조금 더 키워 가독성 up. clamp 범위 확대.
-                  fontSize: 'clamp(12px, 3.7cqmin, 20px)',
+                  fontSize: 'clamp(13px, 4.2cqmin, 22px)',
                   fontWeight: today ? 900 : 700,
                   color: dateColor,
                   lineHeight: 1,
@@ -285,7 +285,7 @@ export function CalendarWidget() {
                     <div
                       title={holidayName}
                       style={{
-                        fontSize: 'clamp(7.5px, 1.8cqmin, 11px)',
+                        fontSize: 'clamp(9px, 2.2cqmin, 13px)',
                         fontWeight: 800,
                         lineHeight: 1.18,
                         color: today ? '#fff' : '#B91C1C',
@@ -309,7 +309,7 @@ export function CalendarWidget() {
                         key={s.id}
                         title={s.title}
                         style={{
-                          fontSize: 'clamp(7.5px, 1.8cqmin, 11px)',
+                          fontSize: 'clamp(9px, 2.2cqmin, 13px)',
                           fontWeight: 700,
                           lineHeight: 1.18,
                           color: today

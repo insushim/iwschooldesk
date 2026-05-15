@@ -88,15 +88,11 @@ export function TimerWidget() {
         background: `radial-gradient(ellipse at 50% 0%, ${palette.primary}10 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, ${palette.primary}08 0%, transparent 45%)`,
       }}
     >
-      {/* 배경화면 모드에선 타이머를 완전히 숨김. 창은 존재하지만 콘텐츠 없음. */}
-      {iAmWallpaper && (
-        <div className="w-full h-full" aria-hidden style={{ background: 'transparent' }} />
-      )}
+      {/* 배경화면 모드: 인터랙션 버튼은 숨기고 원형 타이머 + 시간만 보임 (사용자 요청).
+          이전엔 컨텐츠 전체를 빈 div 로 가리고 있어 "흰 네모"만 보이던 버그를 수정. */}
 
+      {/* Mode cards: 뽀모도로 / 자유 타이머 — 배경화면 모드에선 클릭 불가라 숨김 */}
       {!iAmWallpaper && (
-      <>
-
-      {/* Mode cards: 뽀모도로 / 자유 타이머 — 아주 좁으면 자동으로 상하 스택 */}
       <div
         className="w-full shrink-0"
         style={{
@@ -146,6 +142,7 @@ export function TimerWidget() {
           )
         })}
       </div>
+      )}
 
       {/* Circular timer — aspect-ratio + max 제한으로 가로/세로 중 작은 쪽에 맞춰 축소. 절대 잘리지 않음. */}
       <div
@@ -155,8 +152,8 @@ export function TimerWidget() {
         <div
           className="relative"
           style={{
-            // 컨테이너 쿼리 min 기준(=가로/세로 중 작은 쪽의 1%)으로 크기 결정 → 좁은 창도 자동 축소.
-            width: 'min(55cqmin, 100%)',
+            // 시계가 작아 보이던 문제 → 55 → 70cqmin 으로 확대해 가독성 향상.
+            width: 'min(70cqmin, 100%)',
             aspectRatio: '1 / 1',
             maxWidth: '100%',
             maxHeight: '100%',
@@ -182,7 +179,14 @@ export function TimerWidget() {
                 <stop offset="100%" stopColor={palette.dark} />
               </linearGradient>
             </defs>
-            <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--bg-secondary)" strokeWidth="7" />
+            {/* 트랙: bg-secondary 가 다크 테마에서 위젯 배경과 거의 같은 색이라 안 보이던 문제 →
+                배경화면 모드일 땐 palette 의 옅은 알파로 고정해 어떤 바탕화면 위에서도 보이게. */}
+            <circle
+              cx="80" cy="80" r={radius}
+              fill="none"
+              stroke={iAmWallpaper ? `${palette.primary}33` : 'var(--bg-secondary)'}
+              strokeWidth="7"
+            />
             <motion.circle
               cx="80" cy="80" r={radius}
               fill="none" stroke="url(#timer-grad)" strokeWidth="7"
@@ -270,7 +274,8 @@ export function TimerWidget() {
                 <span
                   className="tabular-nums"
                   style={{
-                    fontSize: 'clamp(20px, 13cqmin, 54px)',
+                    // 시간 숫자가 작아 보이던 문제 → 13cqmin / max 54px → 18cqmin / max 80px 으로 확대.
+                    fontSize: 'clamp(28px, 18cqmin, 80px)',
                     fontWeight: 900,
                     letterSpacing: '-0.04em',
                     lineHeight: 1,
@@ -300,10 +305,12 @@ export function TimerWidget() {
                 className="inline-flex items-center tabular-nums"
                 style={{
                   gap: 4,
-                  fontSize: 'clamp(9px, 2.2cqmin, 13px)',
+                  fontSize: iAmWallpaper ? 'clamp(14px, 3.8cqmin, 22px)' : 'clamp(9px, 2.2cqmin, 13px)',
                   fontWeight: 800,
                   marginTop: 'clamp(2px, 1cqmin, 6px)',
-                  padding: 'clamp(2px, 0.8cqmin, 4px) clamp(6px, 1.6cqmin, 10px)',
+                  padding: iAmWallpaper
+                    ? 'clamp(4px, 1.4cqmin, 8px) clamp(10px, 2.6cqmin, 16px)'
+                    : 'clamp(2px, 0.8cqmin, 4px) clamp(6px, 1.6cqmin, 10px)',
                   borderRadius: 999,
                   backgroundColor: `${palette.primary}18`,
                   color: palette.dark,
@@ -321,8 +328,8 @@ export function TimerWidget() {
         </div>
       </div>
 
-      {/* Free timer quick presets — flex-wrap으로 자연스럽게 여러 줄 */}
-      {timer.mode === 'free' && timer.state === 'idle' && (
+      {/* Free timer quick presets — flex-wrap으로 자연스럽게 여러 줄. 배경화면 모드에선 클릭 불가라 숨김. */}
+      {!iAmWallpaper && timer.mode === 'free' && timer.state === 'idle' && (
         <div
           className="flex flex-wrap justify-center shrink-0 w-full"
           style={{ gap: 'clamp(3px, 1cqmin, 6px)' }}
@@ -357,7 +364,9 @@ export function TimerWidget() {
         </div>
       )}
 
-      {/* Controls — 버튼 크기도 cqmin 기반. 중앙 정렬용 스페이서 제거하고 순수 flex 중앙. */}
+      {/* Controls — Play 버튼이 위젯 정중앙에 오도록 reset(왼쪽) + spacer(같은 크기, 오른쪽) 로 대칭.
+          기존엔 reset + play 만 있어 큰 play 가 시각적으로 중심을 오른쪽으로 밀었음 → 가운데 안 맞아 보임. */}
+      {!iAmWallpaper && (
       <div
         className="flex items-center justify-center shrink-0"
         style={{ gap: 'clamp(8px, 2.5cqmin, 16px)' }}
@@ -414,8 +423,15 @@ export function TimerWidget() {
             />
           )}
         </button>
+        {/* 오른쪽 spacer — reset 버튼과 같은 크기로 좌우 대칭 보장 (play 가 정확히 중앙). */}
+        <div
+          aria-hidden
+          style={{
+            width: 'clamp(30px, 8cqmin, 44px)',
+            height: 'clamp(30px, 8cqmin, 44px)',
+          }}
+        />
       </div>
-      </>
       )}
     </div>
   )

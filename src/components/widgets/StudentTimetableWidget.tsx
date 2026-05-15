@@ -175,13 +175,16 @@ export function StudentTimetableWidget() {
     [periods],
   )
 
-  /** 주어진 요일+교시번호+날짜에 대한 ResolvedSlot 찾기 (override 우선). */
+  /** 주어진 요일+교시번호+날짜에 대한 ResolvedSlot 찾기 (override 우선).
+   *  subject 가 빈 문자열인 슬롯은 "수업 없음" 으로 취급 → null 반환. (빈 placeholder 행이 DB 에
+   *  남아있을 때 "6교시 진행중" 등 잘못된 상태가 표시되는 버그 방지.) */
   const resolveSlot = useCallback((dow: DayOfWeek, periodNum: number, dateStr: string): ResolvedSlot | null => {
     const overrides = dateStr === todayStr_ ? todayOverrides : tomorrowOverrides
     const ov = overrides.find((o) => o.date === dateStr && o.period === periodNum)
-    if (ov) return slotFromOverride(ov)
+    if (ov && ov.subject?.trim()) return slotFromOverride(ov)
     const reg = slots.find((s) => s.day_of_week === dow && s.period === periodNum)
-    return reg ? slotFromRegular(reg) : null
+    if (reg && reg.subject?.trim()) return slotFromRegular(reg)
+    return null
   }, [slots, todayOverrides, tomorrowOverrides, todayStr_])
 
   const status: Status = useMemo(() => {
@@ -328,11 +331,28 @@ export function StudentTimetableWidget() {
             setDisplayMode(next)
             try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
           }}
-          className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)]"
-          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-widget)', background: 'rgba(255,255,255,0.55)' }}
+          className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
+          style={displayMode
+            ? {
+                width: 32,
+                height: 32,
+                color: isLightText ? '#fff' : 'var(--accent)',
+                background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
+                border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
+                boxShadow: isLightText ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(37,99,235,0.18)',
+                backdropFilter: 'blur(10px)',
+              }
+            : {
+                width: 26,
+                height: 26,
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-widget)',
+                background: 'rgba(255,255,255,0.55)',
+              }
+          }
           title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 모든 위젯에 동일 적용.'}
         >
-          {displayMode ? <MonitorOff size={13} strokeWidth={2.2} /> : <Monitor size={13} strokeWidth={2.2} />}
+          {displayMode ? <MonitorOff size={16} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
         </button>
       </div>
       )}
@@ -358,8 +378,10 @@ export function StudentTimetableWidget() {
         style={{
           marginBottom: 'clamp(8px, 1.2vw, 20px)',
           gap: displayMode ? 'clamp(12px, 1.6vw, 24px)' : 'clamp(4px, 0.6vw, 8px)',
-          paddingLeft: displayMode ? 'clamp(72px, 10vw, 120px)' : 0,
-          paddingRight: displayMode ? 'clamp(72px, 10vw, 120px)' : 0,
+          // 디스플레이 모드의 큰 좌우 padding 은 우상단 컨트롤 자리 비우는 대칭용. 배경화면 모드에선
+          // 컨트롤이 숨겨져 헛공간이 됨 → 좌우 좁아 보이고 내용이 옹색해지는 문제 해결.
+          paddingLeft: (displayMode && !iAmWallpaper) ? 'clamp(72px, 10vw, 120px)' : 0,
+          paddingRight: (displayMode && !iAmWallpaper) ? 'clamp(72px, 10vw, 120px)' : 0,
         }}
       >
         <span

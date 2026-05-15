@@ -456,12 +456,12 @@ export function GoalWidget() {
           className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
           style={displayMode
             ? {
-                width: 32,
-                height: 32,
+                width: 26,
+                height: 26,
                 color: isLightText ? '#fff' : 'var(--accent)',
                 background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
                 border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
-                boxShadow: isLightText ? '0 4px 12px rgba(0,0,0,0.25)' : '0 4px 12px rgba(37,99,235,0.18)',
+                boxShadow: isLightText ? '0 3px 9px rgba(0,0,0,0.22)' : '0 3px 9px rgba(37,99,235,0.16)',
                 backdropFilter: 'blur(10px)',
               }
             : {
@@ -474,7 +474,7 @@ export function GoalWidget() {
           }
           title={displayMode ? '디스플레이 모드 해제 (모든 위젯 동기)' : '디스플레이 모드 — 목표만 크게 보이기. 모든 위젯에 동일 적용.'}
         >
-          {displayMode ? <MonitorOff size={16} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
+          {displayMode ? <MonitorOff size={13} strokeWidth={2.4} /> : <Monitor size={13} strokeWidth={2.2} />}
         </button>
         {!displayMode && (
           <button

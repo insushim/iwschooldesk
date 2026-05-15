@@ -461,12 +461,11 @@ export function StudentCheckWidget() {
         />
       )}
 
-      {/* 컨트롤: [새 리스트(display 전용)] [팔레트(display 전용)] [모드 토글] — 배경모드에선 click-through 라 숨김.
-          디스플레이 모드일 땐 우하단에 띄워 본문 우상단의 0/2 진행률 배지와 겹치지 않게.
-          일반 모드(작은 모드 토글 버튼만)일 땐 우상단 그대로. */}
-      {!iAmWallpaper && (
+      {/* 일반 모드 작은 토글 — displayMode 컨트롤은 본문 헤더 inline 으로 옮겨졌으므로
+          여기는 일반 모드(미니 토글)만. 배경모드에선 click-through 라 숨김. */}
+      {!iAmWallpaper && !displayMode && (
         <div
-          className={`absolute flex items-center gap-1 z-50 ${displayMode ? 'bottom-2 right-2 gap-1.5' : 'top-1.5 right-1.5'}`}
+          className="absolute flex items-center gap-1 z-50 top-1.5 right-1.5"
           style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
         >
           {displayMode && (
@@ -528,7 +527,7 @@ export function StudentCheckWidget() {
           style={{
             gap: 'clamp(10px, 1.4vw, 20px)',
             marginBottom: 'clamp(10px, 1.4vw, 20px)',
-            paddingRight: 56, // 팔레트/토글 공간
+            // 컨트롤은 진행률 배지 바로 옆 inline 으로 들어가서 absolute padding 불필요.
           }}
         >
           {(() => {
@@ -588,6 +587,54 @@ export function StudentCheckWidget() {
           >
             {selected.title}
           </span>
+
+          {/* 디스플레이 모드 컨트롤 — 진행률 배지 바로 왼쪽 inline 배치.
+              배경화면 모드(클릭 통과)에선 어차피 누를 수 없으므로 숨김. */}
+          {displayMode && !iAmWallpaper && (
+            <div
+              className="inline-flex items-center gap-1.5 shrink-0"
+              style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
+            >
+              <button
+                onClick={() => setCreateMode(true)}
+                className="flex items-center justify-center transition-all hover:scale-105"
+                title="새 체크 리스트 추가"
+                style={{
+                  width: 26, height: 26, borderRadius: 8,
+                  background: isLightText
+                    ? 'rgba(255,255,255,0.22)'
+                    : 'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
+                  color: '#fff',
+                  border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : 'none',
+                  boxShadow: isLightText
+                    ? '0 3px 9px rgba(0,0,0,0.22)'
+                    : '0 3px 9px rgba(14,165,233,0.28)',
+                }}
+              >
+                <Plus size={13} strokeWidth={2.6} />
+              </button>
+              <DisplayBgPicker current={displayBg} onPick={setDisplayBgId} />
+              <button
+                onClick={() => {
+                  const next = !displayMode
+                  setDisplayMode(next)
+                  try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
+                }}
+                className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
+                style={{
+                  width: 26, height: 26,
+                  color: isLightText ? '#fff' : 'var(--accent)',
+                  background: isLightText ? 'rgba(255,255,255,0.18)' : 'var(--accent-light)',
+                  border: isLightText ? '1.5px solid rgba(255,255,255,0.42)' : '1.5px solid rgba(37,99,235,0.28)',
+                  boxShadow: isLightText ? '0 3px 9px rgba(0,0,0,0.22)' : '0 3px 9px rgba(37,99,235,0.16)',
+                  backdropFilter: 'blur(10px)',
+                }}
+                title="디스플레이 모드 해제 (모든 위젯 동기)"
+              >
+                <MonitorOff size={13} strokeWidth={2.4} />
+              </button>
+            </div>
+          )}
 
           {/* 진행률 배지 — 원형 pill */}
           {items.length > 0 && (

@@ -10,6 +10,13 @@ const WIDGETS_WITH_OWN_DISPLAY_CONTROLS = new Set<string>([
   'clock', 'goal', 'meal', 'studentcheck', 'studenttimetable',
 ])
 
+/** 디스플레이 모드에서 shell 의 플로팅 컨트롤(팔레트·해제 버튼)을 표시하지 않는 위젯.
+ *  본문이 풀스크린 콘텐츠라 컨트롤이 시각적으로 거슬리는 경우. 해제는 단축키 Ctrl+Alt+Shift+D
+ *  또는 다른 위젯의 끄기 버튼으로. */
+const WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL = new Set<string>([
+  'calendar',
+])
+
 interface WidgetShellProps {
   title: string
   icon?: ReactNode
@@ -432,7 +439,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
         {/* 디스플레이 모드 전용 플로팅 컨트롤 — 자체 컨트롤이 있는 위젯(clock/goal/meal/studentcheck/studenttimetable)
             은 자체 우상단 버튼이 처리하므로 shell 컨트롤은 생략 (좌하단 중복 제거 사용자 요청).
             다른 위젯은 우상단에 항상 보이게(이전엔 hover 시만) + 크게(가독성 ↑) 표시. */}
-        {shellDisplayMode && !iAmWallpaper && !WIDGETS_WITH_OWN_DISPLAY_CONTROLS.has(widgetType ?? '') && (
+        {shellDisplayMode && !iAmWallpaper && !WIDGETS_WITH_OWN_DISPLAY_CONTROLS.has(widgetType ?? '') && !WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL.has(widgetType ?? '') && (
           <div
             // 우하단 배치 — 위젯 본문 우상단에 자주 있는 자체 버튼들(메모의 핀/휴지통/페이지네이션,
             // 업무 추가 +, 학교 N일차 배지, 할일 등)과 겹치지 않게 분리. 우하단도 콘텐츠 위에

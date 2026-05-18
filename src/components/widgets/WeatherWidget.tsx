@@ -221,13 +221,20 @@ export function WeatherWidget() {
     setLoading(true)
     setError(null)
 
+    // KMA 로컬 모델(kma_ldps) 명시 — 한국 기상청 로컬 예보로 정확도 ↑. 글로벌 best_match
+    // 보다 한국 좌표에서 ±2도 가까이 정확.
     const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${target.lat}&longitude=${target.lon}`
       + `&current=temperature_2m,relative_humidity_2m,weather_code`
       + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum`
       + `&hourly=temperature_2m,weather_code`
+      + `&models=kma_seamless`
       + `&timezone=Asia%2FSeoul&forecast_days=1`
     const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${target.lat}&longitude=${target.lon}`
       + `&current=pm10,pm2_5&timezone=Asia%2FSeoul`
+    // Worker (에어코리아 프록시 + 캐시) URL — NEIS Worker 와 동일 도메인.
+    // 사용자가 Worker 의 AIR_KOREA_KEY secret 미설정이면 worker 가 404 → Open-Meteo fallback 자동.
+    const WORKER_URL = 'https://schooldesk-meal.simssijjang.workers.dev'
+    const workerAirUrl = `${WORKER_URL}/airquality?city=${encodeURIComponent(target.name)}`
 
     /** fetch + 비-2xx 도 throw 처리해 재시도 대상으로 만든다. */
     const tryFetch = async (url: string): Promise<Response> => {
@@ -302,16 +309,31 @@ export function WeatherWidget() {
       setWeather(next)
       setError(null)
 
-      // 미세먼지는 본 데이터(날씨)가 받아진 뒤에 별도 재시도. 실패해도 위젯은 동작.
+      // 미세먼지 — 1) Worker(에어코리아 프록시) 시도 → 2) Open-Meteo fallback.
+      // Worker 가 한국 환경부 실측 측정소 데이터 제공(정확). 미배포·키 미설정 시 자동 fallback.
+      let airSet = false
       try {
-        const aRes = await retryFetch(aUrl, '미세먼지')
-        const a = await aRes.json() as { current: { pm10: number; pm2_5: number } }
-        setAir({ pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) })
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
-          // 미세먼지만 실패 — 날씨는 정상 표시되도록 에러 메시지 비움.
-          setError(null)
+        const r = await fetch(workerAirUrl, { signal: ctrl.signal })
+        if (r.ok) {
+          const j = await r.json() as { pm10: number | null; pm25: number | null }
+          setAir({ pm10: j.pm10, pm25: j.pm25 })
+          airSet = true
         }
+      } catch { /* fallback 으로 */ }
+      if (!airSet) {
+        // Worker 실패/미사용 — Open-Meteo (모델 보간, 한국 ±10μg/m³ 오차 가능)
+        try {
+          const aRes = await retryFetch(aUrl, '미세먼지')
+          const a = await aRes.json() as { current: { pm10: number; pm2_5: number } }
+          setAir({ pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) })
+        } catch (e) {
+          if ((e as Error).name !== 'AbortError') {
+            // 미세먼지만 실패 — 날씨는 정상 표시되도록 에러 메시지 비움.
+            setError(null)
+          }
+        }
+      } else {
+        setError(null)
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return

@@ -387,7 +387,7 @@ const WIDGET_DEFAULTS: Record<WidgetType, { w: number; h: number }> = {
   studentrecord: { w: 380, h: 460 },
   meal:      { w: 380, h: 360 },
   noticeboard: { w: 420, h: 280 },
-  weather:   { w: 360, h: 420 },
+  weather:   { w: 320, h: 600 },
 }
 
 let mainWindow: BrowserWindow | null = null

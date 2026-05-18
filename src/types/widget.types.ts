@@ -202,9 +202,9 @@ export const WIDGET_CONFIGS: Record<WidgetType, WidgetConfig> = {
     type: 'weather',
     label: '날씨',
     icon: 'CloudSun',
-    defaultWidth: 360,
-    defaultHeight: 420,
+    defaultWidth: 320,
+    defaultHeight: 600,
     minWidth: 280,
-    minHeight: 320,
+    minHeight: 420,
   },
 }

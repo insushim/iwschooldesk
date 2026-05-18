@@ -314,7 +314,8 @@ export function WeatherWidget() {
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
-        padding: '14px 18px 22px 18px',
+        // 배경화면 모드(헤더 숨김)에선 위아래 여백 최소화 — 콘텐츠가 위젯 전체를 꽉 채우게.
+        padding: iAmWallpaper ? '10px 16px 12px 16px' : '14px 18px 18px 18px',
         background: 'radial-gradient(ellipse at 30% 0%, rgba(56,189,248,0.10) 0%, transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(99,102,241,0.07) 0%, transparent 50%)',
       }}
     >
@@ -358,18 +359,17 @@ export function WeatherWidget() {
 
       {/* 현재 기온 + 날씨 아이콘 — 큰 영역 */}
       {weather && cur && (
-        <div className="flex items-center justify-center gap-3 shrink-0" style={{ marginBottom: 'clamp(8px, 1.4vw, 16px)' }}>
+        <div className="flex items-center justify-center gap-3 shrink-0" style={{ marginBottom: 'clamp(10px, 1.6vw, 18px)' }}>
           <cur.Icon
-            size={56}
             strokeWidth={1.8}
             color={cur.color}
-            style={{ filter: `drop-shadow(0 4px 12px ${cur.color}66)`, width: 'clamp(48px, 10vw, 80px)', height: 'clamp(48px, 10vw, 80px)' }}
+            style={{ filter: `drop-shadow(0 4px 12px ${cur.color}66)`, width: 'clamp(56px, 13vw, 96px)', height: 'clamp(56px, 13vw, 96px)' }}
           />
           <div className="flex flex-col items-start">
             <div
               className="tabular-nums"
               style={{
-                fontSize: 'clamp(36px, 9vw, 72px)',
+                fontSize: 'clamp(46px, 12vw, 92px)',
                 fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.05em',
                 color: cur.color,
               }}
@@ -378,9 +378,9 @@ export function WeatherWidget() {
             </div>
             <div
               style={{
-                fontSize: 'clamp(11px, 1.5vw, 16px)',
+                fontSize: 'clamp(13px, 1.8vw, 19px)',
                 fontWeight: 800, letterSpacing: '-0.02em',
-                color: 'var(--text-secondary)', marginTop: 2,
+                color: 'var(--text-secondary)', marginTop: 3,
               }}
             >
               {cur.label}

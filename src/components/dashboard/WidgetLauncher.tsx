@@ -3,12 +3,12 @@ import { motion } from 'framer-motion'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen, LayoutPanelLeft,
   CheckCheck, TimerReset, CalendarHeart, LayoutGrid, Power, Repeat, Target, Users,
-  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move, Megaphone,
+  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move, Megaphone, CloudSun,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType as AppWidgetType } from '../../types/widget.types'
 
-type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard'
+type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard' | 'weather'
 
 interface WidgetInfo {
   type: WidgetType
@@ -35,6 +35,7 @@ const WIDGETS: WidgetInfo[] = [
   { type: 'studentrecord', label: '학생 기록', desc: '비밀번호 잠금 · 수정 로그 자동 기록 (법원 증거용)', icon: ShieldCheck, color: '#8B5CF6' },
   { type: 'meal',      label: '오늘의 급식', desc: 'NEIS API 연동 · 학교 검색 한 번이면 끝', icon: Utensils, color: '#F59E0B' },
   { type: 'noticeboard', label: '알림판',    desc: '전자칠판용 공지 · 큰 글씨로 학생에게 안내', icon: Megaphone, color: '#DC2626' },
+  { type: 'weather',   label: '날씨',       desc: '오늘 기온·예보·미세먼지 · Open-Meteo 무료 API', icon: CloudSun, color: '#0EA5E9' },
 ]
 
 export function WidgetLauncher() {

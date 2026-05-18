@@ -15,6 +15,7 @@ export type WidgetType =
   | 'studentrecord'
   | 'meal'
   | 'noticeboard'
+  | 'weather'
 
 export interface WidgetPosition {
   widget_id: string
@@ -196,5 +197,14 @@ export const WIDGET_CONFIGS: Record<WidgetType, WidgetConfig> = {
     defaultHeight: 280,
     minWidth: 280,
     minHeight: 180,
+  },
+  weather: {
+    type: 'weather',
+    label: '날씨',
+    icon: 'CloudSun',
+    defaultWidth: 360,
+    defaultHeight: 420,
+    minWidth: 280,
+    minHeight: 320,
   },
 }

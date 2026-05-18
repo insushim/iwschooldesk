@@ -1,9 +1,22 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Sun, Cloud, CloudSun, CloudFog, CloudDrizzle, CloudRain, CloudSnow,
-  CloudRainWind, CloudLightning, MapPin, RefreshCw, X, Search, Wind,
+  CloudRainWind, CloudLightning, MapPin, RefreshCw, X, Search, Wind, School,
 } from 'lucide-react'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
+
+/** 급식 위젯이 NEIS 에서 받아 저장해둔 학교 정보. address(도로명) 에서 시군구를 뽑아
+ *  KOREAN_CITIES 와 매칭 → 학교 위치 자동 적용. */
+const MEAL_CONFIG_KEY = 'meal:config:v1'
+interface SchoolHint { name?: string; address?: string }
+function readSchoolHint(): SchoolHint | null {
+  try {
+    const raw = localStorage.getItem(MEAL_CONFIG_KEY)
+    if (!raw) return null
+    const cfg = JSON.parse(raw) as { school?: { name?: string; address?: string } }
+    return cfg?.school ? { name: cfg.school.name, address: cfg.school.address } : null
+  } catch { return null }
+}
 
 /**
  * 날씨 위젯 — 현재 기온 / 최저·최고 / 오전·오후 예보 / 비·눈 / 미세먼지.
@@ -101,6 +114,21 @@ const KOREAN_CITIES: ReadonlyArray<City> = [
 
 const DEFAULT_CITY: City = KOREAN_CITIES[0]
 const STORAGE_KEY = 'weather:city:v1'
+/** 사용자가 직접 한 번이라도 도시를 선택했는지 표시 — 자동 매칭 덮어쓰기 방지. */
+const USER_PICKED_KEY = 'weather:city:userPicked'
+
+/** 학교 도로명주소에서 한국 76개 도시 중 매칭되는 도시를 찾는다.
+ *  - 시도 + 시군구 → "서울특별시 강남구 ..." 에서 "서울"이 KOREAN_CITIES 에 있음.
+ *  - "경기도 성남시 분당구 ..." → "성남" 매칭.
+ *  - "서귀포"가 "제주"보다 먼저 매칭되도록 이름 길이 내림차순 정렬. */
+function matchCityFromAddress(address: string | undefined): City | null {
+  if (!address) return null
+  const sorted = [...KOREAN_CITIES].sort((a, b) => b.name.length - a.name.length)
+  for (const c of sorted) {
+    if (address.includes(c.name)) return c
+  }
+  return null
+}
 
 interface WeatherData {
   current: { temperature: number; humidity: number; weatherCode: number }
@@ -152,8 +180,27 @@ export function WeatherWidget() {
         if (parsed?.name && typeof parsed.lat === 'number' && typeof parsed.lon === 'number') return parsed
       }
     } catch { /* ignore */ }
+    // 사용자가 한 번도 도시 선택을 안 했고 학교 정보가 있으면 자동 매칭.
+    try {
+      const picked = localStorage.getItem(USER_PICKED_KEY)
+      if (!picked) {
+        const hint = readSchoolHint()
+        const matched = matchCityFromAddress(hint?.address)
+        if (matched) return matched
+      }
+    } catch { /* ignore */ }
     return DEFAULT_CITY
   })
+  // 학교 정보 힌트(이름) — 검색 화면의 "학교 위치로 설정" 버튼 표시용.
+  const [schoolHint, setSchoolHint] = useState<SchoolHint | null>(() => readSchoolHint())
+  // 다른 위젯 창에서 학교가 새로 설정되면 sync (storage event).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === MEAL_CONFIG_KEY) setSchoolHint(readSchoolHint())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [air, setAir] = useState<AirQuality>({ pm10: null, pm25: null })
   const [loading, setLoading] = useState(false)
@@ -234,10 +281,21 @@ export function WeatherWidget() {
     return () => clearInterval(t)
   }, [city, fetchAll])
 
-  const applyCity = (c: City): void => {
+  const applyCity = (c: City, opts?: { autoFromSchool?: boolean }): void => {
     setCity(c)
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)) } catch { /* ignore */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(c))
+      // 사용자가 검색 후 선택한 경우만 USER_PICKED 마크. 학교 자동 매칭은 향후
+      // 학교 변경 시 다시 sync 되도록 마크 안 함.
+      if (!opts?.autoFromSchool) localStorage.setItem(USER_PICKED_KEY, '1')
+    } catch { /* ignore */ }
     setSearchOpen(false); setSearchQuery('')
+  }
+
+  /** 도시 검색 화면의 "학교 위치로 설정" — 학교 주소에서 도시 추출 + 적용. */
+  const applySchoolLocation = (): void => {
+    const matched = matchCityFromAddress(schoolHint?.address)
+    if (matched) applyCity(matched, { autoFromSchool: true })
   }
 
   const filteredCities = useMemo(() => {
@@ -451,6 +509,33 @@ export function WeatherWidget() {
               <X size={13} strokeWidth={2.4} />
             </button>
           </div>
+          {/* 학교 위치 자동 설정 — 급식 위젯에서 받은 NEIS 주소로 도시 매칭. */}
+          {schoolHint?.address && matchCityFromAddress(schoolHint.address) && (
+            <button
+              onClick={applySchoolLocation}
+              className="flex items-center gap-2 transition-all hover:scale-[1.01]"
+              style={{
+                margin: '0 12px 8px',
+                padding: '10px 12px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(14,165,233,0.14) 0%, rgba(37,99,235,0.18) 100%)',
+                border: '1px solid rgba(37,99,235,0.32)',
+                color: '#1D4ED8',
+                textAlign: 'left',
+              }}
+              title="급식 위젯의 학교 주소에서 자동 매칭"
+            >
+              <School size={16} strokeWidth={2.4} />
+              <div className="flex-1 min-w-0">
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '-0.2px', lineHeight: 1.2 }}>
+                  학교 위치로 자동 설정
+                </div>
+                <div className="truncate" style={{ fontSize: 10.5, fontWeight: 600, opacity: 0.85, marginTop: 2 }}>
+                  {schoolHint.name ?? ''} · {matchCityFromAddress(schoolHint.address)?.name}
+                </div>
+              </div>
+            </button>
+          )}
           <div className="flex-1 overflow-y-auto" style={{ padding: '0 8px 12px' }}>
             {filteredCities.length === 0 ? (
               <div className="text-center" style={{ fontSize: 12.5, color: 'var(--text-muted)', padding: 20, fontWeight: 700 }}>

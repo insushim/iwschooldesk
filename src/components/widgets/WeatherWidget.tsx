@@ -210,25 +210,57 @@ export function WeatherWidget() {
   const iAmWallpaper = useIAmWallpaper('weather')
   const abortRef = useRef<AbortController | null>(null)
 
+  // 재시도 지연(ms) — 지수 백오프 + jitter. 마지막 슬롯까지 실패해도 다음 자동
+  // 새로고침(10분) 또는 사용자 새로고침 버튼으로 다시 시도. 결국 무조건 성공할 때까지 재시도.
+  const RETRY_DELAYS_MS = [1000, 3000, 8000, 20000, 60000, 120000] as const
+
   const fetchAll = useCallback(async (target: City): Promise<void> => {
     if (abortRef.current) abortRef.current.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
     setLoading(true)
     setError(null)
+
+    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${target.lat}&longitude=${target.lon}`
+      + `&current=temperature_2m,relative_humidity_2m,weather_code`
+      + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum`
+      + `&hourly=temperature_2m,weather_code`
+      + `&timezone=Asia%2FSeoul&forecast_days=1`
+    const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${target.lat}&longitude=${target.lon}`
+      + `&current=pm10,pm2_5&timezone=Asia%2FSeoul`
+
+    /** fetch + 비-2xx 도 throw 처리해 재시도 대상으로 만든다. */
+    const tryFetch = async (url: string): Promise<Response> => {
+      const res = await fetch(url, { signal: ctrl.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res
+    }
+
+    /** 무한 백오프 재시도 — 사용자 새로고침/다음 인터벌로 abort 되기 전까지 계속.
+     *  지연 슬롯을 다 쓰면 마지막(2분) 지연으로 고정해 계속 시도. */
+    const retryFetch = async (url: string, label: string): Promise<Response> => {
+      let attempt = 0
+      // 무한 루프지만 ctrl.signal 가 abort 되면 fetch 가 즉시 reject → 바깥 catch 로.
+      while (true) {
+        try {
+          return await tryFetch(url)
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') throw e
+          attempt++
+          const delay = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)]
+          setError(`${label} 가져오기 실패 — ${Math.round(delay / 1000)}초 후 재시도 (${attempt}번째)`)
+          // jitter ±20%
+          const jitter = delay * (0.8 + Math.random() * 0.4)
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(resolve, jitter)
+            ctrl.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
+          })
+        }
+      }
+    }
+
     try {
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${target.lat}&longitude=${target.lon}`
-        + `&current=temperature_2m,relative_humidity_2m,weather_code`
-        + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum`
-        + `&hourly=temperature_2m,weather_code`
-        + `&timezone=Asia%2FSeoul&forecast_days=1`
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${target.lat}&longitude=${target.lon}`
-        + `&current=pm10,pm2_5&timezone=Asia%2FSeoul`
-      const [wRes, aRes] = await Promise.all([
-        fetch(wUrl, { signal: ctrl.signal }),
-        fetch(aUrl, { signal: ctrl.signal }).catch(() => null),
-      ])
-      if (!wRes.ok) throw new Error(`날씨 ${wRes.status}`)
+      const wRes = await retryFetch(wUrl, '날씨')
       const w = await wRes.json() as {
         current: { temperature_2m: number; relative_humidity_2m: number; weather_code: number }
         daily: { temperature_2m_max: number[]; temperature_2m_min: number[]; weather_code: number[]; precipitation_sum: number[] }
@@ -260,11 +292,18 @@ export function WeatherWidget() {
         fetchedAt: Date.now(),
       }
       setWeather(next)
-      if (aRes?.ok) {
-        try {
-          const a = await aRes.json() as { current: { pm10: number; pm2_5: number } }
-          setAir({ pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) })
-        } catch { /* ignore */ }
+      setError(null)
+
+      // 미세먼지는 본 데이터(날씨)가 받아진 뒤에 별도 재시도. 실패해도 위젯은 동작.
+      try {
+        const aRes = await retryFetch(aUrl, '미세먼지')
+        const a = await aRes.json() as { current: { pm10: number; pm2_5: number } }
+        setAir({ pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) })
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') {
+          // 미세먼지만 실패 — 날씨는 정상 표시되도록 에러 메시지 비움.
+          setError(null)
+        }
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return

@@ -252,8 +252,16 @@ export function WeatherWidget() {
           // jitter ±20%
           const jitter = delay * (0.8 + Math.random() * 0.4)
           await new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(resolve, jitter)
-            ctrl.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
+            // listener 누수 방지 — timer 정상 resolve 시에도 명시적으로 제거.
+            const onAbort = (): void => {
+              clearTimeout(timer)
+              reject(new DOMException('Aborted', 'AbortError'))
+            }
+            const timer = setTimeout(() => {
+              ctrl.signal.removeEventListener('abort', onAbort)
+              resolve()
+            }, jitter)
+            ctrl.signal.addEventListener('abort', onAbort)
           })
         }
       }

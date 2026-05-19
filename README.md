@@ -1,6 +1,15 @@
 # SchoolDesk
 
+![License: MIT](https://img.shields.io/badge/license-MIT-yellow)
+![무료](https://img.shields.io/badge/%EB%AC%B4%EB%A3%8C-100%25-success)
+![광고 없음](https://img.shields.io/badge/%EA%B4%91%EA%B3%A0-%EC%97%86%EC%9D%8C-blue)
+![트래킹 없음](https://img.shields.io/badge/%ED%8A%B8%EB%9E%98%ED%82%B9-%EC%97%86%EC%9D%8C-blue)
+![데이터 로컬](https://img.shields.io/badge/%EB%8D%B0%EC%9D%B4%ED%84%B0-%EB%A1%9C%EC%BB%AC%20%EC%A0%80%EC%9E%A5-orange)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+
 선생님을 위한 데스크톱 위젯 앱 — 시간표·할일·체크리스트·학급 체크·학생 기록 등을 바탕화면 위젯과 대시보드에서 한 번에.
+
+> **무료 · 광고 없음 · 트래킹 없음 · 학생 정보 외부 전송 X** — 선생님께 도움이 되었으면 합니다.
 
 바이브 코딩으로 직접 제작 · Electron + React + TypeScript + better-sqlite3.
 

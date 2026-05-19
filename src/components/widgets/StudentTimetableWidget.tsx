@@ -370,13 +370,12 @@ export function StudentTimetableWidget() {
       />
 
       {/* 상단: 배지 (지금/다음/쉬는시간 후/내일) + 교시
-          디스플레이 모드일 때: 좌우 동일 padding 으로 시각적 대칭 + justify-center 로 가운데 모음.
-          (기존엔 paddingRight 만 있어 좌측으로 치우쳐 보였음.) */}
+          디스플레이 모드·배경화면 모드 모두 가운데 정렬 (헤더 숨김 상태라 콘텐츠가 위젯 폭 안에서 중앙에 자리잡아야 자연스러움). */}
       <div
-        className={`relative flex items-center gap-2 shrink-0 ${displayMode ? 'justify-center' : 'justify-between'}`}
+        className={`relative flex items-center gap-2 shrink-0 ${(displayMode || iAmWallpaper) ? 'justify-center' : 'justify-between'}`}
         style={{
           marginBottom: 'clamp(8px, 1.2vw, 20px)',
-          gap: displayMode ? 'clamp(12px, 1.6vw, 24px)' : 'clamp(4px, 0.6vw, 8px)',
+          gap: (displayMode || iAmWallpaper) ? 'clamp(12px, 1.6vw, 24px)' : 'clamp(4px, 0.6vw, 8px)',
           // 디스플레이 모드의 큰 좌우 padding 은 우상단 컨트롤 자리 비우는 대칭용. 배경화면 모드에선
           // 컨트롤이 숨겨져 헛공간이 됨 → 좌우 좁아 보이고 내용이 옹색해지는 문제 해결.
           paddingLeft: (displayMode && !iAmWallpaper) ? 'clamp(72px, 10vw, 120px)' : 0,
@@ -437,7 +436,7 @@ export function StudentTimetableWidget() {
           style={{ gap: 'clamp(6px, 1vw, 14px)' }}
         >
           <div
-            className={`flex items-end ${displayMode ? 'justify-center' : ''}`}
+            className={`flex items-end ${(displayMode || iAmWallpaper) ? 'justify-center' : ''}`}
             style={{ gap: 'clamp(8px, 1.2vw, 18px)' }}
           >
             {/* 좌측 과목색 악센트 */}
@@ -478,12 +477,12 @@ export function StudentTimetableWidget() {
             </span>
           </div>
 
-          {/* 하단: 시간 범위 + 교사(전담/강사) — 디스플레이 모드에선 가운데 정렬. */}
+          {/* 하단: 시간 범위 + 교사(전담/강사) — 디스플레이/배경화면 모드 모두 가운데 정렬. */}
           <div
-            className={`flex items-center flex-wrap ${displayMode ? 'justify-center' : ''}`}
+            className={`flex items-center flex-wrap ${(displayMode || iAmWallpaper) ? 'justify-center' : ''}`}
             style={{
               gap: 'clamp(8px, 1.4vw, 20px)',
-              marginLeft: displayMode ? 0 : 'clamp(12px, 2vw, 28px)',
+              marginLeft: (displayMode || iAmWallpaper) ? 0 : 'clamp(12px, 2vw, 28px)',
               fontSize: 'clamp(12px, 1.7vw, 22px)',
               color: 'var(--text-secondary)',
               fontWeight: 600,

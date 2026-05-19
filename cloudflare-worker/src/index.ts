@@ -253,9 +253,20 @@ async function fetchKmaUltraSrtNcst(nx: number, ny: number, env: Env): Promise<M
   } catch { return null }
 }
 
-async function fetchKmaVilageFcst(nx: number, ny: number, env: Env): Promise<KmaItem[] | null> {
+/** 어제 23시 KST 발표분 base_time — 일 최저 기온(TMN) 보강용.
+ *  09시 이후 발표분에는 오늘 새벽 TMN 슬롯이 누락되므로 ("이미 지난 시각") 어제 23시 발표분에서 추출. */
+function getYesterday23BaseTime(): { base_date: string; base_time: string } {
+  const kst = toKst(new Date())
+  kst.setUTCDate(kst.getUTCDate() - 1)
+  const y = kst.getUTCFullYear()
+  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(kst.getUTCDate()).padStart(2, '0')
+  return { base_date: `${y}${m}${day}`, base_time: '2300' }
+}
+
+async function fetchKmaVilageFcst(nx: number, ny: number, env: Env, customBaseTime?: { base_date: string; base_time: string }): Promise<KmaItem[] | null> {
   if (!env.AIR_KOREA_KEY) return null
-  const { base_date, base_time } = getFcstBaseTime(new Date())
+  const { base_date, base_time } = customBaseTime ?? getFcstBaseTime(new Date())
   // 단기예보는 3일치 = 약 290개 행. 오늘분만 필터.
   const url = `${KMA_BASE}/getVilageFcst?serviceKey=${encodeURIComponent(env.AIR_KOREA_KEY)}&numOfRows=300&pageNo=1&dataType=JSON&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`
   try {
@@ -291,11 +302,15 @@ interface WeatherResult {
 async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<WeatherResult | null> {
   if (!env.AIR_KOREA_KEY) return null
   const { nx, ny } = gpsToGrid(lat, lon)
-  const [ncst, fcst] = await Promise.all([
+  // 3개 병렬 호출 — ncst(실측), fcst(최신 단기예보), fcstY23(어제 23시 발표분).
+  // fcstY23 목적: 오늘 새벽 TMN 슬롯 보장. 09시 이후 발표분에는 새벽 TMN 누락되므로
+  // 어제 23시 발표분(24h 전체 forecast 포함)에서 정확한 일 최저/최고 보강.
+  const [ncst, fcst, fcstY23] = await Promise.all([
     fetchKmaUltraSrtNcst(nx, ny, env),
     fetchKmaVilageFcst(nx, ny, env),
+    fetchKmaVilageFcst(nx, ny, env, getYesterday23BaseTime()),
   ])
-  if (!ncst && !fcst) return null
+  if (!ncst && !fcst && !fcstY23) return null
 
   const toNum = (v: string | undefined): number | null => {
     if (v === undefined || v === null || v === '' || v === '-') return null
@@ -308,14 +323,20 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
     return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
   })()
 
-  // 단기예보에서 오늘분만 필터, category 별 그룹화
-  const todayFcst = (fcst ?? []).filter((x) => x.fcstDate === ymdToday)
+  // 단기예보 오늘분만 필터 + 머지 — 어제 23시 먼저 채우고 최신 발표분으로 덮어쓰기.
+  // 결과: 새벽 시간대(이미 지난 시각)는 fcstY23 가 채우고, 현재 이후는 fcst 가 최신값으로 덮음.
+  // → TMN/TMX 항상 정확 + 현재·미래 forecast 는 최신.
   const byCatTime = new Map<string, Map<string, string>>()
-  for (const it of todayFcst) {
-    if (!it.category || !it.fcstTime || it.fcstValue === undefined) continue
-    if (!byCatTime.has(it.category)) byCatTime.set(it.category, new Map())
-    byCatTime.get(it.category)!.set(it.fcstTime, it.fcstValue)
+  const ingest = (items: KmaItem[] | null): void => {
+    for (const it of items ?? []) {
+      if (it.fcstDate !== ymdToday) continue
+      if (!it.category || !it.fcstTime || it.fcstValue === undefined) continue
+      if (!byCatTime.has(it.category)) byCatTime.set(it.category, new Map())
+      byCatTime.get(it.category)!.set(it.fcstTime, it.fcstValue)
+    }
   }
+  ingest(fcstY23)  // 어제 23시 — 새벽 TMN/TMX 채움
+  ingest(fcst)     // 최신 발표 — 현재 이후 덮어쓰기
   const getFcstAt = (cat: string, time: string): string | undefined =>
     byCatTime.get(cat)?.get(time)
   /** 정확 매칭 우선 → 없으면 시간차 가장 적은 슬롯. 단기예보 발표 직후 09시 슬롯이
@@ -722,7 +743,7 @@ export default {
           return json({ error: 'invalid coordinates' }, 400)
         }
         const { nx, ny } = gpsToGrid(lat, lon)
-        return cachedJson(req, ctx, `weather:v3:${nx}_${ny}`, 60 * 60,
+        return cachedJson(req, ctx, `weather:v4:${nx}_${ny}`, 60 * 60,
           () => fetchWeatherFromKma(lat, lon, env),
           { error: 'kma unavailable', source: 'fallback' })
       }

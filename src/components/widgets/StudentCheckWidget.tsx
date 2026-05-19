@@ -446,9 +446,9 @@ export function StudentCheckWidget() {
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
-        // 배경모드(헤더 없음): 상하 padding 을 대칭으로 좁혀서 "아래가 넓어 보이는" 현상 방지.
+        // 배경모드(헤더 없음): 위·아래 padding 을 더 작게 — 헤더 자리 사라진 빈 공간 최소화.
         padding: iAmWallpaper
-          ? 'clamp(14px, 1.8vw, 22px) clamp(18px, 2vw, 28px)'
+          ? 'clamp(8px, 1.2vw, 14px) clamp(18px, 2vw, 28px)'
           : 'clamp(12px, 1.8vw, 24px) clamp(26px, 2.4vw, 32px) clamp(28px, 2.8vw, 36px)',
         background: displayMode && displayBg.bg ? displayBg.bg : undefined,
         transition: 'background 320ms ease',

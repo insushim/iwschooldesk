@@ -597,8 +597,8 @@ export function MealWidget() {
         </div>
       )}
 
-      {/* 헤더 — 학교명 + 날짜 */}
-      <div className="flex items-center gap-2.5 shrink-0 mb-3" style={{ paddingRight: !iAmWallpaper ? 76 : 0 }}>
+      {/* 헤더 — 학교명 + 날짜. 배경모드에선 학교명만 작게 → mb-1 로 축소 (mb-3 누적되어 위쪽 공간 과다). */}
+      <div className={`flex items-center gap-2.5 shrink-0 ${iAmWallpaper ? 'mb-1' : 'mb-3'}`} style={{ paddingRight: !iAmWallpaper ? 76 : 0 }}>
         <span
           className="flex items-center justify-center shrink-0"
           style={{

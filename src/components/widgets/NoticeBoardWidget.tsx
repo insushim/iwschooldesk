@@ -90,7 +90,8 @@ export function NoticeBoardWidget() {
     <div
       className="flex flex-col h-full relative overflow-hidden"
       style={{
-        padding: big ? 'clamp(16px, 3vw, 36px)' : '14px 18px 22px 18px',
+        // 배경/디스플레이 모드: 좌우 넉넉, 위·아래는 헤더 자리 사라진 만큼 축소.
+        padding: big ? 'clamp(8px, 1.5vw, 16px) clamp(16px, 3vw, 36px)' : '14px 18px 22px 18px',
         background: big
           ? 'radial-gradient(ellipse at 30% 0%, rgba(220,38,38,0.10) 0%, transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(217,119,6,0.08) 0%, transparent 50%)'
           : 'radial-gradient(ellipse at 0% 0%, rgba(220,38,38,0.06) 0%, transparent 55%)',

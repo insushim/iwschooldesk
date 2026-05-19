@@ -218,8 +218,10 @@ function ptyToLabel(pty: number): string {
   }
 }
 
-/** 한국 기상청 특보 임계값 기반 알림. iwmemo 검증 임계 그대로. */
-function buildAlerts(temp: number | null, windSpeed: number | null, rain: number | null): string[] {
+/** 한국 기상청 특보 임계값 기반 알림.
+ *  호우주의보 KMA 공식: 3시간 60mm OR 12시간 110mm. 단순화하여 시간당 15mm OR 일 50mm 이상을 폭우로 표기.
+ *  (이전 임계 일 30mm는 일반 비 수준이라 1mm/h 강수 예보에도 트리거되는 false-positive 발생 → 상향). */
+function buildAlerts(temp: number | null, windSpeed: number | null, rain1h: number | null, dailyRain: number | null): string[] {
   const alerts: string[] = []
   if (temp !== null) {
     if (temp <= -12) alerts.push('🥶한파')
@@ -227,7 +229,9 @@ function buildAlerts(temp: number | null, windSpeed: number | null, rain: number
     else if (temp >= 33) alerts.push('☀️더위')
   }
   if (windSpeed !== null && windSpeed >= 14) alerts.push('💨강풍')
-  if (rain !== null && rain >= 30) alerts.push('🌊폭우')
+  if ((rain1h !== null && rain1h >= 15) || (dailyRain !== null && dailyRain >= 50)) {
+    alerts.push('🌊폭우')
+  }
   return alerts
 }
 
@@ -400,8 +404,13 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
   const afternoonPty = toNum(getFcstNear('PTY', 15)) ?? 0
   const afternoonSky = toNum(getFcstNear('SKY', 15)) ?? 1
 
-  // alerts — 한국 기상청 특보 임계값. 현재 기온/풍속 + 일강수 합산 기준.
-  const alerts = buildAlerts(curTemp, curWind, precip > 0 ? precip : curRain1h)
+  // alerts — 한국 기상청 특보 임계값. 1시간 강수 + 일 강수 합산을 분리해서 정밀 판정.
+  const alerts = buildAlerts(curTemp, curWind, curRain1h, precip)
+
+  // 일 최저/최고 클램프 — 예보(TMN/TMX)는 발표 시점의 *예측*이라 실제 측정값(curTemp)과 차이 가능.
+  // 현재 17℃ 인데 예보 최저 19℃ 같은 모순 방지 → 실측이 더 극단이면 그것으로 보정.
+  const finalTmn = (tmn !== null && curTemp !== null) ? Math.min(tmn, curTemp) : tmn
+  const finalTmx = (tmx !== null && curTemp !== null) ? Math.max(tmx, curTemp) : tmx
 
   // KMA 발표 시각 — 초단기실황 base_time 우선, 없으면 단기예보. 신선도 표시용.
   const ncstBT = getNcstBaseTime(new Date())
@@ -418,8 +427,8 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
       precipNow: curRain1h,
     },
     daily: {
-      tempMin: tmn,
-      tempMax: tmx,
+      tempMin: finalTmn,
+      tempMax: finalTmx,
       weatherCode: dayWcode,
       precip: Math.round(precip * 10) / 10,
     },
@@ -743,7 +752,7 @@ export default {
           return json({ error: 'invalid coordinates' }, 400)
         }
         const { nx, ny } = gpsToGrid(lat, lon)
-        return cachedJson(req, ctx, `weather:v4:${nx}_${ny}`, 60 * 60,
+        return cachedJson(req, ctx, `weather:v5:${nx}_${ny}`, 60 * 60,
           () => fetchWeatherFromKma(lat, lon, env),
           { error: 'kma unavailable', source: 'fallback' })
       }

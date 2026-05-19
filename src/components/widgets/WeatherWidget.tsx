@@ -180,8 +180,9 @@ function pm10Grade(v: number | null): { label: string; color: string } {
   return { label: '매우나쁨', color: '#7C3AED' }
 }
 
-/** 한국 기상청 특보 임계값 → 이모지 chip. Open-Meteo fallback 경로에서도 동일 임계 적용. */
-function buildAlerts(temp: number | null, windSpeedMs: number | null, rainMm: number | null): string[] {
+/** 한국 기상청 특보 임계값 → 이모지 chip. Open-Meteo fallback 경로에서도 동일 임계 적용.
+ *  폭우는 시간당 15mm OR 일 50mm 이상 (호우주의보 단순화) — 1mm/h 같은 가벼운 비에 false-positive 방지. */
+function buildAlerts(temp: number | null, windSpeedMs: number | null, rain1h: number | null, dailyRain: number | null): string[] {
   const a: string[] = []
   if (temp !== null) {
     if (temp <= -12) a.push('🥶한파')
@@ -189,7 +190,7 @@ function buildAlerts(temp: number | null, windSpeedMs: number | null, rainMm: nu
     else if (temp >= 33) a.push('☀️더위')
   }
   if (windSpeedMs !== null && windSpeedMs >= 14) a.push('💨강풍')
-  if (rainMm !== null && rainMm >= 30) a.push('🌊폭우')
+  if ((rain1h !== null && rain1h >= 15) || (dailyRain !== null && dailyRain >= 50)) a.push('🌊폭우')
   return a
 }
 
@@ -400,7 +401,7 @@ export function WeatherWidget() {
             morning: { temp: Math.round(w.hourly.temperature_2m[mIdx]), code: w.hourly.weather_code[mIdx] },
             afternoon: { temp: Math.round(w.hourly.temperature_2m[aIdx]), code: w.hourly.weather_code[aIdx] },
           },
-          alerts: buildAlerts(curTemp, curWind, dailyPrecip),
+          alerts: buildAlerts(curTemp, curWind, null, dailyPrecip),  // Open-Meteo 는 시간당 강수 미제공
           source: 'open-meteo',
           fetchedAt: Date.now(),
         }
@@ -582,13 +583,13 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 최저 / 최고 pill */}
+      {/* 최저/최고 + 특보 + 풍속 chip — 한 줄로 묶음 (수직 공간 절약). */}
       {weather && (
-        <div className="flex items-center justify-center gap-2 shrink-0" style={{ marginBottom: 'clamp(8px, 1.2vw, 14px)' }}>
+        <div className="flex items-center justify-center gap-1.5 flex-wrap shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)' }}>
           <span
             className="inline-flex items-center gap-1 tabular-nums"
             style={{
-              fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
+              fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
               background: 'rgba(59,130,246,0.14)', color: '#1D4ED8',
               border: '1px solid rgba(59,130,246,0.3)',
             }}
@@ -598,30 +599,23 @@ export function WeatherWidget() {
           <span
             className="inline-flex items-center gap-1 tabular-nums"
             style={{
-              fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
+              fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
               background: 'rgba(239,68,68,0.14)', color: '#B91C1C',
               border: '1px solid rgba(239,68,68,0.3)',
             }}
           >
             최고 {weather.daily.tempMax}°
           </span>
-        </div>
-      )}
-
-      {/* 특보 chip — 한국 기상청 임계값 기반 (🥶한파·🔥폭염·💨강풍·🌊폭우). 풍속은 5m/s+ 일 때 별도 chip. */}
-      {weather && (weather.alerts.length > 0 || (weather.current.windSpeed !== null && weather.current.windSpeed >= 5)) && (
-        <div className="flex items-center justify-center gap-1.5 flex-wrap shrink-0" style={{ marginBottom: 'clamp(8px, 1.2vw, 14px)' }}>
           {weather.alerts.map((a) => (
             <span
               key={a}
               className="inline-flex items-center"
               style={{
                 fontSize: 11, fontWeight: 900, letterSpacing: '-0.02em',
-                padding: '3px 9px', borderRadius: 999,
+                padding: '3px 8px', borderRadius: 999,
                 background: 'linear-gradient(135deg, rgba(239,68,68,0.16) 0%, rgba(220,38,38,0.22) 100%)',
                 color: '#991B1B',
                 border: '1px solid rgba(220,38,38,0.34)',
-                boxShadow: '0 1px 3px rgba(239,68,68,0.18)',
               }}
             >
               {a}
@@ -632,45 +626,47 @@ export function WeatherWidget() {
               className="inline-flex items-center gap-1 tabular-nums"
               title="풍속 (m/s)"
               style={{
-                fontSize: 11, fontWeight: 800, letterSpacing: '-0.02em',
-                padding: '3px 8px', borderRadius: 999,
-                background: 'rgba(99,102,241,0.12)',
-                color: '#4338CA',
+                fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                background: 'rgba(99,102,241,0.12)', color: '#4338CA',
                 border: '1px solid rgba(99,102,241,0.28)',
               }}
             >
               <Wind size={10} strokeWidth={2.4} />
-              {weather.current.windSpeed.toFixed(1)} m/s
+              {weather.current.windSpeed.toFixed(1)}
             </span>
           )}
         </div>
       )}
 
-      {/* 오전 / 오후 예보 */}
+      {/* 오전 / 오후 예보 — 미세먼지 스타일 컴팩트 2줄: (시간 + 온도) / 라벨 */}
       {weather && morning && afternoon && (
-        <div className="grid grid-cols-2 gap-2 shrink-0" style={{ marginBottom: 'clamp(8px, 1.2vw, 14px)' }}>
+        <div className="grid grid-cols-2 gap-2 shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)' }}>
           {[
             { label: '9시', m: weather.hourly.morning, info: morning },
             { label: '15시', m: weather.hourly.afternoon, info: afternoon },
           ].map(({ label, m, info }) => (
             <div
               key={label}
-              className="flex items-center gap-2.5"
+              className="flex items-center gap-2"
               style={{
-                padding: '8px 12px', borderRadius: 12,
-                background: `linear-gradient(135deg, ${info.color}14 0%, ${info.color}22 100%)`,
+                padding: '7px 10px', borderRadius: 10,
+                background: `linear-gradient(135deg, ${info.color}12 0%, ${info.color}1F 100%)`,
                 border: `1px solid ${info.color}33`,
               }}
             >
-              <info.Icon size={22} strokeWidth={2} color={info.color} />
-              <div className="flex flex-col">
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.2px' }}>{label}</span>
-                <span className="tabular-nums" style={{ fontSize: 14, fontWeight: 900, color: info.color, lineHeight: 1.1 }}>
-                  {m.temp}°
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '-0.2px' }}>
-                  {info.label}
-                </span>
+              <info.Icon size={14} strokeWidth={2.2} color={info.color} />
+              <div className="flex-1 min-w-0">
+                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.2px', lineHeight: 1.1 }}>
+                  {label}
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color }}>
+                    {m.temp}°
+                  </span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: info.color }}>
+                    {info.label}
+                  </span>
+                </div>
               </div>
             </div>
           ))}

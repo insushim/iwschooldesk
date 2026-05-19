@@ -18,9 +18,10 @@ const WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL = new Set<string>([
 
 /** 디스플레이 모드에서 shell floating 컨트롤을 **우하단**에 배치할 위젯.
  *  나머지(메모·할일·루틴·체크리스트 등)는 헤더 자리(우상단). 사용자 요청 — 본문이
- *  큰 정보 위주(학생기록·D-Day·오늘·타이머)인 위젯은 콘텐츠 가운데 시야 방해 없이 우하단. */
+ *  큰 정보 위주(학생기록·D-Day·오늘·타이머)인 위젯은 콘텐츠 가운데 시야 방해 없이 우하단.
+ *  weather: 자체 새로고침 버튼이 우상단에 있어 shell 해제 버튼과 겹침 → 우하단으로. */
 const WIDGETS_FLOATING_AT_BOTTOM = new Set<string>([
-  'studentrecord', 'dday', 'today', 'timer',
+  'studentrecord', 'dday', 'today', 'timer', 'weather',
 ])
 
 interface WidgetShellProps {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CalendarDays,
@@ -42,8 +42,12 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Dialog } from '../ui/Dialog'
 import type { DDayEvent } from '../../types/settings.types'
+import type { Schedule } from '../../types/schedule.types'
 import type { TaskPriority } from '../../types/task.types'
 import type { TimetableSlot, TimetablePeriod, TimetableOverride } from '../../types/timetable.types'
+
+/** D-Day 카드 통합 이벤트 — DDayWidget 과 동일한 로직 (dday + 7일 이내 달력 일정 머지). */
+type UnifiedDday = DDayEvent & { source: 'dday' | 'schedule' }
 import { SUBJECT_COLORS } from '../../types/timetable.types'
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
@@ -483,6 +487,7 @@ export function DashboardHome() {
   const { slots, periods } = useTimetable()
   const { checklists } = useChecklists()
   const [ddays, setDdays] = useState<DDayEvent[]>([])
+  const [upcomingSchedules, setUpcomingSchedules] = useState<Schedule[]>([])
   const [overrides, setOverrides] = useState<TimetableOverride[]>([])
   const [overrideDialog, setOverrideDialog] = useState<{ open: boolean; period: number }>({ open: false, period: 1 })
   const [ddayDialogOpen, setDdayDialogOpen] = useState(false)
@@ -490,12 +495,27 @@ export function DashboardHome() {
   const [newDdayDate, setNewDdayDate] = useState('')
   const [newDdayEmoji, setNewDdayEmoji] = useState('📅')
 
-  useEffect(() => {
-    window.api.dday.list().then((data) => setDdays(data.filter((d) => d.is_active)))
-    window.api.timetable.getOverrides(todayStr).then(setOverrides)
-  }, [todayStr])
+  // D-Day + 달력 7일 이내 일정 통합 reload. DDayWidget 과 동일 정책으로 동기화.
+  const reloadDdayData = useCallback(() => {
+    window.api.dday.list().then((data) => setDdays(data.filter((d) => d.is_active))).catch(() => {})
+    const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
+    const in7 = new Date(todayD); in7.setDate(in7.getDate() + 7)
+    const pad2 = (n: number): string => String(n).padStart(2, '0')
+    const ymd = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+    window.api.schedule
+      .list({ startDate: ymd(todayD), endDate: ymd(in7) })
+      .then(setUpcomingSchedules)
+      .catch(() => setUpcomingSchedules([]))
+  }, [])
 
-  // 다른 창(위젯/편집기)에서 강사 수업이 추가/삭제되면 대시보드 카드도 즉시 갱신
+  useEffect(() => {
+    reloadDdayData()
+    window.api.timetable.getOverrides(todayStr).then(setOverrides)
+  }, [todayStr, reloadDdayData])
+
+  // 다른 창(D-Day 위젯·달력 위젯·편집기)에서 추가/삭제되면 대시보드 카드도 즉시 갱신.
+  useDataChange('dday', reloadDdayData)
+  useDataChange('schedule', reloadDdayData)
   useDataChange('timetable', () => {
     window.api.timetable.getOverrides(todayStr).then(setOverrides).catch(() => {})
   })
@@ -522,9 +542,43 @@ export function DashboardHome() {
   }
 
   const handleDeleteDday = async (id: string) => {
+    // 달력 일정에서 자동 유입된 항목(`sched-` 접두) 은 schedules 테이블에서 삭제.
+    if (id.startsWith('sched-')) {
+      try { await window.api.schedule.delete(id.slice('sched-'.length)) } catch { /* ignore */ }
+      reloadDdayData()
+      return
+    }
     await window.api.dday.delete(id)
     setDdays((prev) => prev.filter((d) => d.id !== id))
   }
+
+  // D-Day + 달력 7일 이내 일정 통합. DDayWidget 의 로직과 동일 정책 (오늘 일정 제외, 같은 날짜+제목 dday 우선).
+  const mergedDdays = useMemo<UnifiedDday[]>(() => {
+    const list: UnifiedDday[] = ddays.map((e) => ({ ...e, source: 'dday' as const }))
+    const existKey = new Set(list.map((e) => `${e.target_date}|${e.title}`))
+    const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
+    const pad2 = (n: number): string => String(n).padStart(2, '0')
+    const todayStr2 = `${todayD.getFullYear()}-${pad2(todayD.getMonth() + 1)}-${pad2(todayD.getDate())}`
+    for (const s of upcomingSchedules) {
+      const date = (s.start_date ?? '').slice(0, 10)
+      if (!date) continue
+      if (date === todayStr2) continue  // 오늘 일정은 "오늘 일정" 섹션 담당
+      const key = `${date}|${s.title}`
+      if (existKey.has(key)) continue
+      list.push({
+        id: `sched-${s.id}`,
+        title: s.title,
+        target_date: date,
+        color: s.color ?? null,
+        emoji: '📅',
+        is_active: 1,
+        created_at: s.created_at ?? '',
+        source: 'schedule',
+      })
+    }
+    list.sort((a, b) => a.target_date.localeCompare(b.target_date))
+    return list
+  }, [ddays, upcomingSchedules])
 
   const ddayEmojis = ['📅', '📝', '🎒', '🏫', '🎓', '✈️', '🎄', '🌸', '⭐', '🎉']
 
@@ -680,14 +734,14 @@ export function DashboardHome() {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              {ddays.length === 0 ? (
+              {mergedDdays.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
                   <Target size={28} strokeWidth={1.2} className="mb-2 opacity-30" />
                   <p className="text-xs">등록된 D-Day가 없어요</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {ddays.slice(0, 5).map((d) => {
+                  {mergedDdays.slice(0, 5).map((d) => {
                     const ddText = getDDayText(d.target_date)
                     const isDDay = ddText === 'D-Day'
                     return (

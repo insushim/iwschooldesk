@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Settings, Palette, Clock, Database, Keyboard, Info, Download, Upload, Trash2, AlertTriangle } from 'lucide-react'
+import { Settings, Palette, Clock, Database, Keyboard, Info, Download, Upload, Trash2, AlertTriangle, Shield, Lock, Server, Check } from 'lucide-react'
 import { useAppStore } from '../../stores/app.store'
 import { useUIStore } from '../../stores/ui.store'
 import { Button } from '../ui/Button'
@@ -7,7 +7,7 @@ import { Input } from '../ui/Input'
 import { Dialog } from '../ui/Dialog'
 import { EncryptedBackupSection } from './EncryptedBackupSection'
 
-type SettingsTab = 'general' | 'theme' | 'timetable' | 'timer' | 'data' | 'shortcuts' | 'about'
+type SettingsTab = 'general' | 'theme' | 'timetable' | 'timer' | 'data' | 'shortcuts' | 'privacy' | 'about'
 
 const tabs: { id: SettingsTab; icon: typeof Settings; label: string }[] = [
   { id: 'general', icon: Settings, label: '일반' },
@@ -15,6 +15,7 @@ const tabs: { id: SettingsTab; icon: typeof Settings; label: string }[] = [
   { id: 'timer', icon: Clock, label: '타이머' },
   { id: 'data', icon: Database, label: '데이터' },
   { id: 'shortcuts', icon: Keyboard, label: '단축키' },
+  { id: 'privacy', icon: Shield, label: '개인정보' },
   { id: 'about', icon: Info, label: '정보' },
 ]
 
@@ -330,6 +331,83 @@ export function SettingsPanel() {
                   </kbd>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'privacy' && (
+          <div className="max-w-2xl space-y-6">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">개인정보 보호</h2>
+
+            {/* 결론 박스 */}
+            <div style={{
+              padding: 18, borderRadius: 14,
+              background: 'linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(5,150,105,0.14) 100%)',
+              border: '1px solid rgba(16,185,129,0.28)',
+            }}>
+              <div className="flex items-start gap-3">
+                <Shield size={22} color="#059669" strokeWidth={2.2} style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#065F46', marginBottom: 4 }}>
+                    학생 정보는 개발사 서버로 전송되지 않습니다
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#047857', lineHeight: 1.55 }}>
+                    SchoolDesk 는 텔레메트리·자동 동기화·클라우드 백업 기능이 없으며, 모든 데이터는 사용자의 PC 에만 로컬 저장됩니다.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 데이터 처리 표 */}
+            <div>
+              <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">데이터 처리 방식</h3>
+              <div className="space-y-2.5">
+                {[
+                  { icon: Server, title: '외부 서버 호출 (학생 정보 미포함)', body: 'NEIS(급식·학교 검색), 기상청(날씨), 에어코리아(미세먼지) — 학교 이름·좌표·도시명만 전송' },
+                  { icon: Lock, title: '로컬 암호화', body: '학생기록·메모는 AES-256-GCM 봉투 암호화 + scrypt 키 도출 + 해시체인 변조 탐지로 저장' },
+                  { icon: Database, title: '데이터 위치', body: 'Windows: %APPDATA%\\school-desk\\, macOS/Linux 동일 경로. SQLite DB 파일 하나로 관리' },
+                  { icon: Check, title: '제3자 공유·판매', body: '없음. 익명 통계·광고 추적·분석 도구 일체 미사용' },
+                ].map(({ icon: Icon, title, body }) => (
+                  <div key={title} className="flex items-start gap-3" style={{
+                    padding: 12, borderRadius: 10,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-widget)',
+                  }}>
+                    <Icon size={16} color="var(--accent)" strokeWidth={2.2} style={{ marginTop: 2, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.5 }}>{body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 법적 책임 */}
+            <div>
+              <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">법적 책임 구분</h3>
+              <div className="space-y-2" style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                <p>· <b>개발사 (SchoolDesk)</b>: 개인정보보호법(PIPA) §2.5 상 <b>개인정보처리자가 아님</b>. 학생 정보를 수집·저장·이용·제3자 제공하지 않음.</p>
+                <p>· <b>사용 교사·학교</b>: 학생 개인정보의 보관 및 관리 책임 주체. 학교의 정보보호 지침에 따라 보호자 동의·안전한 보관·목적 외 사용 금지·학년 종료 시 삭제 의무.</p>
+                <p>· 본 앱을 학교에 정식 도입하는 경우 교육청 정보보호 담당 또는 학교 변호사 검토 권장.</p>
+              </div>
+            </div>
+
+            {/* 권장 운영 수칙 */}
+            <div style={{ padding: 14, borderRadius: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle size={16} color="#D97706" strokeWidth={2.2} style={{ marginTop: 2, flexShrink: 0 }} />
+                <div style={{ fontSize: 12.5, color: '#92400E', fontWeight: 600, lineHeight: 1.6 }}>
+                  <b>안전한 운영을 위한 권장 사항</b>
+                  <ul style={{ marginTop: 6, paddingLeft: 16, listStyle: 'disc' }}>
+                    <li>OS 로그인 비밀번호 설정 + 자리 비울 때 잠금(Win+L)</li>
+                    <li>백업 파일은 USB 또는 학교 보안망 내 보관 (Dropbox·OneDrive 등 일반 클라우드 지양)</li>
+                    <li>여러 교사가 한 PC 공유 시 Windows 사용자 계정 분리</li>
+                    <li>분실·도난 대비 BitLocker(Win) / FileVault(Mac) 디스크 암호화</li>
+                    <li>학년·반 변경 시 데이터 → 초기화 기능으로 삭제</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         )}

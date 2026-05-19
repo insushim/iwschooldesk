@@ -13,6 +13,7 @@ import { ChecklistManager } from './components/dashboard/ChecklistManager'
 import { WidgetLauncher } from './components/dashboard/WidgetLauncher'
 import { StatisticsView } from './components/dashboard/StatisticsView'
 import { SettingsPanel } from './components/dashboard/SettingsPanel'
+import { PrivacyOnboardingModal } from './components/dashboard/PrivacyOnboardingModal'
 import { CalendarWidget } from './components/widgets/CalendarWidget'
 import { TaskWidget } from './components/widgets/TaskWidget'
 import { MemoWidget } from './components/widgets/MemoWidget'
@@ -210,6 +211,7 @@ function DashboardApp() {
       </div>
       <QuickInput />
       <ToastContainer />
+      <PrivacyOnboardingModal />
     </div>
   )
 }

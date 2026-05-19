@@ -147,38 +147,45 @@ function gpsToGrid(lat: number, lon: number): { nx: number; ny: number } {
   }
 }
 
-/** 초단기실황 base_time — 매시간 30분 이후 발표. 안전하게 -40분 적용. */
+/** UTC Date → KST(UTC+9) Date 객체. Cloudflare Worker 는 UTC 환경이라
+ *  d.getHours() 가 한국 시각이 아닌 UTC 시각을 반환 → KMA base_time 9시간 어긋남.
+ *  반환된 Date 의 getUTCHours/getUTCDate 가 한국 시각·날짜와 일치. */
+function toKst(now: Date): Date {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+}
+
+/** 초단기실황 base_time (KST) — 매시간 30분 이후 발표. 안전하게 -40분 적용. */
 function getNcstBaseTime(now: Date): { base_date: string; base_time: string } {
-  const d = new Date(now)
-  let hour = d.getHours()
-  if (d.getMinutes() < 40) {
+  const d = toKst(now)
+  let hour = d.getUTCHours()
+  if (d.getUTCMinutes() < 40) {
     hour -= 1
-    if (hour < 0) { hour = 23; d.setDate(d.getDate() - 1) }
+    if (hour < 0) { hour = 23; d.setUTCDate(d.getUTCDate() - 1) }
   }
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
   return { base_date: `${y}${m}${day}`, base_time: `${String(hour).padStart(2, '0')}00` }
 }
 
-/** 단기예보 base_time — 02, 05, 08, 11, 14, 17, 20, 23시 발표. 발표 +10분 후부터 사용. */
+/** 단기예보 base_time (KST) — 02, 05, 08, 11, 14, 17, 20, 23시 발표. 발표 +10분 후부터 사용. */
 function getFcstBaseTime(now: Date): { base_date: string; base_time: string } {
   const baseHours = [2, 5, 8, 11, 14, 17, 20, 23]
-  const d = new Date(now)
+  const d = toKst(now)
+  const curHour = d.getUTCHours()
+  const curMin = d.getUTCMinutes()
   let baseHour = -1
   for (const h of baseHours) {
-    const releaseTime = new Date(d)
-    releaseTime.setHours(h, 10, 0, 0)
-    if (d >= releaseTime) baseHour = h
+    if (curHour > h || (curHour === h && curMin >= 10)) baseHour = h
   }
   if (baseHour < 0) {
     // 전날 23시 발표 사용
-    d.setDate(d.getDate() - 1)
+    d.setUTCDate(d.getUTCDate() - 1)
     baseHour = 23
   }
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
   return { base_date: `${y}${m}${day}`, base_time: `${String(baseHour).padStart(2, '0')}00` }
 }
 
@@ -295,9 +302,10 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
     const n = Number(v)
     return Number.isFinite(n) ? n : null
   }
+  // KST 기준 오늘 — Worker UTC 환경에서 자정 직후 UTC 날짜가 KST 와 어긋남.
   const ymdToday = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+    const d = toKst(new Date())
+    return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
   })()
 
   // 단기예보에서 오늘분만 필터, category 별 그룹화
@@ -333,8 +341,8 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
     return m.values().next().value
   }
 
-  // 현재 기온/날씨: 초단기실황 + 현재 시각의 SKY (단기예보)
-  const curHourPad = String(new Date().getHours()).padStart(2, '0') + '00'
+  // 현재 기온/날씨: 초단기실황 + 현재 시각(KST)의 SKY (단기예보)
+  const curHourPad = String(toKst(new Date()).getUTCHours()).padStart(2, '0') + '00'
   const curTemp = toNum(ncst?.get('T1H')) ?? toNum(getFcstAt('TMP', curHourPad))
   const curPty = toNum(ncst?.get('PTY')) ?? toNum(getFcstAt('PTY', curHourPad)) ?? 0
   const curSky = toNum(getFcstAt('SKY', curHourPad)) ?? 1
@@ -714,7 +722,7 @@ export default {
           return json({ error: 'invalid coordinates' }, 400)
         }
         const { nx, ny } = gpsToGrid(lat, lon)
-        return cachedJson(req, ctx, `weather:v2:${nx}_${ny}`, 60 * 60,
+        return cachedJson(req, ctx, `weather:v3:${nx}_${ny}`, 60 * 60,
           () => fetchWeatherFromKma(lat, lon, env),
           { error: 'kma unavailable', source: 'fallback' })
       }

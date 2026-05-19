@@ -310,6 +310,23 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
   }
   const getFcstAt = (cat: string, time: string): string | undefined =>
     byCatTime.get(cat)?.get(time)
+  /** 정확 매칭 우선 → 없으면 시간차 가장 적은 슬롯. 단기예보 발표 직후 09시 슬롯이
+   *  누락된 경우 10/11시 등 인접 시각으로 fallback → 9시·15시 표시 정확도 ↑ */
+  const getFcstNear = (cat: string, targetHour: number): string | undefined => {
+    const m = byCatTime.get(cat)
+    if (!m) return undefined
+    const padded = String(targetHour).padStart(2, '0') + '00'
+    const exact = m.get(padded)
+    if (exact !== undefined) return exact
+    let bestDiff = 25; let bestVal: string | undefined
+    for (const [t, v] of m) {
+      const h = parseInt(t.slice(0, 2), 10)
+      if (!Number.isFinite(h)) continue
+      const diff = Math.abs(h - targetHour)
+      if (diff < bestDiff) { bestDiff = diff; bestVal = v }
+    }
+    return bestVal
+  }
   const getAnyFcst = (cat: string): string | undefined => {
     const m = byCatTime.get(cat)
     if (!m) return undefined
@@ -346,12 +363,13 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
     dayWcode = ptySkyToWmoCode(0, skyMode)
   }
 
-  const morningTemp = toNum(getFcstAt('TMP', '0900'))
-  const morningPty = toNum(getFcstAt('PTY', '0900')) ?? 0
-  const morningSky = toNum(getFcstAt('SKY', '0900')) ?? 1
-  const afternoonTemp = toNum(getFcstAt('TMP', '1500'))
-  const afternoonPty = toNum(getFcstAt('PTY', '1500')) ?? 0
-  const afternoonSky = toNum(getFcstAt('SKY', '1500')) ?? 1
+  // 9시·15시 정확 슬롯 우선 → 누락 시 인접 시각으로 fallback (예: 14시 발표분에 09시 forecast 없을 때 10/11시)
+  const morningTemp = toNum(getFcstNear('TMP', 9))
+  const morningPty = toNum(getFcstNear('PTY', 9)) ?? 0
+  const morningSky = toNum(getFcstNear('SKY', 9)) ?? 1
+  const afternoonTemp = toNum(getFcstNear('TMP', 15))
+  const afternoonPty = toNum(getFcstNear('PTY', 15)) ?? 0
+  const afternoonSky = toNum(getFcstNear('SKY', 15)) ?? 1
 
   // alerts — 한국 기상청 특보 임계값. 현재 기온/풍속 + 일강수 합산 기준.
   const alerts = buildAlerts(curTemp, curWind, precip > 0 ? precip : curRain1h)
@@ -597,9 +615,63 @@ async function fetchMealInfo(scCode: string, schoolCode: string, ymd: string, en
   })
 }
 
+// ─── 캐시 헬퍼 — Cloudflare Cache API (KV 비용·한도 0) ──────
+// KV write 1k/day 무료 한도가 1만 MAU 에서 일 3.7k 추정으로 초과 → Cache API 로 전환.
+// Cache API: edge CDN cache. write 비용 0, read 비용 0, 한도 없음 (1GB+ 시 자동 evict).
+// 단점: per-colo 캐시 (서울 colo 캐시 ≠ 도쿄 colo 캐시) → 첫 호출만 origin fetch 증가.
+// 한국 사용자 대부분 → colo 분산 영향 미미.
+async function cachedJson<T>(
+  req: Request,
+  ctx: ExecutionContext,
+  cacheKey: string,
+  ttlSeconds: number,
+  producer: () => Promise<T | null>,
+  onMiss404: { error: string; source: string } | null = null,
+): Promise<Response> {
+  const cache = caches.default
+  // Cache key 는 URL → 모든 origin 정규화. cacheKey 는 query 와 별개 namespace 분리용.
+  const url = new URL(req.url)
+  url.pathname = `/__cache__/${cacheKey}`
+  url.search = ''
+  const keyReq = new Request(url.toString(), { method: 'GET' })
+
+  const hit = await cache.match(keyReq)
+  if (hit) {
+    // hit 은 body stream 1회만 읽힘 — 새 Response 로 복제해 반환 (CORS 헤더 보강).
+    const body = await hit.text()
+    return new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cache': 'HIT', ...corsHeaders },
+    })
+  }
+
+  const data = await producer()
+  if (data === null) {
+    if (onMiss404) return json({ ...onMiss404 }, 404)
+    return json({ error: 'no data' }, 404)
+  }
+
+  const body = JSON.stringify(data)
+  // Cache API 에 저장할 Response — Cache-Control max-age 로 TTL 강제.
+  const toCache = new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': `public, max-age=${ttlSeconds}`,
+    },
+  })
+  // waitUntil — cache.put 은 fire-and-forget. worker 종료 전 완료 보장.
+  ctx.waitUntil(cache.put(keyReq, toCache.clone()))
+
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cache': 'MISS', ...corsHeaders },
+  })
+}
+
 // ─── 라우터 ────────────────────────────────────────
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
     if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405)
 
@@ -610,91 +682,58 @@ export default {
     const url = new URL(req.url)
 
     try {
-      // 학교 검색 ─ /school?name=한가람초
+      // 학교 검색 ─ /school?name=한가람초 (7일 캐시)
       if (url.pathname === '/school') {
         const name = url.searchParams.get('name')
         const err = validateName(name)
         if (err) return json({ error: err }, 400)
         const trimmed = name!.trim()
-        // v2: rawText 제거 + 입력검증 추가된 응답 스키마.
-        const cacheKey = `school:v2:${trimmed.toLowerCase()}`
-        const cached = await env.CACHE.get(cacheKey, 'json')
-        if (cached) return json(cached)
-        const result = await fetchSchoolInfo(trimmed, env)
-        await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 7 * 24 * 3600 })
-        return json(result)
+        return cachedJson(req, ctx, `school:v3:${trimmed.toLowerCase()}`, 7 * 24 * 3600,
+          () => fetchSchoolInfo(trimmed, env).then((r) => r ?? []))
       }
 
-      // 급식 ─ /meal?scCode=B10&schoolCode=7010001&date=2026-04-27
+      // 급식 ─ /meal?scCode=B10&schoolCode=7010001&date=2026-04-27 (25시간 캐시)
       if (url.pathname === '/meal') {
         const scCode = url.searchParams.get('scCode')
         const schoolCode = url.searchParams.get('schoolCode')
         const date = url.searchParams.get('date')
         const errs = [validateScCode(scCode), validateSchoolCode(schoolCode), validateDate(date)].filter(Boolean)
         if (errs.length) return json({ error: errs[0] }, 400)
-        const sc = scCode!.trim()
-        const sch = schoolCode!.trim()
-        const dt = date!.trim()
+        const sc = scCode!.trim(); const sch = schoolCode!.trim(); const dt = date!.trim()
         const ymdClean = dt.replace(/-/g, '')
-        // v2: rawText 제거된 응답 스키마.
-        const cacheKey = `meal:v2:${sc}:${sch}:${ymdClean}`
-        const cached = await env.CACHE.get(cacheKey, 'json')
-        if (cached) return json(cached)
-        const result = await fetchMealInfo(sc, sch, dt, env)
-        await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 25 * 3600 })
-        return json(result)
+        return cachedJson(req, ctx, `meal:v3:${sc}:${sch}:${ymdClean}`, 25 * 3600,
+          () => fetchMealInfo(sc, sch, dt, env).then((r) => r ?? []))
       }
 
-      // 기상청 날씨 ─ /weather?lat=37.5665&lon=126.978
-      // 한국 영토 좌표 → KMA 초단기실황 + 단기예보. 60분 TTL 캐시(기상청 갱신 주기).
-      // AIR_KOREA_KEY secret 미설정 시 404 → 클라이언트가 Open-Meteo fallback.
+      // 기상청 날씨 ─ /weather?lat=37.5665&lon=126.978 (60분 캐시, KMA 갱신 주기)
       if (url.pathname === '/weather') {
         const lat = parseFloat(url.searchParams.get('lat') ?? '')
         const lon = parseFloat(url.searchParams.get('lon') ?? '')
-        // 한국 영토 + 인접 해상 (제주 남단~함경북도, 가거도~독도).
         if (!Number.isFinite(lat) || !Number.isFinite(lon)
           || lat < 32 || lat > 39.5 || lon < 124 || lon > 132) {
           return json({ error: 'invalid coordinates' }, 400)
         }
-        // 격자 변환은 동일 nx/ny 매핑 → 같은 격자 사용자끼리 캐시 공유.
         const { nx, ny } = gpsToGrid(lat, lon)
-        const cacheKey = `weather:v1:${nx}_${ny}`
-        const cached = await env.CACHE.get(cacheKey, 'json')
-        if (cached) return json(cached)
-        const result = await fetchWeatherFromKma(lat, lon, env)
-        if (result) {
-          // 60분 — KMA 초단기실황·단기예보 갱신 주기.
-          await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 * 60 })
-          return json(result)
-        }
-        return json({ error: 'kma unavailable', source: 'fallback' }, 404)
+        return cachedJson(req, ctx, `weather:v2:${nx}_${ny}`, 60 * 60,
+          () => fetchWeatherFromKma(lat, lon, env),
+          { error: 'kma unavailable', source: 'fallback' })
       }
 
-      // 미세먼지 ─ /airquality?city=김제
-      // 좌표 대신 도시명을 받음(클라이언트가 76개 도시 목록 중 선택한 결과). 10분 TTL 캐시.
+      // 미세먼지 ─ /airquality?city=김제 (60분 캐시, 에어코리아 갱신 주기)
       if (url.pathname === '/airquality') {
         const cityName = url.searchParams.get('city')
         if (!cityName) return json({ error: 'city required' }, 400)
         const trimmed = cityName.trim()
         if (trimmed.length === 0 || trimmed.length > 20) return json({ error: 'invalid city' }, 400)
         if (!/^[가-힣]+$/.test(trimmed)) return json({ error: 'invalid city characters' }, 400)
-        const cacheKey = `air:v2:${trimmed}`
-        const cached = await env.CACHE.get(cacheKey, 'json')
-        if (cached) return json(cached)
-        const result = await fetchAirQualityFromAirKorea(trimmed, env)
-        if (result) {
-          // 60분 캐시 — 에어코리아 자체가 1시간 갱신 + 사용자 클라이언트가 30분마다 fetch 라
-          // 60분 캐시면 사용자 평균 2회 중 1회만 에어코리아 호출.
-          await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 * 60 })
-          return json(result)
-        }
-        // 에어코리아 호출 실패 또는 키 없음 — 클라이언트가 Open-Meteo fallback 하도록 404.
-        return json({ error: 'airkorea unavailable', source: 'fallback' }, 404)
+        return cachedJson(req, ctx, `air:v3:${trimmed}`, 60 * 60,
+          () => fetchAirQualityFromAirKorea(trimmed, env),
+          { error: 'airkorea unavailable', source: 'fallback' })
       }
 
       // 헬스체크
       if (url.pathname === '/' || url.pathname === '/health') {
-        return json({ ok: true, service: 'schooldesk-meal', endpoints: ['/school', '/meal', '/weather', '/airquality'] })
+        return json({ ok: true, service: 'schooldesk-meal', cache: 'edge-cache-api', endpoints: ['/school', '/meal', '/weather', '/airquality'] })
       }
 
       return json({ error: 'not found' }, 404)

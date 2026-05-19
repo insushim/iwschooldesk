@@ -461,6 +461,72 @@ export function SettingsPanel() {
               </ul>
             </div>
 
+            {/* 데이터 출처 — 공공데이터법 시행령 §20 출처 명시 의무 준수 */}
+            <div
+              className="rounded-[14px] border"
+              style={{ borderColor: 'rgba(15,23,42,0.1)', backgroundColor: 'var(--bg-widget)', padding: 20 }}
+            >
+              <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                <span style={{ fontSize: 15 }}>📊</span> 데이터 출처
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)] mb-3 leading-relaxed">
+                본 앱은 다음 공공기관·서비스의 데이터를 활용하여 제작되었습니다. 모든 데이터는 각 제공기관에 저작권이 귀속됩니다.
+              </p>
+              <div className="space-y-2.5">
+                {[
+                  {
+                    name: '기상청 단기예보 · 초단기실황',
+                    body: '날씨 위젯의 현재 기온·예보·강수형태·풍속·특보. 공공데이터포털(data.go.kr) 제공.',
+                    url: 'https://www.data.go.kr/data/15084084/openapi.do',
+                  },
+                  {
+                    name: '한국환경공단 에어코리아',
+                    body: '날씨 위젯의 미세먼지(PM10) · 초미세먼지(PM2.5) 실시간 측정값. 공공데이터포털 제공.',
+                    url: 'https://www.data.go.kr/data/15073861/openapi.do',
+                  },
+                  {
+                    name: 'NEIS 교육행정정보시스템',
+                    body: '급식 위젯의 학교 정보·식단. 교육부 NEIS open API 제공.',
+                    url: 'https://open.neis.go.kr/',
+                  },
+                  {
+                    name: 'Open-Meteo (백업)',
+                    body: '기상청 API 일시 장애 시 자동 대체 기상 데이터. CC BY 4.0.',
+                    url: 'https://open-meteo.com/',
+                  },
+                  {
+                    name: 'OpenTimestamps',
+                    body: '학생기록 위젯 해시체인을 Bitcoin 블록체인에 등록해 변조 탐지 (개인정보 미전송, 해시값만 전송).',
+                    url: 'https://opentimestamps.org/',
+                  },
+                ].map(({ name, body, url }) => (
+                  <div key={name} style={{
+                    padding: 10, borderRadius: 8,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-widget)',
+                  }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>
+                      {name}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 4 }}>
+                      {body}
+                    </div>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      style={{ fontSize: 10.5, color: 'var(--accent)', textDecoration: 'underline', fontWeight: 600 }}
+                    >
+                      {url}
+                    </a>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10.5px] text-[var(--text-muted)] mt-3 leading-relaxed" style={{ fontStyle: 'italic' }}>
+                공공데이터포털 자료 활용 시 공공데이터법 시행령 제20조에 따라 출처를 명시합니다.
+              </p>
+            </div>
+
             {/* 오픈소스 라이선스 */}
             <div
               className="rounded-[14px] border"

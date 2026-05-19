@@ -64,6 +64,20 @@ SchoolDesk 는 **학생·교사 개인정보를 개발사 서버로 전송하지
 
 자세한 내용은 앱 안 **설정 → 개인정보** 탭 참조.
 
+## 데이터 출처
+
+본 앱은 다음 공공기관·서비스의 데이터를 활용하여 제작되었습니다 (공공데이터법 시행령 §20 출처 명시).
+
+| 출처 | 사용처 | 라이선스/약관 |
+|---|---|---|
+| **기상청 단기예보·초단기실황** ([data.go.kr](https://www.data.go.kr/data/15084084/openapi.do)) | 날씨 위젯 기온·예보·강수·풍속·특보 | 공공데이터 |
+| **한국환경공단 에어코리아** ([data.go.kr](https://www.data.go.kr/data/15073861/openapi.do)) | 미세먼지·초미세먼지 실시간 측정값 | 공공데이터 |
+| **NEIS 교육행정정보시스템** ([open.neis.go.kr](https://open.neis.go.kr/)) | 급식 위젯 학교 정보·식단 | 교육부 open API |
+| **Open-Meteo** ([open-meteo.com](https://open-meteo.com/)) | 기상청 장애 시 자동 백업 | CC BY 4.0 |
+| **OpenTimestamps** ([opentimestamps.org](https://opentimestamps.org/)) | 학생기록 해시체인 Bitcoin 블록체인 등록 | 오픈소스 |
+
+모든 외부 호출은 학교명·좌표·도시명 등 비식별 데이터만 전송하며, 학생·교사 개인정보는 전송하지 않습니다.
+
 ## 기여
 
 누구나 fork 해서 쓰셔도 좋아요. 수정 제안은 Pull Request 로 부탁드립니다.

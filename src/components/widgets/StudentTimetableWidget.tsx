@@ -628,28 +628,27 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                 </div>
               )}
               {editing ? (
-                <textarea
+                <input
+                  type="text"
                   autoFocus
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save() }
+                    if (e.key === 'Enter') { e.preventDefault(); save() }
                     if (e.key === 'Escape') cancel()
                   }}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="예: 수학 24~26쪽"
                   style={{
                     width: '100%',
-                    minHeight: 28,
-                    maxHeight: 'clamp(60px, 12vh, 120px)',
+                    height: 22,
                     padding: 0,
                     border: 'none',
                     backgroundColor: 'transparent',
                     fontSize: displayMode ? 13 : 12.5,
                     fontWeight: 600, color: 'var(--text-primary)',
-                    fontFamily: 'inherit', resize: 'none', outline: 'none',
+                    fontFamily: 'inherit', outline: 'none',
                     letterSpacing: '-0.2px', lineHeight: 1.45,
-                    overflow: 'auto',
                   }}
                 />
               ) : (

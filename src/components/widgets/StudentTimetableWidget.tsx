@@ -127,25 +127,13 @@ export function StudentTimetableWidget() {
   const iAmWallpaper = useIAmWallpaper('studenttimetable')
   const { preset: displayBg } = useDisplayBg('studenttimetable')
 
-  // 배경화면 모드 + 마스터 디스플레이 모드 브로드캐스트와 sync — "모든 위젯 통일 적용".
+  // 학생시간표는 다른 위젯과 완전 독립 — 마스터 브로드캐스트·wallpaper sync 모두 무시.
+  // 본인의 디스플레이 토글 버튼으로만 모드 전환. 이러면 다른 위젯의 디스플레이 모드 토글이
+  // 본인을 pushWindowToBack 시키지 않아 메모 추가 클릭 정상.
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const map = await window.api.widget.getWallpaperModeMap()
-        if (!cancelled && Array.isArray(map) && map.includes(myWidgetId.current)) setDisplayMode(true)
-      } catch { /* noop */ }
-    })()
-    const offWallpaper = window.api.widget.onWallpaperModeChanged?.((p) => {
-      if (p.widgetId !== myWidgetId.current) return
-      // wallpaper ON 시에만 displayMode 자동 ON. OFF 는 sync 안 함 — 끄기 버튼 한 번에 풀리도록.
-      if (p.on) setDisplayMode(true)
-    })
-    const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
-      setDisplayMode(!!p.on)
-    })
+    const offWallpaper = window.api.widget.onWallpaperModeChanged?.(() => { /* 무시 — wallpaper 사용 안 함 */ })
+    const offAll = window.api.widget.onAllDisplayModeChanged?.(() => { /* 무시 — 독립 토글 */ })
     return () => {
-      cancelled = true
       if (offWallpaper) offWallpaper()
       if (offAll) offAll()
     }
@@ -337,9 +325,10 @@ export function StudentTimetableWidget() {
       >
         <button
           onClick={() => {
-            const next = !displayMode
-            setDisplayMode(next)
-            try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
+            // 학생시간표 본인만 토글 — setAllDisplayMode 호출 제거.
+            // 이전엔 broadcastAllDisplayMode 가 본인 위젯을 pushWindowToBack 처리해서
+            // 메모 추가 클릭 좌표가 뒤 윈도우로 가서 클릭 무효화 됐음.
+            setDisplayMode(!displayMode)
           }}
           className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
           style={displayMode

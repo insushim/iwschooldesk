@@ -114,6 +114,12 @@ export function StudentTimetableWidget() {
   // 사용자가 수동으로 끌 수 있지만 기본은 항상 디스플레이 모드.
   const [displayMode, setDisplayMode] = useState(true)
   const myWidgetId = useRef<string>('widget-studenttimetable')
+
+  // 학생시간표는 wallpaper 모드 사용 안 함 (학생 안내 메모 클릭 편집 필요) — mount 시
+  // 자기 자신 wallpaper 강제 OFF. 이전 버전에서 wallpaper 켜둔 상태도 한 번에 정리.
+  useEffect(() => {
+    window.api.widget.setWallpaperMode?.(myWidgetId.current, false).catch(() => { /* noop */ })
+  }, [])
   // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
   const iAmWallpaper = useIAmWallpaper('studenttimetable')
   const { preset: displayBg } = useDisplayBg('studenttimetable')

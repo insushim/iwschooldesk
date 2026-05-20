@@ -280,6 +280,9 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
           {/* 디스플레이 모드 토글은 위젯 내부의 Monitor 버튼(시계/학생시간표/학급체크/우리반목표) 과
               중복되어 제거. 내부 토글이 이미 마스터 브로드캐스트를 보내 모든 위젯에 일괄 적용됨. */}
 
+          {/* 학생시간표 위젯은 사용자 요청에 따라 헤더 컨트롤을 최소화 — 디스플레이 토글(위젯 내부) + 닫기만. */}
+          {widgetType !== 'studenttimetable' && (<>
+
           <div className="relative" ref={popoverRef}>
             <button
               onClick={() => setOpacityOpen((p) => !p)}
@@ -399,6 +402,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
           >
             {alwaysOnTop ? <Pin size={13} strokeWidth={2.2} /> : <PinOff size={13} strokeWidth={2.2} />}
           </button>
+          </>)}
 
           <button
             onClick={() => window.api.widget.closeSelf()}

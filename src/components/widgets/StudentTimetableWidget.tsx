@@ -594,70 +594,50 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
         marginTop: 'clamp(8px, 1.4vw, 18px)',
       }}
     >
-      {/* 글래스모피즘 카드. 비어있을 때 매우 작게 — 시간표 큰 글씨 영역 침범 방지. */}
+      {/* 메모 박스 — 시간표 본체와 톤 통일 (반투명 화이트). 디스플레이 모드의 색 배경에도 자연스럽게 녹음. */}
       <div
         onClick={!editing ? startEdit : undefined}
         style={{
-          padding: (note || editing)
-            ? 'clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px)'
-            : '4px 10px',  // placeholder: 매우 작게 (실과 큰 글씨 영역 침범 X)
-          borderRadius: (note || editing) ? 14 : 8,
-          background: (note || editing) ? 'var(--bg-widget)' : 'transparent',
-          backdropFilter: (note || editing) ? 'blur(14px) saturate(150%)' : undefined,
-          WebkitBackdropFilter: (note || editing) ? 'blur(14px) saturate(150%)' : undefined,
-          border: (note || editing) ? '1px solid var(--border-widget)' : `1px dashed var(--border-widget)`,
+          padding: (note || editing) ? '10px 14px' : '4px 10px',
+          borderRadius: (note || editing) ? 12 : 8,
+          background: (note || editing) ? 'rgba(255,255,255,0.55)' : 'transparent',
+          border: (note || editing) ? '1px solid rgba(15,23,42,0.08)' : `1px dashed rgba(15,23,42,0.18)`,
           cursor: !editing ? 'pointer' : 'default',
           transition: 'all 0.18s ease',
-          boxShadow: (note || editing) ? '0 4px 16px rgba(15,23,42,0.08)' : 'none',
         }}
       >
         {(note || editing) ? (
-          <div className="flex items-start gap-2.5">
-            <Megaphone
-              size={15}
-              strokeWidth={2.2}
-              style={{ marginTop: 2, flexShrink: 0, color: 'var(--accent)' }}
-            />
+          <div className="flex items-start gap-2">
+            {/* "오늘의 안내" 라벨 제거 (사용자 요청) — 메모 본문만 보임. 편집 버튼은 우측 상단. */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 800, color: 'var(--text-muted)',
-                  letterSpacing: '0.02em', lineHeight: 1,
-                }}>
-                  오늘의 안내
-                </span>
-                {editing && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); cancel() }}
-                      title="취소 (Esc)"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 22, height: 22, borderRadius: 6,
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
-                        color: 'var(--text-secondary)', cursor: 'pointer',
-                      }}
-                    >
-                      <XIcon size={12} strokeWidth={2.6} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); save() }}
-                      title="저장 (⌘+Enter)"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 22, height: 22, borderRadius: 6,
-                        background: 'var(--accent)', border: 'none', color: '#fff',
-                        cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.28)',
-                      }}
-                    >
-                      <Check size={12} strokeWidth={2.8} />
-                    </button>
-                  </div>
-                )}
-                {!editing && note && !displayMode && (
-                  <Pencil size={11} strokeWidth={2.4} style={{ opacity: 0.5, color: 'var(--text-muted)' }} />
-                )}
-              </div>
+              {editing && (
+                <div className="flex items-center justify-end gap-1" style={{ marginBottom: 4 }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); cancel() }}
+                    title="취소 (Esc)"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 22, height: 22, borderRadius: 6,
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
+                      color: 'var(--text-secondary)', cursor: 'pointer',
+                    }}
+                  >
+                    <XIcon size={12} strokeWidth={2.6} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); save() }}
+                    title="저장 (⌘+Enter)"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 22, height: 22, borderRadius: 6,
+                      background: 'var(--accent)', border: 'none', color: '#fff',
+                      cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.28)',
+                    }}
+                  >
+                    <Check size={12} strokeWidth={2.8} />
+                  </button>
+                </div>
+              )}
               {editing ? (
                 <textarea
                   autoFocus

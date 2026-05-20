@@ -659,38 +659,37 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 가로 리스트, 셀별 세로 (시간/온도/아이콘). */}
+      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 가로 컴팩트. 24시간 표기로 폭 최소화. */}
       {weather && weather.hours.length > 0 && (
         <div
           className="flex shrink-0 overflow-x-auto"
           style={{
-            marginBottom: 'clamp(6px, 1vw, 10px)', gap: 4,
+            marginBottom: 'clamp(6px, 1vw, 10px)', gap: 2,
             scrollbarWidth: 'thin',
           }}
         >
           {weather.hours.map((h) => {
             const info = weatherInfo(h.code)
-            const label = h.hour < 12 ? `오전 ${h.hour}` : h.hour === 12 ? '정오' : h.hour === 24 ? '자정' : `오후 ${h.hour - 12}`
             return (
               <div
                 key={h.hour}
                 className="flex flex-col items-center shrink-0"
                 style={{
                   flex: '1 1 0',
-                  minWidth: 44,
-                  padding: '6px 4px', borderRadius: 8,
+                  minWidth: 32,
+                  padding: '4px 2px', borderRadius: 6,
                   background: `linear-gradient(180deg, ${info.color}0A 0%, ${info.color}18 100%)`,
                   border: `1px solid ${info.color}22`,
-                  gap: 3,
+                  gap: 2,
                 }}
               >
-                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                  {label}
+                <span className="tabular-nums" style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.3px', lineHeight: 1 }}>
+                  {h.hour}
                 </span>
-                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color, lineHeight: 1 }}>
+                <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 900, color: info.color, lineHeight: 1 }}>
                   {h.temp !== null ? `${h.temp}°` : '—'}
                 </span>
-                <info.Icon size={16} strokeWidth={2.2} color={info.color} />
+                <info.Icon size={13} strokeWidth={2.2} color={info.color} />
               </div>
             )
           })}

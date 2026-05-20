@@ -132,9 +132,9 @@ export function StudentTimetableWidget() {
   // 본인을 pushWindowToBack 시키지 않아 메모 추가 클릭 정상.
   useEffect(() => {
     const offWallpaper = window.api.widget.onWallpaperModeChanged?.(() => { /* 무시 — wallpaper 사용 안 함 */ })
-    // 진입 broadcast 는 무시(이중 모드 방지), 해제(false) 만 받음 → 다른 위젯 해제 시 같이 풀림.
+    // 다른 위젯과 완전 동기 — 디스플레이 모드 진입·해제 모두 받음.
     const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
-      if (!p.on) setDisplayMode(false)
+      setDisplayMode(!!p.on)
     })
     return () => {
       if (offWallpaper) offWallpaper()
@@ -328,10 +328,10 @@ export function StudentTimetableWidget() {
       >
         <button
           onClick={() => {
-            // 학생시간표 본인만 토글 — setAllDisplayMode 호출 제거.
-            // 이전엔 broadcastAllDisplayMode 가 본인 위젯을 pushWindowToBack 처리해서
-            // 메모 추가 클릭 좌표가 뒤 윈도우로 가서 클릭 무효화 됐음.
-            setDisplayMode(!displayMode)
+            const next = !displayMode
+            setDisplayMode(next)
+            // 모든 위젯 동기화 — main 의 broadcastAllDisplayMode 가 학생시간표는 z-order skip 처리.
+            try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
           }}
           className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
           style={displayMode
@@ -599,74 +599,66 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
         }}
       >
         {(note || editing) ? (
-          <div className="flex items-start gap-2">
-            {/* "오늘의 안내" 라벨 제거 (사용자 요청) — 메모 본문만 보임. 편집 버튼은 우측 상단. */}
-            <div className="flex-1 min-w-0">
-              {editing && (
-                <div className="flex items-center justify-end gap-1" style={{ marginBottom: 4 }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); cancel() }}
-                    title="취소 (Esc)"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 22, height: 22, borderRadius: 6,
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
-                      color: 'var(--text-secondary)', cursor: 'pointer',
-                    }}
-                  >
-                    <XIcon size={12} strokeWidth={2.6} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); save() }}
-                    title="저장 (⌘+Enter)"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 22, height: 22, borderRadius: 6,
-                      background: 'var(--accent)', border: 'none', color: '#fff',
-                      cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.28)',
-                    }}
-                  >
-                    <Check size={12} strokeWidth={2.8} />
-                  </button>
-                </div>
-              )}
-              {editing ? (
-                <input
-                  type="text"
-                  autoFocus
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); save() }
-                    if (e.key === 'Escape') cancel()
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="예: 수학 24~26쪽"
-                  style={{
-                    width: '100%',
-                    height: 22,
-                    padding: 0,
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    fontSize: displayMode ? 13 : 12.5,
-                    fontWeight: 600, color: 'var(--text-primary)',
-                    fontFamily: 'inherit', outline: 'none',
-                    letterSpacing: '-0.2px', lineHeight: 1.45,
-                  }}
-                />
-              ) : (
-                <div style={{
-                  fontSize: displayMode ? 14 : 12.5,
-                  fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45,
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  letterSpacing: '-0.2px',
-                  height: 22,
-                }}>
-                  {note}
-                </div>
-              )}
+          editing ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); save() }
+                  if (e.key === 'Escape') cancel()
+                }}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="예: 수학 24~26쪽"
+                style={{
+                  flex: 1, minWidth: 0,
+                  height: 22, padding: 0,
+                  border: 'none', backgroundColor: 'transparent',
+                  fontSize: displayMode ? 13 : 12.5,
+                  fontWeight: 600, color: 'var(--text-primary)',
+                  fontFamily: 'inherit', outline: 'none',
+                  letterSpacing: '-0.2px', lineHeight: 1.45,
+                }}
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); cancel() }}
+                title="취소 (Esc)"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 22, height: 22, borderRadius: 6,
+                  background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
+                  color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                <XIcon size={12} strokeWidth={2.6} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); save() }}
+                title="저장 (Enter)"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 22, height: 22, borderRadius: 6,
+                  background: 'var(--accent)', border: 'none', color: '#fff',
+                  cursor: 'pointer', flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(37,99,235,0.28)',
+                }}
+              >
+                <Check size={12} strokeWidth={2.8} />
+              </button>
             </div>
-          </div>
+          ) : (
+            <div style={{
+              fontSize: displayMode ? 14 : 12.5,
+              fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              letterSpacing: '-0.2px',
+              height: 22,
+            }}>
+              {note}
+            </div>
+          )
         ) : (
           // 비어있을 때 placeholder — 디스플레이 모드여도 작게 표시(교사가 클릭 편집 가능).
           <div className="flex items-center justify-center gap-2" style={{

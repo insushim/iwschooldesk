@@ -40,7 +40,9 @@ export interface WidgetPosition {
  * 타이머/메모/할일/체크리스트 등 상호작용이 많은 위젯은 의도적으로 제외.
  */
 export const WALLPAPER_ELIGIBLE_TYPES: ReadonlySet<WidgetType> = new Set<WidgetType>([
-  'timetable', 'calendar', 'goal', 'studenttimetable', 'dday', 'clock', 'today', 'meal', 'noticeboard',
+  // 학생 시간표(studenttimetable)는 학생용 표시이므로 배경모드(클릭 통과) 대신 디스플레이 모드만 사용.
+  // 별도 윈도우 + 디스플레이 모드 큰 글씨 + 학생 알림 메모 입력으로 운영.
+  'timetable', 'calendar', 'goal', 'dday', 'clock', 'today', 'meal', 'noticeboard',
 ])
 
 export interface WidgetConfig {

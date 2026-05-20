@@ -14,6 +14,8 @@ export interface AppSettings {
   class_name: string
   backup_path: string
   widget_theme: 'glassmorphism' | 'solid' | 'minimal'
+  /** 학생 시간표 위젯 하단 알림 — 숙제·준비물·전달사항. 학생들이 보고 알 수 있도록. */
+  student_timetable_note: string
 }
 
 export type SettingKey = keyof AppSettings

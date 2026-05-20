@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Monitor, MonitorOff } from 'lucide-react'
+import { Monitor, MonitorOff, Pencil, Check, X as XIcon, Megaphone } from 'lucide-react'
 import { useDisplayBg } from '../../lib/display-bg'
 import type {
   TimetableSlot, TimetablePeriod, TimetableOverride, DayOfWeek,
@@ -369,13 +369,12 @@ export function StudentTimetableWidget() {
         }}
       />
 
-      {/* 상단: 배지 (지금/다음/쉬는시간 후/내일) + 교시
-          디스플레이 모드·배경화면 모드 모두 가운데 정렬 (헤더 숨김 상태라 콘텐츠가 위젯 폭 안에서 중앙에 자리잡아야 자연스러움). */}
+      {/* 상단: 배지 (지금/다음/쉬는시간 후/내일) + 교시. 모든 모드에서 가운데 정렬 (학생용 표시이므로 일관). */}
       <div
-        className={`relative flex items-center gap-2 shrink-0 ${(displayMode || iAmWallpaper) ? 'justify-center' : 'justify-between'}`}
+        className="relative flex items-center gap-2 shrink-0 justify-center"
         style={{
           marginBottom: 'clamp(8px, 1.2vw, 20px)',
-          gap: (displayMode || iAmWallpaper) ? 'clamp(12px, 1.6vw, 24px)' : 'clamp(4px, 0.6vw, 8px)',
+          gap: 'clamp(12px, 1.6vw, 24px)',
           // 디스플레이 모드의 큰 좌우 padding 은 우상단 컨트롤 자리 비우는 대칭용. 배경화면 모드에선
           // 컨트롤이 숨겨져 헛공간이 됨 → 좌우 좁아 보이고 내용이 옹색해지는 문제 해결.
           paddingLeft: (displayMode && !iAmWallpaper) ? 'clamp(72px, 10vw, 120px)' : 0,
@@ -436,7 +435,7 @@ export function StudentTimetableWidget() {
           style={{ gap: 'clamp(6px, 1vw, 14px)' }}
         >
           <div
-            className={`flex items-end ${(displayMode || iAmWallpaper) ? 'justify-center' : ''}`}
+            className="flex items-end justify-center"
             style={{ gap: 'clamp(8px, 1.2vw, 18px)' }}
           >
             {/* 좌측 과목색 악센트 */}
@@ -477,21 +476,19 @@ export function StudentTimetableWidget() {
             </span>
           </div>
 
-          {/* 하단: 시간 범위 + 교사(전담/강사) — 디스플레이/배경화면 모드 모두 가운데 정렬. */}
+          {/* 하단: 시간 범위 + 교사(전담/강사) — 모든 모드에서 가운데 정렬. */}
           <div
-            className={`flex items-center flex-wrap ${(displayMode || iAmWallpaper) ? 'justify-center' : ''}`}
+            className="flex items-center flex-wrap justify-center"
             style={{
               gap: 'clamp(8px, 1.4vw, 20px)',
-              marginLeft: (displayMode || iAmWallpaper) ? 0 : 'clamp(12px, 2vw, 28px)',
+              marginLeft: 0,
               fontSize: 'clamp(12px, 1.7vw, 22px)',
               color: 'var(--text-secondary)',
               fontWeight: 600,
               letterSpacing: '-0.2px',
             }}
           >
-            <span className="tabular-nums">
-              {period.start_time} – {period.end_time}
-            </span>
+            {/* 수업 시간(09:00~09:40)은 시계 위젯의 교시 표시와 중복이라 제거. 학생 알림 메모가 더 유용. */}
             {teacherLabel && (
               <span
                 className="inline-flex items-center"
@@ -536,12 +533,167 @@ export function StudentTimetableWidget() {
         </motion.div>
       </AnimatePresence>
 
+      {/* 학생 알림 메모 — 숙제·준비물·전달사항. 일반/편집 모드에선 클릭 편집, 디스플레이 모드에선 큰 글씨 읽기 전용. */}
+      <StudentNote displayMode={displayMode} accentColor={color} />
+
       <style>{`
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; transform: scale(1); }
           50%      { opacity: 0.4; transform: scale(0.7); }
         }
       `}</style>
+    </div>
+  )
+}
+
+/** 학생 안내 메모 (시간표 위젯 하단) — 숙제·준비물·전달사항.
+ *  편집 모드(displayMode=false): 클릭 → inline textarea, blur 시 자동 저장.
+ *  디스플레이 모드: 큰 글씨 읽기 전용 (학생들 보기 좋게). */
+function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accentColor: string }): React.ReactElement | null {
+  const [note, setNote] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const reload = useCallback(() => {
+    window.api.settings.get('student_timetable_note').then((v) => setNote((v as string | null) ?? '')).catch(() => setNote(''))
+  }, [])
+  useEffect(() => { reload() }, [reload])
+  useDataChange('settings', reload)
+
+  const startEdit = (): void => {
+    if (displayMode) return
+    setDraft(note)
+    setEditing(true)
+  }
+  const save = async (): Promise<void> => {
+    const v = draft.trim()
+    try { await window.api.settings.set('student_timetable_note', v) } catch { /* ignore */ }
+    setNote(v)
+    setEditing(false)
+  }
+  const cancel = (): void => { setEditing(false); setDraft(note) }
+
+  // 디스플레이 모드 + 비어있으면 숨김. 편집 모드면 placeholder 라도 보여서 입력 유도.
+  if (displayMode && !note) return null
+
+  return (
+    <div
+      className="shrink-0"
+      style={{
+        marginTop: 'clamp(8px, 1.4vw, 18px)',
+      }}
+    >
+      {/* 글래스모피즘 카드 — 다른 위젯과 톤 통일. Megaphone 아이콘만 강조 색(amber). */}
+      <div
+        onClick={!editing && !displayMode ? startEdit : undefined}
+        style={{
+          padding: 'clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px)',
+          borderRadius: 14,
+          background: 'var(--bg-widget)',
+          backdropFilter: 'blur(14px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+          border: (note || editing) ? '1px solid var(--border-widget)' : `1.5px dashed var(--border-widget)`,
+          cursor: !editing && !displayMode ? 'pointer' : 'default',
+          transition: 'all 0.18s ease',
+          boxShadow: (note || editing) ? '0 4px 16px rgba(15,23,42,0.08)' : 'none',
+        }}
+      >
+        {(note || editing) ? (
+          <div className="flex items-start gap-2.5">
+            <Megaphone
+              size={displayMode ? 22 : 18}
+              strokeWidth={2.2}
+              color="#D97706"
+              style={{ marginTop: 3, flexShrink: 0 }}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
+                <span style={{
+                  fontSize: 10.5, fontWeight: 800, color: 'var(--text-muted)',
+                  letterSpacing: '0.02em', lineHeight: 1,
+                }}>
+                  📌 오늘의 안내
+                </span>
+                {editing && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); cancel() }}
+                      title="취소 (Esc)"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 22, height: 22, borderRadius: 6,
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
+                        color: 'var(--text-secondary)', cursor: 'pointer',
+                      }}
+                    >
+                      <XIcon size={12} strokeWidth={2.6} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); save() }}
+                      title="저장 (⌘+Enter)"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 22, height: 22, borderRadius: 6,
+                        background: 'var(--accent)', border: 'none', color: '#fff',
+                        cursor: 'pointer', boxShadow: '0 2px 6px rgba(37,99,235,0.28)',
+                      }}
+                    >
+                      <Check size={12} strokeWidth={2.8} />
+                    </button>
+                  </div>
+                )}
+                {!editing && note && !displayMode && (
+                  <Pencil size={11} strokeWidth={2.4} color="var(--text-muted)" style={{ opacity: 0.5 }} />
+                )}
+              </div>
+              {editing ? (
+                <textarea
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save() }
+                    if (e.key === 'Escape') cancel()
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="예: 수학 24~26쪽, 수익 15~16쪽 / 내일 체육복 챙기기"
+                  style={{
+                    width: '100%',
+                    minHeight: 'clamp(48px, 6vw, 80px)',
+                    padding: 0,
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    fontSize: displayMode ? 'clamp(15px, 2.2vw, 26px)' : 'clamp(13px, 1.7vw, 18px)',
+                    fontWeight: 700, color: 'var(--text-primary)',
+                    fontFamily: 'inherit', resize: 'none', outline: 'none',
+                    letterSpacing: '-0.2px', lineHeight: 1.5,
+                  }}
+                />
+              ) : (
+                <div style={{
+                  fontSize: displayMode ? 'clamp(15px, 2.2vw, 26px)' : 'clamp(13px, 1.7vw, 18px)',
+                  fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap', wordBreak: 'keep-all',
+                  letterSpacing: '-0.2px',
+                }}>
+                  {note}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // 비어있고 일반 모드일 때만 placeholder
+          !displayMode && (
+            <div className="flex items-center justify-center gap-2" style={{
+              fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
+              padding: '2px 0',
+            }}>
+              <Pencil size={13} strokeWidth={2.4} />
+              <span>학생 안내 메모 추가 (숙제·준비물 등)</span>
+            </div>
+          )
+        )}
+      </div>
     </div>
   )
 }

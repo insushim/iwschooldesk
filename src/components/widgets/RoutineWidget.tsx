@@ -313,26 +313,7 @@ export function RoutineWidget() {
           />
         </div>
 
-        {/* N일차 pill — 선택된 루틴이 있을 때만. 루틴 없으면 의미가 없으니 숨김. */}
-        {selected && (
-        <span
-          className="inline-flex items-center gap-1 tabular-nums shrink-0"
-          style={{
-            fontSize: 11,
-            fontWeight: 800,
-            padding: '3px 9px',
-            borderRadius: 999,
-            background: 'linear-gradient(135deg, rgba(139,92,246,0.14) 0%, rgba(139,92,246,0.26) 100%)',
-            color: '#6D28D9',
-            border: '1px solid rgba(139,92,246,0.28)',
-            letterSpacing: '-0.3px',
-            boxShadow: '0 2px 6px rgba(139,92,246,0.18)',
-          }}
-        >
-          <Flame size={11} strokeWidth={2.6} />
-          {dayNumber}일차
-        </span>
-        )}
+        {/* 헤더 N일차 pill 제거 — 각 항목 옆에 개별 일차 표시(iwmemo 패턴)로 이전. */}
 
         <button
           onClick={() => setCreateMode(true)}
@@ -548,6 +529,28 @@ export function RoutineWidget() {
                 >
                   {String(idx + 1).padStart(2, '0')}
                 </span>
+                {/* 일차 pill — 각 항목별 (iwmemo 패턴). selected 있을 때만 표시. */}
+                {selected && (
+                  <span
+                    className="inline-flex items-center gap-0.5 tabular-nums shrink-0"
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      padding: '2px 6px',
+                      borderRadius: 999,
+                      background: item.is_completed
+                        ? 'linear-gradient(135deg, rgba(139,92,246,0.18) 0%, rgba(139,92,246,0.30) 100%)'
+                        : 'rgba(139,92,246,0.10)',
+                      color: '#6D28D9',
+                      border: '1px solid rgba(139,92,246,0.24)',
+                      letterSpacing: '-0.3px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Flame size={9} strokeWidth={2.6} />
+                    {dayNumber}일차
+                  </span>
+                )}
                 {editingId === item.id ? (
                   <input
                     autoFocus

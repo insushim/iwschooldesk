@@ -470,8 +470,9 @@ const HIDE_ON_WALLPAPER_TYPES = new Set<string>([])
 //   전체 배경화면 모드 시 enterAllWallpaperMode 가 broadcastAllDisplayMode(true) 도 호출하므로
 //   타이머는 WidgetShell 의 shellDisplayMode 만 켜져 헤더가 숨겨진 디스플레이 모드 모양이 됨.
 const WALLPAPER_ELIGIBLE_TYPES_M = new Set<string>([
+  // 학생 시간표는 학생용 표시이므로 배경모드(클릭 통과) 대신 디스플레이 모드만 사용.
   'timetable', 'calendar', 'goal',
-  'studenttimetable', 'dday', 'clock', 'today', 'meal',
+  'dday', 'clock', 'today', 'meal',
 ])
 
 /** 열린 모든 wallpaper-eligible 위젯을 한 번에 wallpaper 모드 ON.
@@ -1086,10 +1087,15 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
   }
 
   // 저장된 배경화면 모드가 있으면 자동 적용 — 앱 재시작 후에도 그대로 유지.
+  // 단, 더 이상 wallpaper 가능하지 않은 위젯(예: studenttimetable) 은 강제 해제 — 사용자 정책 변경 반영.
   const savedWallpaper = (saved as { wallpaper_mode?: number } | undefined)?.wallpaper_mode
-  if (savedWallpaper === 1) {
+  if (savedWallpaper === 1 && !WALLPAPER_ELIGIBLE_TYPES_M.has(widgetType)) {
+    // DB 에 wallpaper_mode=0 으로 즉시 정리해서 재시작 시 다시 켜지지 않게.
+    try {
+      saveWidgetPosition({ widget_id: widgetId, widget_type: widgetType as WidgetType, wallpaper_mode: 0 })
+    } catch (err) { _crashLog('cleanup-stale-wallpaper', err) }
+  } else if (savedWallpaper === 1) {
     // `ready-to-show` 직후 적용 — show() 먼저 끝나야 HWND가 유효.
-    // setWallpaperMode 내부에서 어떤 이유로든 예외가 나도 앱 전체가 죽지 않도록 방어.
     win.once('ready-to-show', () => {
       setTimeout(() => {
         try { setWallpaperMode(widgetId, true) } catch (err) { _crashLog('restore-wallpaper', err) }

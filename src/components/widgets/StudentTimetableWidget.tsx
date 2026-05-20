@@ -110,7 +110,9 @@ export function StudentTimetableWidget() {
   const [todayOverrides, setTodayOverrides] = useState<TimetableOverride[]>([])
   const [tomorrowOverrides, setTomorrowOverrides] = useState<TimetableOverride[]>([])
   const [now, setNow] = useState(new Date())
-  const [displayMode, setDisplayMode] = useState(false)
+  // 학생용 표시 위젯 — mount 시 자동 displayMode 진입 (학생들 보기 좋게 큰 글씨 + 헤더 숨김).
+  // 사용자가 수동으로 끌 수 있지만 기본은 항상 디스플레이 모드.
+  const [displayMode, setDisplayMode] = useState(true)
   const myWidgetId = useRef<string>('widget-studenttimetable')
   // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
   const iAmWallpaper = useIAmWallpaper('studenttimetable')
@@ -603,7 +605,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             <Megaphone
               size={displayMode ? 22 : 18}
               strokeWidth={2.2}
-              color="#D97706"
+              color="var(--accent)"
               style={{ marginTop: 3, flexShrink: 0 }}
             />
             <div className="flex-1 min-w-0">
@@ -612,7 +614,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                   fontSize: 10.5, fontWeight: 800, color: 'var(--text-muted)',
                   letterSpacing: '0.02em', lineHeight: 1,
                 }}>
-                  📌 오늘의 안내
+                  오늘의 안내
                 </span>
                 {editing && (
                   <div className="flex items-center gap-1">

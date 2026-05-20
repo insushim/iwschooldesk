@@ -495,12 +495,19 @@ function setWallpaperMode(widgetId: string, on: boolean): void {
   const win = widgetWindows.get(widgetId)
   if (!win || win.isDestroyed()) return
 
+  const widgetType = widgetId.replace(/^widget-/, '').split('-')[0]
+  // ★ Wallpaper-ineligible 위젯(예: studenttimetable) 에 ON 호출 들어오면 강제로 OFF 로 라우팅.
+  //   카탈로그/메뉴에서 차단했지만 잔여 DB 상태나 다른 경로에서 ON 시도되는 케이스 100% 방어.
+  if (on && !WALLPAPER_ELIGIBLE_TYPES_M.has(widgetType)) {
+    wDebug(`setWallpaperMode: BLOCKED ON for ${widgetType} (not eligible) → forced OFF`)
+    on = false
+  }
+
   wDebug(`>>> setWallpaperMode(${widgetId}, on=${on}) ENTER`)
 
   const existing = wallpaperWidgets.get(widgetId)
   if (existing) { clearInterval(existing); wallpaperWidgets.delete(widgetId) }
 
-  const widgetType = widgetId.replace(/^widget-/, '').split('-')[0]
   const hideEntirely = HIDE_ON_WALLPAPER_TYPES.has(widgetType)
   // 토글 후 50ms / 200ms / 800ms / 2초 시점 z-order 추적 — "어디서 위로 올라가는지" 확인.
   const traceTimes = [50, 200, 800, 2000]

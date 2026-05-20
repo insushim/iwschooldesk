@@ -104,9 +104,11 @@ export function MemoWidget() {
     <div
       className="flex flex-col h-full relative"
       style={{
-        background: current?.color
-          ? `linear-gradient(180deg, ${current.color} 0%, ${current.color}EA 100%)`
-          : 'linear-gradient(180deg, #FEF3C7 0%, #FDE68A 100%)',
+        // 다른 위젯과 톤 통일 — 글래스모피즘 화이트 + 선택된 메모 색은 좌측 accent bar 로만 표현.
+        background: 'var(--bg-widget)',
+        backdropFilter: 'blur(14px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+        borderLeft: current?.color ? `4px solid ${current.color}` : undefined,
       }}
     >
       {/* Header — 인덱스 배지 + 액션 버튼 세련된 배치.

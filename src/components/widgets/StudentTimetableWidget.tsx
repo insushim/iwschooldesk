@@ -581,8 +581,8 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
   }
   const cancel = (): void => { setEditing(false); setDraft(note) }
 
-  // 디스플레이 모드 + 비어있으면 숨김. 편집 모드면 placeholder 라도 보여서 입력 유도.
-  if (displayMode && !note) return null
+  // 디스플레이 모드 + 비어있어도 placeholder 박스 표시 — 교사가 클릭해서 메모 추가 가능해야.
+  // (이전엔 return null 로 숨김 → 학생들에게는 깔끔하지만 교사가 편집 불가).
 
   return (
     <div
@@ -689,16 +689,17 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             </div>
           </div>
         ) : (
-          // 비어있고 일반 모드일 때만 placeholder
-          !displayMode && (
-            <div className="flex items-center justify-center gap-2" style={{
-              fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
-              padding: '2px 0',
-            }}>
-              <Pencil size={13} strokeWidth={2.4} />
-              <span>학생 안내 메모 추가 (숙제·준비물 등)</span>
-            </div>
-          )
+          // 비어있을 때 placeholder — 디스플레이 모드여도 작게 표시(교사가 클릭 편집 가능).
+          <div className="flex items-center justify-center gap-2" style={{
+            fontSize: displayMode ? 11 : 12,
+            fontWeight: 700,
+            color: 'var(--text-muted)',
+            opacity: displayMode ? 0.55 : 1,
+            padding: '2px 0',
+          }}>
+            <Pencil size={displayMode ? 11 : 13} strokeWidth={2.4} style={{ color: 'var(--text-muted)' }} />
+            <span>{displayMode ? '메모 추가' : '학생 안내 메모 추가 (숙제·준비물 등)'}</span>
+          </div>
         )}
       </div>
     </div>

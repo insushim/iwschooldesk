@@ -122,8 +122,8 @@ export function MemoWidget() {
             onClick={handlePin}
             className="p-1.5 rounded-lg transition-all hover:scale-105"
             style={{
-              color: current?.is_pinned ? '#B45309' : 'rgba(68,40,10,0.45)',
-              backgroundColor: current?.is_pinned ? 'rgba(180,83,9,0.14)' : 'transparent',
+              color: current?.is_pinned ? 'var(--accent)' : 'var(--text-muted)',
+              backgroundColor: current?.is_pinned ? 'var(--accent-light)' : 'transparent',
             }}
             title={current?.is_pinned ? '핀 해제' : '핀 고정'}
           >
@@ -132,7 +132,7 @@ export function MemoWidget() {
           <button
             onClick={requestDelete}
             className="p-1.5 rounded-lg transition-all hover:bg-red-500/15 hover:text-red-600 hover:scale-105"
-            style={{ color: 'rgba(68,40,10,0.45)' }}
+            style={{ color: 'var(--text-muted)' }}
             title="이 메모 삭제"
           >
             <Trash2 size={12.5} strokeWidth={2.3} />
@@ -145,8 +145,8 @@ export function MemoWidget() {
             fontWeight: 800,
             padding: '2px 10px',
             borderRadius: 999,
-            backgroundColor: 'rgba(68,40,10,0.10)',
-            color: 'rgba(68,40,10,0.72)',
+            backgroundColor: 'var(--border-widget)',
+            color: 'var(--text-primary)',
             letterSpacing: '-0.2px',
           }}
         >
@@ -157,9 +157,9 @@ export function MemoWidget() {
           className="flex items-center justify-center transition-all hover:scale-105"
           style={{
             width: 26, height: 26, borderRadius: 8,
-            background: 'linear-gradient(135deg, #92400E 0%, #B45309 100%)',
+            background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 80%, #000) 100%)',
             color: '#fff',
-            boxShadow: '0 3px 10px rgba(146,64,14,0.32)',
+            boxShadow: '0 3px 10px rgba(15,23,42,0.18)',
           }}
           title="새 메모"
         >
@@ -181,7 +181,7 @@ export function MemoWidget() {
               fontFamily: 'inherit',
               fontSize: 14.5,
               fontWeight: 500,
-              color: '#44280A',
+              color: 'var(--text-primary)',
               lineHeight: 1.55,
               letterSpacing: '-0.2px',
               background: 'transparent',
@@ -189,7 +189,7 @@ export function MemoWidget() {
               border: 'none',
               padding: 0,
               margin: 0,
-              caretColor: '#92400E',
+              caretColor: 'var(--accent)',
             }}
             placeholder="메모를 입력하세요...  (팁: [제목] 으로 섹션을, - 또는 • 로 항목 구분)"
           />
@@ -203,7 +203,7 @@ export function MemoWidget() {
             title="클릭하여 편집"
           >
             {blocks.length === 0 ? (
-              <span style={{ fontSize: 14, color: 'rgba(68,40,10,0.4)', fontWeight: 500 }}>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>
                 메모를 입력하세요...
               </span>
             ) : (
@@ -217,11 +217,11 @@ export function MemoWidget() {
                         marginBottom: 6,
                         padding: '5px 10px 5px 8px',
                         borderRadius: 8,
-                        background: 'linear-gradient(90deg, rgba(68,40,10,0.10) 0%, rgba(68,40,10,0.02) 70%, transparent 100%)',
-                        borderLeft: '3px solid rgba(68,40,10,0.55)',
+                        background: 'linear-gradient(90deg, var(--border-widget) 0%, transparent 70%, transparent 100%)',
+                        borderLeft: '3px solid var(--text-muted)',
                         fontSize: 15.5,
                         fontWeight: 900,
-                        color: '#44280A',
+                        color: 'var(--text-primary)',
                         letterSpacing: '-0.025em',
                         lineHeight: 1.2,
                       }}
@@ -239,7 +239,7 @@ export function MemoWidget() {
                         marginTop: 4,
                         padding: '1px 0 1px 4px',
                         fontSize: 14,
-                        color: '#44280A',
+                        color: 'var(--text-primary)',
                         lineHeight: 1.55,
                         fontWeight: 500,
                         letterSpacing: '-0.2px',
@@ -251,7 +251,7 @@ export function MemoWidget() {
                         style={{
                           marginTop: 7,
                           width: 5, height: 5, borderRadius: 999,
-                          background: 'linear-gradient(135deg, #92400E, #B45309)',
+                          background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 80%, #000))',
                           flexShrink: 0,
                         }}
                       />
@@ -267,7 +267,7 @@ export function MemoWidget() {
                     key={i}
                     style={{
                       fontSize: 14,
-                      color: '#44280A',
+                      color: 'var(--text-primary)',
                       lineHeight: 1.55,
                       whiteSpace: 'pre-wrap',
                       letterSpacing: '-0.2px',
@@ -289,7 +289,7 @@ export function MemoWidget() {
         style={{
           gap: 6,
           padding: '8px 14px 20px',
-          borderTop: '1px solid rgba(68,40,10,0.10)',
+          borderTop: '1px solid var(--border-widget)',
         }}
       >
         <button
@@ -299,8 +299,8 @@ export function MemoWidget() {
           style={{
             width: 26, height: 26,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: 'rgba(68,40,10,0.08)',
-            color: 'rgba(68,40,10,0.7)',
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
           }}
           title="이전 메모"
         >
@@ -313,8 +313,8 @@ export function MemoWidget() {
           style={{
             width: 26, height: 26,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: 'rgba(68,40,10,0.08)',
-            color: 'rgba(68,40,10,0.7)',
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
           }}
           title="다음 메모"
         >
@@ -325,8 +325,8 @@ export function MemoWidget() {
           style={{
             padding: '4px 10px',
             borderRadius: 999,
-            backgroundColor: 'rgba(68,40,10,0.08)',
-            border: '1px solid rgba(68,40,10,0.10)',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border-widget)',
           }}
         >
           <input
@@ -338,7 +338,7 @@ export function MemoWidget() {
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: '#44280A',
+              color: 'var(--text-primary)',
               letterSpacing: '-0.2px',
             }}
           />
@@ -347,8 +347,8 @@ export function MemoWidget() {
             disabled={!quickTitle.trim()}
             className="shrink-0 p-0.5 rounded-full transition-colors disabled:opacity-30"
             style={{
-              color: '#B45309',
-              backgroundColor: quickTitle.trim() ? 'rgba(180,83,9,0.14)' : 'transparent',
+              color: 'var(--accent)',
+              backgroundColor: quickTitle.trim() ? 'var(--accent-light)' : 'transparent',
             }}
             title="빠르게 새 메모"
           >
@@ -379,19 +379,19 @@ export function MemoWidget() {
               transition={{ duration: 0.16 }}
               style={{
                 padding: 18, maxWidth: 260, margin: 12, borderRadius: 16,
-                background: '#FFFBEB',
+                background: 'var(--bg-widget)',
                 boxShadow: '0 20px 48px rgba(15,23,42,0.32)',
-                border: '1px solid rgba(68,40,10,0.12)',
+                border: '1px solid var(--border-widget)',
               }}
             >
-              <p style={{ fontSize: 14, fontWeight: 800, color: '#44280A', marginBottom: 12, letterSpacing: '-0.3px' }}>
+              <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, letterSpacing: '-0.3px' }}>
                 이 메모를 삭제할까요?
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirmDelete(false)}
                   className="flex-1"
-                  style={{ padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, backgroundColor: 'rgba(68,40,10,0.08)', color: 'rgba(68,40,10,0.7)', border: '1px solid rgba(68,40,10,0.12)' }}
+                  style={{ padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border-widget)' }}
                 >
                   취소
                 </button>

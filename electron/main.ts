@@ -1136,6 +1136,27 @@ function resetAllWidgetPositions(): void {
   }
 }
 
+/** startup 시 더 이상 wallpaper 가능하지 않은 위젯의 wallpaper 상태를 DB 에서 일괄 정리.
+ *  사용자 정책 변경(예: studenttimetable → wallpaper 차단) 후 기존 켜둔 사용자 환경을 깨끗하게 마이그레이션. */
+function cleanupStaleWallpapers(): void {
+  let positions: ReturnType<typeof getWidgetPositions> = []
+  try { positions = getWidgetPositions() } catch { return }
+  for (const p of positions) {
+    if (p.wallpaper_mode !== 1) continue
+    const widgetType = (p.widget_id ?? '').replace(/^widget-/, '').split('-')[0]
+    if (WALLPAPER_ELIGIBLE_TYPES_M.has(widgetType)) continue
+    try {
+      saveWidgetPosition({ widget_id: p.widget_id, widget_type: widgetType as WidgetType, wallpaper_mode: 0 })
+      wDebug(`cleanupStaleWallpapers: cleared ${p.widget_id} (type=${widgetType} no longer eligible)`)
+    } catch (err) { _crashLog(`cleanupStaleWallpapers:${p.widget_id}`, err) }
+    // 실제 윈도우가 켜져 있다면 wallpaper OFF
+    const win = widgetWindows.get(p.widget_id)
+    if (win && !win.isDestroyed()) {
+      try { setWallpaperMode(p.widget_id, false) } catch { /* noop */ }
+    }
+  }
+}
+
 function restoreVisibleWidgets(): void {
   let positions: ReturnType<typeof getWidgetPositions> = []
   try { positions = getWidgetPositions() } catch (err) { _crashLog('getWidgetPositions', err); return }
@@ -1618,6 +1639,7 @@ app.on('second-instance', () => {
     mainWindow.show()
     mainWindow.focus()
   }
+  try { cleanupStaleWallpapers() } catch { /* ignore */ }
   try { restoreVisibleWidgets() } catch { /* ignore */ }
 })
 
@@ -1682,6 +1704,7 @@ app.whenReady().then(async () => {
   createMainWindow()
   createTray()
   registerShortcuts()
+  cleanupStaleWallpapers()
   restoreVisibleWidgets()
 
   // 자동 백업 스케줄러 — 매 15분 체크, daily/weekly 설정 시 동기화 폴더로 자동 저장.

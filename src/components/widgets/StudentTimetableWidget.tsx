@@ -605,8 +605,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             <Megaphone
               size={displayMode ? 22 : 18}
               strokeWidth={2.2}
-              color="var(--accent)"
-              style={{ marginTop: 3, flexShrink: 0 }}
+              style={{ marginTop: 3, flexShrink: 0, color: 'var(--accent)' }}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
@@ -645,7 +644,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                   </div>
                 )}
                 {!editing && note && !displayMode && (
-                  <Pencil size={11} strokeWidth={2.4} color="var(--text-muted)" style={{ opacity: 0.5 }} />
+                  <Pencil size={11} strokeWidth={2.4} style={{ opacity: 0.5, color: 'var(--text-muted)' }} />
                 )}
               </div>
               {editing ? (

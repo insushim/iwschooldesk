@@ -110,18 +110,17 @@ export function StudentTimetableWidget() {
   const [todayOverrides, setTodayOverrides] = useState<TimetableOverride[]>([])
   const [tomorrowOverrides, setTomorrowOverrides] = useState<TimetableOverride[]>([])
   const [now, setNow] = useState(new Date())
-  // 학생용 표시 위젯 — mount 시 자동 displayMode 진입 (학생들 보기 좋게 큰 글씨 + 헤더 숨김).
-  // 사용자가 수동으로 끌 수 있지만 기본은 항상 디스플레이 모드.
-  const [displayMode, setDisplayMode] = useState(true)
+  // 모드는 두 가지만: ① 헤더 있는 일반 모드(클릭 가능, 메모 편집 등) ② 헤더 없는 디스플레이 모드(학생용 큰 글씨).
+  // 초기는 항상 일반 모드(false) — 사용자가 헤더의 디스플레이 토글 버튼으로 명시적 전환.
+  const [displayMode, setDisplayMode] = useState(false)
   const myWidgetId = useRef<string>('widget-studenttimetable')
 
-  // 학생시간표는 wallpaper 모드 사용 안 함 (학생 안내 메모 클릭 편집 필요) — mount 시
-  // 자기 자신 wallpaper 강제 OFF. WS_EX_TRANSPARENT 잔류 대비 2번 호출 (즉시 + 200ms 후).
+  // 학생시간표는 wallpaper 모드 자체 사용 안 함 — mount 시 강제 OFF (click-through 잔류 차단).
   useEffect(() => {
     const off = (): Promise<void> => window.api.widget.setWallpaperMode?.(myWidgetId.current, false).catch(() => { /* noop */ }) ?? Promise.resolve()
     off()
     const t1 = setTimeout(() => off(), 200)
-    const t2 = setTimeout(() => off(), 800)  // 추가 안전망 — main 의 retry tick 후
+    const t2 = setTimeout(() => off(), 800)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
   // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
@@ -615,9 +614,9 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
         {(note || editing) ? (
           <div className="flex items-start gap-2.5">
             <Megaphone
-              size={displayMode ? 22 : 18}
+              size={15}
               strokeWidth={2.2}
-              style={{ marginTop: 3, flexShrink: 0, color: 'var(--accent)' }}
+              style={{ marginTop: 2, flexShrink: 0, color: 'var(--accent)' }}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
@@ -669,25 +668,29 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                     if (e.key === 'Escape') cancel()
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  placeholder="예: 수학 24~26쪽, 수익 15~16쪽 / 내일 체육복 챙기기"
+                  placeholder="예: 수학 24~26쪽, 수익 15~16쪽 / 내일 체육복"
                   style={{
                     width: '100%',
-                    minHeight: 'clamp(48px, 6vw, 80px)',
+                    minHeight: 28,
+                    maxHeight: 'clamp(60px, 12vh, 120px)',
                     padding: 0,
                     border: 'none',
                     backgroundColor: 'transparent',
-                    fontSize: displayMode ? 'clamp(15px, 2.2vw, 26px)' : 'clamp(13px, 1.7vw, 18px)',
-                    fontWeight: 700, color: 'var(--text-primary)',
+                    fontSize: displayMode ? 13 : 12.5,
+                    fontWeight: 600, color: 'var(--text-primary)',
                     fontFamily: 'inherit', resize: 'none', outline: 'none',
-                    letterSpacing: '-0.2px', lineHeight: 1.5,
+                    letterSpacing: '-0.2px', lineHeight: 1.45,
+                    overflow: 'auto',
                   }}
                 />
               ) : (
                 <div style={{
-                  fontSize: displayMode ? 'clamp(15px, 2.2vw, 26px)' : 'clamp(13px, 1.7vw, 18px)',
-                  fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.5,
+                  fontSize: displayMode ? 14 : 12.5,
+                  fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45,
                   whiteSpace: 'pre-wrap', wordBreak: 'keep-all',
                   letterSpacing: '-0.2px',
+                  maxHeight: 'clamp(60px, 12vh, 120px)',
+                  overflow: 'auto',
                 }}>
                   {note}
                 </div>

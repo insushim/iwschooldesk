@@ -141,6 +141,17 @@ export function StudentTimetableWidget() {
       if (offAll) offAll()
     }
   }, [])
+
+  // 디스플레이 모드 진입 시 click-through 잔류 강제 해제 (다른 위젯 wallpaper 진입 시
+  // main 이 학생시간표에 setIgnoreMouseEvents 잔여를 남길 수 있어 즉시·지연 2번 호출).
+  useEffect(() => {
+    if (!displayMode) return
+    const force = (): void => { window.api.widget.setWallpaperMode?.(myWidgetId.current, false).catch(() => { /* noop */ }) }
+    force()
+    const t1 = setTimeout(force, 150)
+    const t2 = setTimeout(force, 600)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [displayMode])
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('widget:displayMode', { detail: { on: displayMode } }))
   }, [displayMode])

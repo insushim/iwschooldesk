@@ -9,6 +9,7 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 
 /**
  * 통합 이벤트 — DDayEvent 원본 + 달력에서 가져온 임박 일정(D-7 이내).
@@ -27,6 +28,7 @@ type UnifiedEvent = DDayEvent & {
  *  - 글자 크기는 위젯 창 폭에 비례(`clamp(...vw...)`).
  */
 export function DDayWidget() {
+  const iAmWallpaper = useIAmWallpaper('dday')
   const [events, setEvents] = useState<DDayEvent[]>([])
   const [upcomingSchedules, setUpcomingSchedules] = useState<Schedule[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -159,7 +161,10 @@ export function DDayWidget() {
       style={{
         // containerType: size → 모든 하위 cqmin/cqw 단위가 이 위젯 크기 기준으로 동작.
         containerType: 'size',
-        padding: 'clamp(10px, 3cqmin, 28px) clamp(18px, 5cqmin, 36px) clamp(18px, 5cqmin, 36px)',
+        // 배경모드(헤더 없음): 위·아래 padding 축소.
+        padding: iAmWallpaper
+          ? 'clamp(6px, 1.6cqmin, 14px) clamp(18px, 5cqmin, 36px)'
+          : 'clamp(10px, 3cqmin, 28px) clamp(18px, 5cqmin, 36px) clamp(18px, 5cqmin, 36px)',
         background: firstUrgency
           ? `radial-gradient(ellipse at 85% 0%, ${firstUrgency.color}18 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, ${firstUrgency.color}10 0%, transparent 45%)`
           : undefined,

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Schedule } from '../../types/schedule.types'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 
 /**
  * "오늘" 위젯 — 학생 전자칠판용. 오늘의 특별 일정만 크게 보여줌.
@@ -21,6 +22,7 @@ function ymd(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() +
 const KOR_DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 export function TodayWidget() {
+  const iAmWallpaper = useIAmWallpaper('today')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [now, setNow] = useState(new Date())
   const todayStr = ymd(now)
@@ -79,7 +81,10 @@ export function TodayWidget() {
       className="flex flex-col h-full relative overflow-hidden"
       style={{
         containerType: 'size',
-        padding: 'clamp(14px, 3.5cqmin, 36px) clamp(18px, 4cqmin, 42px) clamp(20px, 4.5cqmin, 44px)',
+        // 배경모드(헤더 없음): 위·아래 padding 축소.
+        padding: iAmWallpaper
+          ? 'clamp(8px, 2cqmin, 18px) clamp(18px, 4cqmin, 42px)'
+          : 'clamp(14px, 3.5cqmin, 36px) clamp(18px, 4cqmin, 42px) clamp(20px, 4.5cqmin, 44px)',
         background:
           'radial-gradient(ellipse at 85% 0%, rgba(245,158,11,0.10) 0%, transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(244,114,182,0.08) 0%, transparent 50%)',
       }}

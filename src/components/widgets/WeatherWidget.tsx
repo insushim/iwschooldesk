@@ -141,6 +141,7 @@ interface WeatherData {
   }
   daily: { tempMin: number; tempMax: number; weatherCode: number; precip: number }
   hourly: { morning: { temp: number; code: number }; afternoon: { temp: number; code: number } }
+  hours: Array<{ hour: number; temp: number | null; code: number }>  // 3·6·9·12·15·18·21·24시 8슬롯
   alerts: string[]                // KMA 특보 기반 — 🥶한파/🔥폭염/💨강풍/🌊폭우
   source: 'kma' | 'open-meteo'    // 데이터 출처 표시용 (사용자에게 정확도 신호)
   fetchedAt: number
@@ -322,6 +323,7 @@ export function WeatherWidget() {
             }
             daily: { tempMin: number | null; tempMax: number | null; weatherCode: number; precip: number }
             hourly: { morning: { temp: number | null; code: number }; afternoon: { temp: number | null; code: number } }
+            hours?: Array<{ hour: number; temp: number | null; code: number }>
             alerts: string[]
             source: 'kma'
           }
@@ -353,6 +355,11 @@ export function WeatherWidget() {
                   code: k.hourly.afternoon.code,
                 },
               },
+              hours: (k.hours ?? []).map((h) => ({
+                hour: h.hour,
+                temp: h.temp !== null ? Math.round(h.temp) : null,
+                code: h.code,
+              })),
               alerts: k.alerts ?? [],
               source: 'kma',
               fetchedAt: Date.now(),
@@ -401,6 +408,20 @@ export function WeatherWidget() {
             morning: { temp: Math.round(w.hourly.temperature_2m[mIdx]), code: w.hourly.weather_code[mIdx] },
             afternoon: { temp: Math.round(w.hourly.temperature_2m[aIdx]), code: w.hourly.weather_code[aIdx] },
           },
+          hours: [3, 6, 9, 12, 15, 18, 21].map((h) => {
+            const idx = w.hourly.time.findIndex((t) => new Date(t).getHours() === h)
+            const safe = idx >= 0 ? idx : 0
+            return {
+              hour: h,
+              temp: typeof w.hourly.temperature_2m[safe] === 'number' ? Math.round(w.hourly.temperature_2m[safe]) : null,
+              code: w.hourly.weather_code[safe] ?? 0,
+            }
+          }).concat([{
+            // 24시 = 익일 0시. forecast_days=1 이라 익일 데이터 부재 — 23시 값을 24시 자리에 표시.
+            hour: 24,
+            temp: typeof w.hourly.temperature_2m[23] === 'number' ? Math.round(w.hourly.temperature_2m[23]) : null,
+            code: w.hourly.weather_code[23] ?? 0,
+          }]),
           alerts: buildAlerts(curTemp, curWind, null, dailyPrecip),  // Open-Meteo 는 시간당 강수 미제공
           source: 'open-meteo',
           fetchedAt: Date.now(),
@@ -638,38 +659,32 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 오전 / 오후 예보 — 미세먼지 스타일 컴팩트 2줄: (시간 + 온도) / 라벨 */}
-      {weather && morning && afternoon && (
-        <div className="grid grid-cols-2 gap-2 shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)' }}>
-          {[
-            { label: '9시', m: weather.hourly.morning, info: morning },
-            { label: '15시', m: weather.hourly.afternoon, info: afternoon },
-          ].map(({ label, m, info }) => (
-            <div
-              key={label}
-              className="flex items-center gap-2"
-              style={{
-                padding: '7px 10px', borderRadius: 10,
-                background: `linear-gradient(135deg, ${info.color}12 0%, ${info.color}1F 100%)`,
-                border: `1px solid ${info.color}33`,
-              }}
-            >
-              <info.Icon size={14} strokeWidth={2.2} color={info.color} />
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.2px', lineHeight: 1.1 }}>
+      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 일기예보 세로 리스트. 한 줄: 시간 · 온도 · 아이콘. */}
+      {weather && weather.hours.length > 0 && (
+        <div className="flex flex-col shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)', gap: 2 }}>
+          {weather.hours.map((h) => {
+            const info = weatherInfo(h.code)
+            const label = h.hour < 12 ? `오전 ${h.hour}시` : h.hour === 12 ? '정오' : h.hour === 24 ? '자정' : `오후 ${h.hour - 12}시`
+            return (
+              <div
+                key={h.hour}
+                className="flex items-center justify-between"
+                style={{
+                  padding: '4px 10px', borderRadius: 8,
+                  background: `linear-gradient(90deg, ${info.color}0A 0%, ${info.color}14 100%)`,
+                  border: `1px solid ${info.color}22`,
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '-0.2px', minWidth: 50 }}>
                   {label}
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color }}>
-                    {m.temp}°
-                  </span>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: info.color }}>
-                    {info.label}
-                  </span>
-                </div>
+                </span>
+                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color, flex: 1, textAlign: 'center' }}>
+                  {h.temp !== null ? `${h.temp}°` : '—'}
+                </span>
+                <info.Icon size={16} strokeWidth={2.2} color={info.color} />
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

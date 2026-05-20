@@ -298,6 +298,8 @@ interface WeatherResult {
     morning: { temp: number | null; code: number }
     afternoon: { temp: number | null; code: number }
   }
+  /** 3시간 간격 8슬롯 (03·06·09·12·15·18·21·24시) — 일기예보 세로 리스트용. */
+  hours: Array<{ hour: number; temp: number | null; code: number }>
   alerts: string[]               // 🥶한파 / 🔥폭염 / 💨강풍 / 🌊폭우
   baseTime: string | null        // KMA 발표 시각 (YYYYMMDDHHmm) — 데이터 신선도 표시용
   source: 'kma' | 'fallback'
@@ -404,6 +406,30 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
   const afternoonPty = toNum(getFcstNear('PTY', 15)) ?? 0
   const afternoonSky = toNum(getFcstNear('SKY', 15)) ?? 1
 
+  // 3시간 간격 8슬롯 (3·6·9·12·15·18·21·24시). 24시는 익일 0시 forecast 사용 (단기예보 +72h 안에 포함).
+  const HOUR_SLOTS = [3, 6, 9, 12, 15, 18, 21, 24]
+  const hours = HOUR_SLOTS.map((h) => {
+    let temp: number | null = null
+    let pty = 0
+    let sky = 1
+    if (h === 24) {
+      // 24시 = 익일 00시 — byCatTime 은 오늘분만 필터되어 있음 → fcst 전체(필터 전)에서 익일 0000 슬롯 직접 탐색.
+      const tomorrow = toKst(new Date()); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+      const ymdTomorrow = `${tomorrow.getUTCFullYear()}${String(tomorrow.getUTCMonth() + 1).padStart(2, '0')}${String(tomorrow.getUTCDate()).padStart(2, '0')}`
+      for (const it of (fcst ?? []).concat(fcstY23 ?? [])) {
+        if (it.fcstDate !== ymdTomorrow || it.fcstTime !== '0000') continue
+        if (it.category === 'TMP') temp = toNum(it.fcstValue)
+        else if (it.category === 'PTY') pty = toNum(it.fcstValue) ?? 0
+        else if (it.category === 'SKY') sky = toNum(it.fcstValue) ?? 1
+      }
+    } else {
+      temp = toNum(getFcstNear('TMP', h))
+      pty = toNum(getFcstNear('PTY', h)) ?? 0
+      sky = toNum(getFcstNear('SKY', h)) ?? 1
+    }
+    return { hour: h, temp, code: ptySkyToWmoCode(pty, sky) }
+  })
+
   // alerts — 한국 기상청 특보 임계값. 1시간 강수 + 일 강수 합산을 분리해서 정밀 판정.
   const alerts = buildAlerts(curTemp, curWind, curRain1h, precip)
 
@@ -436,6 +462,7 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
       morning: { temp: morningTemp, code: ptySkyToWmoCode(morningPty, morningSky) },
       afternoon: { temp: afternoonTemp, code: ptySkyToWmoCode(afternoonPty, afternoonSky) },
     },
+    hours,
     alerts,
     baseTime,
     source: 'kma',
@@ -752,7 +779,7 @@ export default {
           return json({ error: 'invalid coordinates' }, 400)
         }
         const { nx, ny } = gpsToGrid(lat, lon)
-        return cachedJson(req, ctx, `weather:v5:${nx}_${ny}`, 60 * 60,
+        return cachedJson(req, ctx, `weather:v6:${nx}_${ny}`, 60 * 60,
           () => fetchWeatherFromKma(lat, lon, env),
           { error: 'kma unavailable', source: 'fallback' })
       }

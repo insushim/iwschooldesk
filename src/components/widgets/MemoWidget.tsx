@@ -5,6 +5,7 @@ import type { Memo } from '../../types/memo.types'
 import { parseSectionedText } from '../../lib/section-parser'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { Dialog } from '../ui/Dialog'
 
 export function MemoWidget() {
   const [memos, setMemos] = useState<Memo[]>([])
@@ -166,33 +167,8 @@ export function MemoWidget() {
         </button>
       </div>
 
-      {/* Content — 섹션/불릿 시인성 개선 */}
+      {/* Content — 본문은 *항상* 블록 표시 (섹션 박스). 편집은 별도 Dialog 로 띄움 → 본문 화면 안 바뀜. */}
       <div className="flex-1 overflow-y-auto" style={{ padding: '2px 16px 4px' }}>
-        {isEditing ? (
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            onBlur={handleSave}
-            autoFocus
-            className="w-full h-full resize-none"
-            style={{
-              // 디스플레이 뷰와 시각 일관성 — 동일 폰트/색/줄간격, 기본 브라우저 스타일 제거.
-              fontFamily: 'inherit',
-              fontSize: 14.5,
-              fontWeight: 500,
-              color: 'var(--text-primary)',
-              lineHeight: 1.55,
-              letterSpacing: '-0.2px',
-              background: 'transparent',
-              outline: 'none',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              caretColor: 'var(--accent)',
-            }}
-            placeholder="메모를 입력하세요...  (팁: [제목] 으로 섹션을, - 또는 • 로 항목 구분)"
-          />
-        ) : (
           <div
             onClick={() => {
               setEditContent(current?.content ?? '')
@@ -279,8 +255,43 @@ export function MemoWidget() {
               })
             )}
           </div>
-        )}
       </div>
+
+      {/* 편집 Dialog — 본문 화면은 그대로 두고 별도 모달로 편집 → "첫번째 화면 유지" */}
+      <Dialog open={isEditing} onOpenChange={(o) => { if (!o) { handleSave(); } }} title="메모 편집">
+        <div style={{ width: 'min(80vw, 480px)' }}>
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            autoFocus
+            style={{
+              width: '100%',
+              minHeight: 180,
+              maxHeight: '50vh',
+              padding: '12px 14px',
+              border: '1px solid var(--border-widget)',
+              borderRadius: 10,
+              backgroundColor: 'var(--bg-secondary)',
+              fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 500,
+              color: 'var(--text-primary)', lineHeight: 1.55,
+              letterSpacing: '-0.2px', resize: 'vertical', outline: 'none',
+              caretColor: 'var(--accent)',
+            }}
+            placeholder="메모를 입력하세요...  (팁: [제목] 으로 섹션을, - 또는 • 로 항목 구분)"
+          />
+          <div className="flex justify-end gap-2" style={{ marginTop: 10 }}>
+            <button
+              onClick={() => { setIsEditing(false); setEditContent(current?.content ?? '') }}
+              style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >취소</button>
+            <button
+              onClick={handleSave}
+              style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--accent)', border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+            >저장</button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* Navigation + Quick add — 세련된 pill 스타일 */}
       <div

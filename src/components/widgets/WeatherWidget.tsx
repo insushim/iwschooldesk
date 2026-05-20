@@ -659,26 +659,35 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 일기예보 세로 리스트. 한 줄: 시간 · 온도 · 아이콘. */}
+      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 가로 리스트, 셀별 세로 (시간/온도/아이콘). */}
       {weather && weather.hours.length > 0 && (
-        <div className="flex flex-col shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)', gap: 2 }}>
+        <div
+          className="flex shrink-0 overflow-x-auto"
+          style={{
+            marginBottom: 'clamp(6px, 1vw, 10px)', gap: 4,
+            scrollbarWidth: 'thin',
+          }}
+        >
           {weather.hours.map((h) => {
             const info = weatherInfo(h.code)
-            const label = h.hour < 12 ? `오전 ${h.hour}시` : h.hour === 12 ? '정오' : h.hour === 24 ? '자정' : `오후 ${h.hour - 12}시`
+            const label = h.hour < 12 ? `오전 ${h.hour}` : h.hour === 12 ? '정오' : h.hour === 24 ? '자정' : `오후 ${h.hour - 12}`
             return (
               <div
                 key={h.hour}
-                className="flex items-center justify-between"
+                className="flex flex-col items-center shrink-0"
                 style={{
-                  padding: '4px 10px', borderRadius: 8,
-                  background: `linear-gradient(90deg, ${info.color}0A 0%, ${info.color}14 100%)`,
+                  flex: '1 1 0',
+                  minWidth: 44,
+                  padding: '6px 4px', borderRadius: 8,
+                  background: `linear-gradient(180deg, ${info.color}0A 0%, ${info.color}18 100%)`,
                   border: `1px solid ${info.color}22`,
+                  gap: 3,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', letterSpacing: '-0.2px', minWidth: 50 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', lineHeight: 1 }}>
                   {label}
                 </span>
-                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color, flex: 1, textAlign: 'center' }}>
+                <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 900, color: info.color, lineHeight: 1 }}>
                   {h.temp !== null ? `${h.temp}°` : '—'}
                 </span>
                 <info.Icon size={16} strokeWidth={2.2} color={info.color} />

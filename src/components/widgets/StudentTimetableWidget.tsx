@@ -676,7 +676,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             padding: '2px 0',
           }}>
             <Pencil size={displayMode ? 11 : 13} strokeWidth={2.4} style={{ color: 'var(--text-muted)' }} />
-            <span>메모 추가</span>
+            <span>예: 수학 24~26쪽</span>
           </div>
         )}
       </div>

@@ -132,11 +132,14 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
     }
   }, [])
 
-  // 마스터 디스플레이 모드 브로드캐스트 구독 — 다른 위젯에서 "전체 디스플레이 모드" 를 켜면 내 shellDisplayMode 도 동기화.
-  // 단, studenttimetable 은 독립 동작 — 다른 위젯의 디스플레이/배경모드 영향 무시 (이중 모드 진입 방지).
+  // 마스터 디스플레이 모드 브로드캐스트 구독.
+  // studenttimetable: 진입(on=true) 은 무시(이중 모드 방지), 해제(on=false) 만 받음 — 다른 위젯 해제 시 같이 풀림.
   useEffect(() => {
-    if (widgetType === 'studenttimetable') return
     const off = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      if (widgetType === 'studenttimetable') {
+        if (!p.on) setShellDisplayMode(false)
+        return
+      }
       setShellDisplayMode(!!p.on)
     })
     return () => { if (off) off() }

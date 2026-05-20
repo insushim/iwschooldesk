@@ -1599,9 +1599,14 @@ function broadcastAllDisplayMode(on: boolean): void {
     if (w.isDestroyed()) continue
     // 렌더러 알림
     try { w.webContents.send('all-display-mode-changed', payload) } catch { /* noop */ }
-    // 네이티브 z-order/포커스 적용 — 배경화면 모드/Pin 은 제외.
+    // 네이티브 z-order/포커스 적용 — 배경화면 모드/Pin/학생시간표 는 제외.
+    // 학생시간표: pushWindowToBack 하면 메모 박스 클릭 좌표가 뒤 윈도우로 가서 클릭 무효 → 항상 정상 z-order 유지.
     if (wallpaperWidgets.has(id)) continue
     if (pinnedWidgets.has(id)) continue
+    {
+      const wt = id.replace(/^widget-/, '').split('-')[0]
+      if (wt === 'studenttimetable') continue
+    }
     try {
       if (displayModeGlobalOn) {
         // setFocusable(false) 제거 — Windows 에서 위젯의 onClick 이벤트를 일부 차단하는

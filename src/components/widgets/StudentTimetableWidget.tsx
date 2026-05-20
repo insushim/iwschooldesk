@@ -132,7 +132,10 @@ export function StudentTimetableWidget() {
   // 본인을 pushWindowToBack 시키지 않아 메모 추가 클릭 정상.
   useEffect(() => {
     const offWallpaper = window.api.widget.onWallpaperModeChanged?.(() => { /* 무시 — wallpaper 사용 안 함 */ })
-    const offAll = window.api.widget.onAllDisplayModeChanged?.(() => { /* 무시 — 독립 토글 */ })
+    // 진입 broadcast 는 무시(이중 모드 방지), 해제(false) 만 받음 → 다른 위젯 해제 시 같이 풀림.
+    const offAll = window.api.widget.onAllDisplayModeChanged?.((p) => {
+      if (!p.on) setDisplayMode(false)
+    })
     return () => {
       if (offWallpaper) offWallpaper()
       if (offAll) offAll()
@@ -655,10 +658,9 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                 <div style={{
                   fontSize: displayMode ? 14 : 12.5,
                   fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45,
-                  whiteSpace: 'pre-wrap', wordBreak: 'keep-all',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   letterSpacing: '-0.2px',
-                  maxHeight: 'clamp(60px, 12vh, 120px)',
-                  overflow: 'auto',
+                  height: 22,
                 }}>
                   {note}
                 </div>

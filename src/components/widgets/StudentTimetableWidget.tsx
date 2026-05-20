@@ -116,9 +116,13 @@ export function StudentTimetableWidget() {
   const myWidgetId = useRef<string>('widget-studenttimetable')
 
   // 학생시간표는 wallpaper 모드 사용 안 함 (학생 안내 메모 클릭 편집 필요) — mount 시
-  // 자기 자신 wallpaper 강제 OFF. 이전 버전에서 wallpaper 켜둔 상태도 한 번에 정리.
+  // 자기 자신 wallpaper 강제 OFF. WS_EX_TRANSPARENT 잔류 대비 2번 호출 (즉시 + 200ms 후).
   useEffect(() => {
-    window.api.widget.setWallpaperMode?.(myWidgetId.current, false).catch(() => { /* noop */ })
+    const off = (): Promise<void> => window.api.widget.setWallpaperMode?.(myWidgetId.current, false).catch(() => { /* noop */ }) ?? Promise.resolve()
+    off()
+    const t1 = setTimeout(() => off(), 200)
+    const t2 = setTimeout(() => off(), 800)  // 추가 안전망 — main 의 retry tick 후
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
   // 배경화면 모드: 클릭 통과 → 컨트롤 자체를 숨겨 "왜 안 눌리지" 혼란 방지.
   const iAmWallpaper = useIAmWallpaper('studenttimetable')
@@ -439,7 +443,7 @@ export function StudentTimetableWidget() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.35 }}
-          className="relative flex flex-col flex-1 min-h-0 justify-center"
+          className="relative flex flex-col flex-1 min-h-0 justify-center overflow-hidden"
           style={{ gap: 'clamp(6px, 1vw, 14px)' }}
         >
           <div
@@ -591,17 +595,19 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
         marginTop: 'clamp(8px, 1.4vw, 18px)',
       }}
     >
-      {/* 글래스모피즘 카드 — 다른 위젯과 톤 통일. Megaphone 아이콘만 강조 색(amber). */}
+      {/* 글래스모피즘 카드. 비어있을 때 매우 작게 — 시간표 큰 글씨 영역 침범 방지. */}
       <div
-        onClick={!editing && !displayMode ? startEdit : undefined}
+        onClick={!editing ? startEdit : undefined}
         style={{
-          padding: 'clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px)',
-          borderRadius: 14,
-          background: 'var(--bg-widget)',
-          backdropFilter: 'blur(14px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(14px) saturate(150%)',
-          border: (note || editing) ? '1px solid var(--border-widget)' : `1.5px dashed var(--border-widget)`,
-          cursor: !editing && !displayMode ? 'pointer' : 'default',
+          padding: (note || editing)
+            ? 'clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px)'
+            : '4px 10px',  // placeholder: 매우 작게 (실과 큰 글씨 영역 침범 X)
+          borderRadius: (note || editing) ? 14 : 8,
+          background: (note || editing) ? 'var(--bg-widget)' : 'transparent',
+          backdropFilter: (note || editing) ? 'blur(14px) saturate(150%)' : undefined,
+          WebkitBackdropFilter: (note || editing) ? 'blur(14px) saturate(150%)' : undefined,
+          border: (note || editing) ? '1px solid var(--border-widget)' : `1px dashed var(--border-widget)`,
+          cursor: !editing ? 'pointer' : 'default',
           transition: 'all 0.18s ease',
           boxShadow: (note || editing) ? '0 4px 16px rgba(15,23,42,0.08)' : 'none',
         }}

@@ -58,7 +58,7 @@ const WIDGET_REGISTRY: Record<string, { title: string; icon: JSX.Element; iconCo
   clock:     { title: '시계',       icon: <Clock8 {...ICON_PROPS} />,          iconColor: '#2563EB', Component: ClockWidget },
   calendar:  { title: '달력',       icon: <CalendarDays {...ICON_PROPS} />,    iconColor: '#10B981', Component: CalendarWidget },
   task:      { title: '할일',       icon: <ListTodo {...ICON_PROPS} />,        iconColor: '#F59E0B', Component: TaskWidget },
-  memo:      { title: '메모',       icon: <NotebookPen {...ICON_PROPS} />,     iconColor: '#F97316', Component: MemoWidget },
+  memo:      { title: '메모',       icon: <NotebookPen {...ICON_PROPS} />,     iconColor: '#2563EB', Component: MemoWidget },
   timetable: { title: '시간표',     icon: <LayoutPanelLeft {...ICON_PROPS} />, iconColor: '#6366F1', Component: TimetableWidget },
   studenttimetable: { title: '학생용 시간표', icon: <GraduationCap {...ICON_PROPS} />, iconColor: '#7C3AED', Component: StudentTimetableWidget },
   checklist: { title: '체크리스트', icon: <CheckCheck {...ICON_PROPS} />,      iconColor: '#14B8A6', Component: ChecklistWidget },

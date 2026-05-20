@@ -637,7 +637,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                     if (e.key === 'Escape') cancel()
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  placeholder="예: 수학 24~26쪽, 수익 15~16쪽 / 내일 체육복"
+                  placeholder="예: 수학 24~26쪽"
                   style={{
                     width: '100%',
                     minHeight: 28,
@@ -676,7 +676,7 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             padding: '2px 0',
           }}>
             <Pencil size={displayMode ? 11 : 13} strokeWidth={2.4} style={{ color: 'var(--text-muted)' }} />
-            <span>{displayMode ? '메모 추가' : '학생 안내 메모 추가 (숙제·준비물 등)'}</span>
+            <span>메모 추가</span>
           </div>
         )}
       </div>

@@ -88,6 +88,17 @@ contextBridge.exposeInMainWorld('api', {
     completionsInRange: (routineId: string, fromDate: string, toDate: string) =>
       ipcRenderer.invoke('routine:completionsInRange', routineId, fromDate, toDate),
   },
+  habit: {
+    list: () => ipcRenderer.invoke('habit:list'),
+    listWithStats: (today: string) => ipcRenderer.invoke('habit:listWithStats', today),
+    create: (data: unknown) => ipcRenderer.invoke('habit:create', data),
+    update: (id: string, data: unknown) => ipcRenderer.invoke('habit:update', id, data),
+    delete: (id: string) => ipcRenderer.invoke('habit:delete', id),
+    toggleToday: (habitId: string, date: string) => ipcRenderer.invoke('habit:toggleToday', habitId, date),
+    stats: (habitId: string, today: string) => ipcRenderer.invoke('habit:stats', habitId, today),
+    completionsInRange: (habitId: string, fromDate: string, toDate: string) =>
+      ipcRenderer.invoke('habit:completionsInRange', habitId, fromDate, toDate),
+  },
   goal: {
     list: () => ipcRenderer.invoke('goal:list'),
     create: (data: unknown) => ipcRenderer.invoke('goal:create', data),

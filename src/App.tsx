@@ -10,6 +10,9 @@ import { TaskBoard } from './components/dashboard/TaskBoard'
 import { MemoGrid } from './components/dashboard/MemoGrid'
 import { TimetableEditor } from './components/dashboard/TimetableEditor'
 import { ChecklistManager } from './components/dashboard/ChecklistManager'
+import { RoutineManager } from './components/dashboard/RoutineManager'
+import { HabitManager } from './components/dashboard/HabitManager'
+import { StudentRecordManager } from './components/dashboard/StudentRecordManager'
 import { WidgetLauncher } from './components/dashboard/WidgetLauncher'
 import { StatisticsView } from './components/dashboard/StatisticsView'
 import { SettingsPanel } from './components/dashboard/SettingsPanel'
@@ -23,6 +26,7 @@ import { TimerWidget } from './components/widgets/TimerWidget'
 import { DDayWidget } from './components/widgets/DDayWidget'
 import { ClockWidget } from './components/widgets/ClockWidget'
 import { RoutineWidget } from './components/widgets/RoutineWidget'
+import { HabitWidget } from './components/widgets/HabitWidget'
 import { GoalWidget } from './components/widgets/GoalWidget'
 import { StudentCheckWidget } from './components/widgets/StudentCheckWidget'
 import { StudentTimetableWidget } from './components/widgets/StudentTimetableWidget'
@@ -37,7 +41,7 @@ import { useTheme } from './hooks/useTheme'
 import { playSchoolBell } from './lib/school-bell'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen,
-  LayoutPanelLeft, CheckCheck, TimerReset, CalendarHeart, Repeat, Target, Users,
+  LayoutPanelLeft, CheckCheck, TimerReset, CalendarHeart, Repeat, Flame, Target, Users,
   GraduationCap, CalendarCheck, ShieldCheck, Utensils, Megaphone, CloudSun,
 } from 'lucide-react'
 
@@ -48,6 +52,9 @@ const views = {
   memos: MemoGrid,
   timetable: TimetableEditor,
   checklists: ChecklistManager,
+  routines: RoutineManager,
+  habits: HabitManager,
+  studentrecord: StudentRecordManager,
   widgets: WidgetLauncher,
   statistics: StatisticsView,
   settings: SettingsPanel,
@@ -65,6 +72,7 @@ const WIDGET_REGISTRY: Record<string, { title: string; icon: JSX.Element; iconCo
   timer:     { title: '타이머',     icon: <TimerReset {...ICON_PROPS} />,      iconColor: '#EC4899', Component: TimerWidget },
   dday:      { title: 'D-Day',      icon: <CalendarHeart {...ICON_PROPS} />,   iconColor: '#8B5CF6', Component: DDayWidget },
   routine:   { title: '루틴',       icon: <Repeat {...ICON_PROPS} />,          iconColor: '#8B5CF6', Component: RoutineWidget },
+  habit:     { title: '습관',       icon: <Flame {...ICON_PROPS} />,           iconColor: '#F97316', Component: HabitWidget },
   goal:      { title: '우리반 목표', icon: <Target {...ICON_PROPS} />,          iconColor: '#0EA5E9', Component: GoalWidget },
   studentcheck: { title: '학급 체크', icon: <Users {...ICON_PROPS} />,           iconColor: '#0EA5E9', Component: StudentCheckWidget },
   today:     { title: '오늘',       icon: <CalendarCheck {...ICON_PROPS} />,    iconColor: '#F59E0B', Component: TodayWidget },

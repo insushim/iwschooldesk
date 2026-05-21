@@ -34,9 +34,10 @@ interface WidgetShellProps {
 }
 
 export function WidgetShell({ title, icon, iconColor, children, widgetType }: WidgetShellProps) {
-  // 슬라이더 기본 표시값 — main 의 기본 위젯 opacity(0.95)와 일치. 사용자가
+  // 슬라이더 기본 표시값 — main 의 기본 위젯 opacity 와 일치. 사용자가
   // 슬라이더 열면 현재 적용된 값과 일치되게 보이도록.
-  const [opacity, setOpacityState] = useState(0.95)
+  // weather 만 0.95, 나머지는 0.90 (main createWidgetWindow 기본값과 동기).
+  const [opacity, setOpacityState] = useState(widgetType === 'weather' ? 0.95 : 0.90)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [opacityOpen, setOpacityOpen] = useState(false)
   const [fontOpen, setFontOpen] = useState(false)
@@ -164,6 +165,10 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
     for (const t of targets) {
       try { await window.api.widget.setWallpaperMode(t.fullId, true) } catch { /* ignore */ }
     }
+    // 🔑 단축키(Ctrl+Alt+Shift+W) 의 enterAllWallpaperMode 와 일치시키기 위해
+    //   wallpaper 가 안 되는 위젯(학생시간표 등) 도 디스플레이 모드로 일괄 전환.
+    //   이전엔 누락되어 "단축키 vs 버튼" 결과 비대칭 (학생시간표가 변동 없음) 버그였음.
+    try { await window.api.widget.setAllDisplayMode?.(true) } catch { /* ignore */ }
     setAnyWallpaperOn(targets.length > 0)
   }
 
@@ -214,10 +219,15 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
       className="shell-card flex flex-col h-screen w-screen"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
-      {/* Draggable header — 배경화면 모드, 자식 위젯 디스플레이 모드, 쉘 자체 디스플레이 모드면 완전히 숨김.
+      {/* Draggable header — 배경화면 모드면 항상 숨김 (클릭 통과 영역에 헤더 의미 X).
+          habit/memo/routine 은 디스플레이 모드에서도 헤더 유지 — 본문이 리스트/카드형이라 헤더 없으면 어색.
           Goal('우리반 목표') 위젯은 body 가 한 문장 큰 텍스트만 있어 헤더가 상대적으로 커 보이므로
           전용 컴팩트 헤더 사용 (사용자 요청). */}
-      {!iAmWallpaper && !childDisplayMode && !shellDisplayMode && (
+      {!iAmWallpaper && (
+        (widgetType === 'habit' || widgetType === 'memo' || widgetType === 'routine')
+          ? true
+          : (!childDisplayMode && !shellDisplayMode)
+      ) && (
       <div
         className={`flex items-center justify-between relative ${widgetType === 'goal' ? 'shell-header-compact' : ''}`}
         style={{

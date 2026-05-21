@@ -42,8 +42,8 @@
   --bg-primary: #F8FAFC;
   --bg-secondary: #EEF2F7;
   /* 완전 순백 대신 slate-50에 블루 살짝 섞은 cool off-white — 가독성 유지하면서 세련됨.
-   * alpha 0.92 — 거의 불투명하되 살짝 데스크탑 톤이 비쳐 세련된 glass 느낌 유지. */
-  --bg-widget: rgba(249, 251, 254, 0.92);
+   * alpha 0.90 — 사용자 요청: 위젯 기본 투명도 90% 일괄 통일 (light/dark 동일). */
+  --bg-widget: rgba(249, 251, 254, 0.90);
   --bg-widget-hover: rgba(253, 254, 255, 0.98);
   --bg-widget-tint: linear-gradient(170deg,
     rgba(191, 219, 254, 0.14) 0%,
@@ -81,7 +81,7 @@
 [data-theme="dark"] {
   --bg-primary: #0F172A;
   --bg-secondary: #1E293B;
-  /* alpha 0.90 — 다크 모드 살짝 더 투명 (어두운 배경이 살짝 비쳐 glass 톤). */
+  /* alpha 0.90 — light 와 동일하게 통일 (사용자 요청). */
   --bg-widget: rgba(28, 38, 56, 0.90);
   --bg-widget-hover: rgba(32, 44, 64, 0.96);
   --bg-widget-tint: linear-gradient(170deg,

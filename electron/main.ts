@@ -367,7 +367,7 @@ function isLaunchedAtStartup(): boolean {
 
 type WidgetType =
   | 'calendar' | 'task' | 'memo' | 'timetable'
-  | 'checklist' | 'timer' | 'dday' | 'clock' | 'routine' | 'goal' | 'studentcheck'
+  | 'checklist' | 'timer' | 'dday' | 'clock' | 'routine' | 'habit' | 'goal' | 'studentcheck'
   | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard' | 'weather'
 
 const WIDGET_DEFAULTS: Record<WidgetType, { w: number; h: number }> = {
@@ -380,6 +380,7 @@ const WIDGET_DEFAULTS: Record<WidgetType, { w: number; h: number }> = {
   dday:      { w: 320, h: 300 },
   clock:     { w: 300, h: 200 },
   routine:   { w: 340, h: 440 },
+  habit:     { w: 320, h: 340 },
   goal:      { w: 340, h: 260 },
   studentcheck: { w: 380, h: 480 },
   studenttimetable: { w: 420, h: 280 },
@@ -901,9 +902,10 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     && typeof saved?.y === 'number'
   const clamped = hasSavedPos ? clampToScreen(saved!.x!, saved!.y!, width, height) : null
   const { x, y } = clamped ?? getSpreadPosition(widgetType, width, height)
-  // 기본 불투명도 0.95 — 살짝 투명하게 해서 바탕화면 위에 자연스럽게 떠 있는 느낌.
+  // 기본 불투명도: 대부분 0.90, 단 weather 위젯만 0.95 (시인성 우선).
   // 사용자가 투명도 슬라이더로 직접 더 조정 가능.
-  const opacity = saved?.opacity ?? 0.95
+  const defaultOpacity = widgetType === 'weather' ? 0.95 : 0.90
+  const opacity = saved?.opacity ?? defaultOpacity
   // 위젯은 '일할 때 방해 안 되도록' 무조건 맨 뒤에서 시작.
   // 사용자가 세션 중 Pin 버튼으로 임시로 위로 올릴 수 있지만, 다음 실행 땐 다시 맨 뒤.
   const alwaysOnTop = false
@@ -1678,7 +1680,8 @@ app.whenReady().then(async () => {
     if (win) hardenBrowserWindow(win)
   })
 
-  // 체크한 지 24시간 지난 체크리스트 항목 자동 정리
+  // 자정 기준 체크리스트 삭제 — 어제 체크된 항목들을 일괄 삭제(오늘 체크는 유지).
+  // 매일 재사용은 습관 위젯 담당, 체크리스트는 일회성 할일 누적용.
   const cleanupExpired = () => {
     try {
       const removed = deleteExpiredCheckedItems()

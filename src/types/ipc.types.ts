@@ -7,6 +7,7 @@ import type { Section, CreateSectionInput, UpdateSectionInput } from './section.
 import type { AppSettings, SettingKey, DDayEvent, CreateDDayInput, UpdateDDayInput } from './settings.types'
 import type { WidgetPosition } from './widget.types'
 import type { Routine, RoutineItem, RoutineItemWithStatus, CreateRoutineInput, UpdateRoutineInput, CreateRoutineItemInput } from './routine.types'
+import type { Habit, HabitStats, CreateHabitInput, UpdateHabitInput } from './habit.types'
 import type { Goal, CreateGoalInput, UpdateGoalInput } from './goal.types'
 
 /** 백업 복호화에 필요한 자격증명. 비밀번호 또는 복구구문 중 최소 하나. */
@@ -162,6 +163,16 @@ export interface ElectronAPI {
     dayNumber: (startDate: string, today: string) => Promise<number>
     completionsInRange: (routineId: string, fromDate: string, toDate: string) => Promise<Array<{ item_id: string; date: string }>>
   }
+  habit: {
+    list: () => Promise<Habit[]>
+    listWithStats: (today: string) => Promise<(Habit & HabitStats)[]>
+    create: (data: CreateHabitInput) => Promise<Habit>
+    update: (id: string, data: UpdateHabitInput) => Promise<Habit>
+    delete: (id: string) => Promise<void>
+    toggleToday: (habitId: string, date: string) => Promise<{ done: boolean }>
+    stats: (habitId: string, today: string) => Promise<HabitStats>
+    completionsInRange: (habitId: string, fromDate: string, toDate: string) => Promise<Array<{ date: string }>>
+  }
   goal: {
     list: () => Promise<Goal[]>
     create: (data: CreateGoalInput) => Promise<Goal>
@@ -260,6 +271,42 @@ export interface ElectronAPI {
     isLaunchedAtStartup: () => Promise<boolean>
     isAutoStartEnabled: () => Promise<boolean>
     isPortable: () => Promise<boolean>
+  }
+  studentRecord: {
+    isPasswordSet: () => Promise<boolean>
+    /** setPassword(next) — 최초 설정. setPassword(next, current) — 변경. */
+    setPassword: (next: string, current?: string) => Promise<void>
+    verifyPassword: (pw: string) => Promise<boolean>
+    list: () => Promise<Array<{
+      id: string
+      student_name: string
+      content: string
+      tag: string
+      is_deleted: number
+      created_at: string
+      updated_at: string
+    }>>
+    create: (data: { student_name: string; content: string; tag?: string }) => Promise<{
+      id: string
+      student_name: string
+      content: string
+      tag: string
+      is_deleted: number
+      created_at: string
+      updated_at: string
+    }>
+    update: (id: string, data: { student_name?: string; content?: string; tag?: string }) => Promise<void>
+    delete: (id: string) => Promise<void>
+    /** 해시체인 + OTS 타임스탬프 포함 증거용 export. */
+    exportLogs: () => Promise<
+      | { ok: true; count: number; path: string; proofPath?: string; otsPath?: string | null; sha256?: string }
+      | { ok: false; reason: string }
+    >
+    /** Excel/한글에서 바로 열리는 일상용 CSV export. */
+    exportCsv: () => Promise<
+      | { ok: true; count: number; path: string }
+      | { ok: false; reason: string }
+    >
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

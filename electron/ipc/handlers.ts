@@ -7,6 +7,7 @@ import * as timetableRepo from '../database/repositories/timetable.repo'
 import * as checklistRepo from '../database/repositories/checklist.repo'
 import * as sectionRepo from '../database/repositories/section.repo'
 import * as routineRepo from '../database/repositories/routine.repo'
+import * as habitRepo from '../database/repositories/habit.repo'
 import * as goalRepo from '../database/repositories/goal.repo'
 import * as studentRecordRepo from '../database/repositories/student-record.repo'
 import * as settingsRepo from '../database/repositories/settings.repo'
@@ -85,7 +86,7 @@ async function createOtsForSha256(hashHex: string, timeoutMs = 20000): Promise<B
 }
 
 /** 데이터 변경을 모든 창(메인 + 위젯들)에 알림. 위젯은 자기와 관련된 type이면 refetch. */
-type ChangeType = 'schedule' | 'task' | 'memo' | 'timetable' | 'checklist' | 'section' | 'dday' | 'settings' | 'routine' | 'goal' | 'studentrecord'
+type ChangeType = 'schedule' | 'task' | 'memo' | 'timetable' | 'checklist' | 'section' | 'dday' | 'settings' | 'routine' | 'goal' | 'studentrecord' | 'habit'
 function broadcastChange(type: ChangeType): void {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) {
@@ -162,6 +163,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('routine:toggleCompletion', (_e, itemId, date) => { const r = routineRepo.toggleRoutineCompletion(itemId, date); broadcastChange('routine'); return r })
   ipcMain.handle('routine:dayNumber', (_e, startDate, today) => routineRepo.getRoutineDayNumber(startDate, today))
   ipcMain.handle('routine:completionsInRange', (_e, routineId, fromDate, toDate) => routineRepo.getRoutineCompletionsInRange(routineId, fromDate, toDate))
+
+  // ── 습관 트래커 ─────────────────────────────────
+  ipcMain.handle('habit:list', () => habitRepo.listHabits())
+  ipcMain.handle('habit:listWithStats', (_e, today) => habitRepo.listHabitsWithStats(today))
+  ipcMain.handle('habit:create', (_e, data) => { const r = habitRepo.createHabit(data); broadcastChange('habit'); return r })
+  ipcMain.handle('habit:update', (_e, id, data) => { const r = habitRepo.updateHabit(id, data); broadcastChange('habit'); return r })
+  ipcMain.handle('habit:delete', (_e, id) => { habitRepo.deleteHabit(id); broadcastChange('habit') })
+  ipcMain.handle('habit:toggleToday', (_e, habitId, date) => { const r = habitRepo.toggleHabitToday(habitId, date); broadcastChange('habit'); return r })
+  ipcMain.handle('habit:stats', (_e, habitId, today) => habitRepo.getHabitStats(habitId, today))
+  ipcMain.handle('habit:completionsInRange', (_e, habitId, fromDate, toDate) => habitRepo.getHabitCompletionsInRange(habitId, fromDate, toDate))
 
   // Student Record (학생 기록 — 잠금 + 해시체인 로그)
   ipcMain.handle('studentRecord:list', () => studentRecordRepo.listStudentRecords())
@@ -472,6 +483,7 @@ ${os.hostname()} (${os.userInfo().username}) 에서 SchoolDesk v${appVersion} �
     'sections', 'dday_events',
     'settings', 'widget_positions',
     'routines', 'routine_items', 'routine_completions',
+    'habits', 'habit_completions',
     'goals',
   ] as const
 

@@ -3,12 +3,12 @@ import { motion } from 'framer-motion'
 import {
   Clock8, CalendarDays, ListTodo, NotebookPen, LayoutPanelLeft,
   CheckCheck, TimerReset, CalendarHeart, LayoutGrid, Power, Repeat, Target, Users,
-  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move, Megaphone, CloudSun,
+  GraduationCap, Image as WallpaperIcon, CalendarCheck, ShieldCheck, Utensils, Move, Megaphone, CloudSun, Flame,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType as AppWidgetType } from '../../types/widget.types'
 
-type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard' | 'weather'
+type WidgetType = 'clock' | 'calendar' | 'task' | 'memo' | 'timetable' | 'checklist' | 'timer' | 'dday' | 'routine' | 'habit' | 'goal' | 'studentcheck' | 'studenttimetable' | 'today' | 'studentrecord' | 'meal' | 'noticeboard' | 'weather'
 
 interface WidgetInfo {
   type: WidgetType
@@ -30,6 +30,7 @@ const WIDGETS: WidgetInfo[] = [
   { type: 'timer',     label: '타이머',     desc: '포모도로/수업 타이머',      icon: TimerReset,       color: '#EC4899' },
   { type: 'dday',      label: 'D-Day',      desc: '주요 기념일/행사 카운트',   icon: CalendarHeart,    color: '#8B5CF6' },
   { type: 'routine',   label: '루틴',       desc: '매일 반복 체크, 자동 초기화', icon: Repeat,          color: '#8B5CF6' },
+  { type: 'habit',     label: '습관',       desc: '몇 일째 ✓ 누적 · 연속 streak', icon: Flame,           color: '#F97316' },
   { type: 'goal',      label: '우리반 목표', desc: '학생에게 항상 보여줄 가치 문장', icon: Target,      color: '#0EA5E9' },
   { type: 'studentcheck', label: '학급 체크', desc: '학생이 직접 체크(우유/양치 등) · 자정 초기화', icon: Users, color: '#0EA5E9' },
   { type: 'studentrecord', label: '학생 기록', desc: '비밀번호 잠금 · 수정 로그 자동 기록 (법원 증거용)', icon: ShieldCheck, color: '#8B5CF6' },

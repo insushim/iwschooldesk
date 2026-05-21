@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Monitor, MonitorOff, Pencil, Check, X as XIcon, Megaphone } from 'lucide-react'
+import { Monitor, MonitorOff, Pencil, Check, Megaphone } from 'lucide-react'
 import { useDisplayBg } from '../../lib/display-bg'
 import type {
   TimetableSlot, TimetablePeriod, TimetableOverride, DayOfWeek,
@@ -575,7 +575,8 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
   useDataChange('settings', reload)
 
   const startEdit = (): void => {
-    if (displayMode) return
+    // 디스플레이 모드에서도 교사가 클릭해 메모 추가/수정 가능해야 한다.
+    // (이전엔 displayMode 면 early return → 클릭해도 입력창이 안 떠 "입력 안 됨" 의 진짜 원인이었음)
     setDraft(note)
     setEditing(true)
   }
@@ -590,28 +591,38 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
   // 디스플레이 모드 + 비어있어도 placeholder 박스 표시 — 교사가 클릭해서 메모 추가 가능해야.
   // (이전엔 return null 로 숨김 → 학생들에게는 깔끔하지만 교사가 편집 불가).
 
+  // ★ 박스 outer 높이 고정 — 메모 유무 관계없이 동일한 공간만 차지하게 해서
+  //   시간표 본체(flex-1)가 메모 입력에 따라 줄어들지 않도록. (이전엔 메모 입력 시 padding 점프로
+  //   본체 영역 ~18px 줄어들어 큰 과목명 위아래 잘림 → 일반 모드 회귀 버그.)
+  const BOX_H = 32
+
   return (
     <div
       className="shrink-0"
       style={{
         marginTop: 'clamp(8px, 1.4vw, 18px)',
+        height: BOX_H,
       }}
     >
-      {/* 메모 박스 — 시간표 본체와 톤 통일 (반투명 화이트). 디스플레이 모드의 색 배경에도 자연스럽게 녹음. */}
+      {/* 메모 박스 — 시간표 본체와 톤 통일. 빈/입력/표시 모드 모두 동일 height 유지. */}
       <div
         onClick={!editing ? startEdit : undefined}
         style={{
-          padding: (note || editing) ? '10px 14px' : '4px 10px',
-          borderRadius: (note || editing) ? 12 : 8,
+          height: '100%',
+          padding: '4px 10px',
+          borderRadius: 8,
           background: (note || editing) ? 'rgba(255,255,255,0.55)' : 'transparent',
-          border: (note || editing) ? '1px solid rgba(15,23,42,0.08)' : `1px dashed rgba(15,23,42,0.18)`,
+          border: (note || editing) ? '1px solid rgba(15,23,42,0.08)' : '1px dashed rgba(15,23,42,0.18)',
           cursor: !editing ? 'pointer' : 'default',
-          transition: 'all 0.18s ease',
+          transition: 'background 0.18s ease, border-color 0.18s ease',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
         {(note || editing) ? (
           editing ? (
-            <div className="flex items-center gap-1.5">
+            // ✕ 제거 — Esc 또는 빈 입력 후 다른 곳 클릭이면 취소. ✓ 만 남겨 placeholder 전체 노출.
+            // blur 자동 저장 + 텍스트 가운데 정렬.
+            <div className="flex items-center gap-1.5" style={{ width: '100%' }}>
               <input
                 type="text"
                 autoFocus
@@ -619,9 +630,14 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); save() }
-                  if (e.key === 'Escape') cancel()
+                  if (e.key === 'Escape') { e.preventDefault(); cancel() }
                 }}
                 onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  const next = e.relatedTarget as HTMLElement | null
+                  if (next && next.tagName === 'BUTTON') return
+                  save()
+                }}
                 placeholder="예: 수학 24~26쪽"
                 style={{
                   flex: 1, minWidth: 0,
@@ -631,21 +647,11 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
                   fontWeight: 600, color: 'var(--text-primary)',
                   fontFamily: 'inherit', outline: 'none',
                   letterSpacing: '-0.2px', lineHeight: 1.45,
+                  textAlign: 'center',
                 }}
               />
               <button
-                onClick={(e) => { e.stopPropagation(); cancel() }}
-                title="취소 (Esc)"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 22, height: 22, borderRadius: 6,
-                  background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)',
-                  color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
-                }}
-              >
-                <XIcon size={12} strokeWidth={2.6} />
-              </button>
-              <button
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={(e) => { e.stopPropagation(); save() }}
                 title="저장 (Enter)"
                 style={{
@@ -661,23 +667,23 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
             </div>
           ) : (
             <div style={{
+              width: '100%',
               fontSize: displayMode ? 14 : 12.5,
               fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               letterSpacing: '-0.2px',
-              height: 22,
+              textAlign: 'center',
             }}>
               {note}
             </div>
           )
         ) : (
-          // 비어있을 때 placeholder — 디스플레이 모드여도 작게 표시(교사가 클릭 편집 가능).
+          // 비어있을 때 placeholder — 동일 height 유지.
           <div className="flex items-center justify-center gap-2" style={{
             fontSize: displayMode ? 11 : 12,
             fontWeight: 700,
             color: 'var(--text-muted)',
             opacity: displayMode ? 0.55 : 1,
-            padding: '2px 0',
           }}>
             <Pencil size={displayMode ? 11 : 13} strokeWidth={2.4} style={{ color: 'var(--text-muted)' }} />
             <span>예: 수학 24~26쪽</span>

@@ -98,7 +98,7 @@ export function saveWidgetPosition(pos: Partial<WidgetPosition> & { widget_id: s
       pos.x ?? 100, pos.y ?? 100,
       pos.width ?? 350, pos.height ?? 400,
       pos.is_visible ?? 0, pos.is_locked ?? 0,
-      pos.opacity ?? 0.95, pos.always_on_top ?? 1,
+      pos.opacity ?? 0.90, pos.always_on_top ?? 1,
       pos.config ?? '{}'
     )
   }

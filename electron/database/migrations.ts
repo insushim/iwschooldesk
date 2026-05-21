@@ -152,7 +152,7 @@ const migrations = [
         height INTEGER DEFAULT 400,
         is_visible INTEGER DEFAULT 0,
         is_locked INTEGER DEFAULT 0,
-        opacity REAL DEFAULT 0.95,
+        opacity REAL DEFAULT 0.90,
         always_on_top INTEGER DEFAULT 1,
         config TEXT DEFAULT '{}',
         updated_at TEXT DEFAULT (datetime('now','localtime'))
@@ -389,6 +389,51 @@ const migrations = [
     //   'extracurricular' — 비교과(보건/상담/영양/기타) — 내부 선생님이지만 일회성/간헐
     sql: `
       ALTER TABLE timetable_overrides ADD COLUMN kind TEXT DEFAULT 'instructor';
+    `
+  },
+  {
+    name: '015_widget_opacity_unify_090',
+    // 사용자 요청: 모든 위젯 기본 투명도를 90% 로 일괄 통일.
+    // 기존 기본값(0.95) 그대로 두던 위젯만 0.90 으로 변경 — 사용자가 직접 조정한 값(예: 0.7)은 보존.
+    sql: `
+      UPDATE widget_positions SET opacity = 0.90 WHERE opacity = 0.95;
+    `
+  },
+  {
+    name: '016_weather_opacity_back_to_095',
+    // 사용자 요청: weather 위젯만 기본 95% 로 환원 (다른 위젯은 90% 유지).
+    // 직전 015 가 0.95 → 0.90 으로 바꾼 weather row 만 복귀 — 사용자가 직접 조정한 값은 보존.
+    sql: `
+      UPDATE widget_positions
+      SET opacity = 0.95
+      WHERE opacity = 0.90 AND widget_type = 'weather';
+    `
+  },
+  {
+    name: '017_habits',
+    // 습관 트래커 — 한 습관 = 한 단위, 매일 1번 ✓ 토글.
+    // routine 과 달리 sub-item 없음. habit_completions(habit_id, date) 로 streak 계산.
+    sql: `
+      CREATE TABLE IF NOT EXISTS habits (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        title TEXT NOT NULL,
+        color TEXT DEFAULT '#0EA5E9',
+        icon TEXT DEFAULT '🌱',
+        start_date TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        updated_at TEXT DEFAULT (datetime('now','localtime'))
+      );
+      CREATE TABLE IF NOT EXISTS habit_completions (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        habit_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE,
+        UNIQUE (habit_id, date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_habit_completions_habit ON habit_completions(habit_id);
+      CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
     `
   }
 ]

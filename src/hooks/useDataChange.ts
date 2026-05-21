@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type DataChangeType =
   | 'schedule' | 'task' | 'memo' | 'timetable'
-  | 'checklist' | 'section' | 'dday' | 'settings' | 'routine' | 'goal' | 'studentrecord'
+  | 'checklist' | 'section' | 'dday' | 'settings' | 'routine' | 'goal' | 'studentrecord' | 'habit'
 
 /**
  * 메인 프로세스가 broadcast하는 `data:changed` 이벤트를 구독.

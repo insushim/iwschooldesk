@@ -8,6 +8,7 @@ export type WidgetType =
   | 'dday'
   | 'clock'
   | 'routine'
+  | 'habit'
   | 'goal'
   | 'studentcheck'
   | 'studenttimetable'
@@ -136,6 +137,15 @@ export const WIDGET_CONFIGS: Record<WidgetType, WidgetConfig> = {
     defaultHeight: 420,
     minWidth: 260,
     minHeight: 300,
+  },
+  habit: {
+    type: 'habit',
+    label: '습관',
+    icon: 'Flame',
+    defaultWidth: 300,
+    defaultHeight: 320,
+    minWidth: 240,
+    minHeight: 260,
   },
   goal: {
     type: 'goal',

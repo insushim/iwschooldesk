@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, X, Trash2, Target, Edit3, Pencil, Monitor, MonitorOff, Brush, Check } from 'lucide-react'
+import { Plus, X, Trash2, Target, Edit3, Pencil, Monitor, MonitorOff, Brush, Check, Palette } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Goal } from '../../types/goal.types'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
-import { useDisplayBg } from '../../lib/display-bg'
+import { useDisplayBg, DISPLAY_BG_PRESETS } from '../../lib/display-bg'
 
 /**
  * 목표 위젯 텍스트 색상 프리셋.
@@ -85,9 +85,29 @@ export function GoalWidget() {
   // 배경화면 모드: 클릭 통과 + 맨 뒤 고정 → 컨트롤도 시각적으로 모두 숨긴다.
   // hook 내부에서 url hash 의 instance 까지 합쳐 'widget-goal[-pageN]' 매칭.
   const iAmWallpaper = useIAmWallpaper('goal')
-  const { preset: displayBg } = useDisplayBg(
+  const { preset: displayBg, setPresetId: setBgPresetId } = useDisplayBg(
     lockedPageIndex === 0 ? 'goal' : `goal:page${lockedPageIndex}`,
   )
+  // 배경색 팔레트 popover
+  const [bgOpen, setBgOpen] = useState(false)
+  const bgPickerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!bgOpen) return
+    const onDown = (e: MouseEvent): void => {
+      if (!bgPickerRef.current?.contains(e.target as Node)) setBgOpen(false)
+    }
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setBgOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [bgOpen])
+  const applyBgPreset = (id: string): void => {
+    setBgPresetId(id)
+    setBgOpen(false)
+  }
   // 목표 글씨 색 — 사용자 선택(자동/흰색/검정/금색/…). 페이지별로 localStorage 에 저장.
   const pageColorKey = lockedPageIndex === 0 ? 'goal' : `goal:page${lockedPageIndex}`
   const [textColorId, setTextColorId] = useState<string>(() => {
@@ -365,29 +385,45 @@ export function GoalWidget() {
              디스플레이 모드에서는 큰 글씨 본문에 시야 집중을 위해 모든 우상단 컨트롤
              (글씨색 선택기·팔레트·해제 토글·편집) 일괄 숨김. 해제는 단축키
              Ctrl+Alt+Shift+D 또는 다른 위젯의 끄기로. */}
-      {!iAmWallpaper && !displayMode && (
+      {!iAmWallpaper && !displayMode && (() => {
+        // 우하단 4버튼 공통 — glass capsule, 시인성 강화. 사용자 요청으로 24→12px (절반).
+        // light 배경: 흰 캡슐 + 진한 보더 + 진한 글씨 / dark(isLightText): 검은 캡슐 + 흰 보더.
+        const btnSize = 12
+        const btnStyle: React.CSSProperties = {
+          width: btnSize, height: btnSize, borderRadius: 5,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          color: isLightText ? '#ffffff' : 'var(--text-primary)',
+          background: isLightText ? 'rgba(0,0,0,0.42)' : 'rgba(255,255,255,0.88)',
+          border: isLightText ? '1px solid rgba(255,255,255,0.32)' : '1px solid rgba(15,23,42,0.22)',
+          boxShadow: isLightText
+            ? '0 2px 6px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.06) inset'
+            : '0 2px 6px rgba(15,23,42,0.14), 0 0 0 1px rgba(255,255,255,0.6) inset',
+          backdropFilter: 'blur(8px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(180%)',
+          cursor: 'pointer',
+          transition: 'transform 0.15s ease, background 0.15s ease',
+          position: 'relative',
+        }
+        return (
       <div
-        className="absolute top-2 right-2 flex items-center gap-1.5 z-50"
+        className="absolute bottom-2 right-2 flex items-center gap-1 z-50"
         style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
       >
-        {/* 글씨색 선택기 — 모든 모드에서 노출. 프리뷰 원이 현재 선택 색을 보여줌. */}
-        <div ref={colorPickerRef} className="relative">
+        {/* 글씨색 선택기 — 프리뷰 원이 현재 선택 색을 보여줌. */}
+        <div ref={colorPickerRef} className="relative inline-flex items-center">
           <button
             onClick={() => setColorOpen((v) => !v)}
-            className="p-1.5 rounded-md transition-colors hover:bg-[var(--bg-secondary)] relative"
-            style={{
-              color: isLightText ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)',
-              border: isLightText ? '1px solid rgba(255,255,255,0.18)' : '1px solid var(--border-widget)',
-            }}
+            className="hover:scale-110"
+            style={btnStyle}
             title={`글씨 색 · ${selectedColor.label}`}
           >
-            <Brush size={13} strokeWidth={2.2} />
+            <Brush size={8} strokeWidth={2.8} />
             <span
               aria-hidden
               className="absolute block rounded-full"
               style={{
-                width: 7, height: 7,
-                right: -2, bottom: -2,
+                width: 5, height: 5,
+                right: -1, bottom: -1,
                 background: selectedColor.preview,
                 border: '1.5px solid #fff',
                 boxShadow: '0 1px 3px rgba(15,23,42,0.28)',
@@ -403,7 +439,7 @@ export function GoalWidget() {
                 transition={{ duration: 0.15 }}
                 className="absolute right-0 z-50"
                 style={{
-                  top: 'calc(100% + 6px)',
+                  bottom: 'calc(100% + 6px)',
                   padding: 10,
                   borderRadius: 14,
                   background: 'rgba(255,255,255,0.97)',
@@ -450,36 +486,106 @@ export function GoalWidget() {
             )}
           </AnimatePresence>
         </div>
-        {/* 디스플레이 모드 진입 후엔 팔레트·해제 버튼을 숨겨 큰 글씨 본문에 집중.
+        {/* 배경색 팔레트 — 프리뷰 원이 현재 배경. */}
+        <div ref={bgPickerRef} className="relative inline-flex items-center">
+          <button
+            onClick={() => setBgOpen((v) => !v)}
+            className="hover:scale-110"
+            style={btnStyle}
+            title={`배경색 · ${displayBg.label}`}
+          >
+            <Palette size={8} strokeWidth={2.8} />
+            <span
+              aria-hidden
+              className="absolute block rounded-full"
+              style={{
+                width: 5, height: 5,
+                right: -1, bottom: -1,
+                background: displayBg.preview,
+                border: '1.5px solid #fff',
+                boxShadow: '0 1px 3px rgba(15,23,42,0.28)',
+              }}
+            />
+          </button>
+          <AnimatePresence>
+            {bgOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 z-50"
+                style={{
+                  bottom: 'calc(100% + 6px)',
+                  padding: 10,
+                  borderRadius: 14,
+                  background: 'rgba(255,255,255,0.97)',
+                  backdropFilter: 'blur(14px)',
+                  boxShadow: '0 12px 36px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.06)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, 30px)',
+                  gap: 8,
+                  minWidth: 190,
+                }}
+              >
+                {DISPLAY_BG_PRESETS.map((p) => {
+                  const active = p.id === displayBg.id
+                  const lightCheck = p.textMode === 'light'
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => applyBgPreset(p.id)}
+                      title={p.label}
+                      className="relative transition-transform hover:scale-110 flex items-center justify-center"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 10,
+                        background: p.preview,
+                        border: active
+                          ? '2px solid #0F172A'
+                          : p.id === 'default' || p.id === 'pureWhite'
+                            ? '1.2px solid rgba(15,23,42,0.2)'
+                            : '1px solid rgba(255,255,255,0.25)',
+                        boxShadow: active ? '0 0 0 2px rgba(14,165,233,0.28)' : '0 2px 6px rgba(15,23,42,0.12)',
+                      }}
+                    >
+                      {active && (
+                        <Check size={14} strokeWidth={3} style={{ color: lightCheck ? '#fff' : '#0F172A' }} />
+                      )}
+                    </button>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        {/* 디스플레이 모드 진입 후엔 디스플레이 토글·편집 버튼을 숨겨 큰 글씨 본문에 집중.
             해제는 단축키 Ctrl+Alt+Shift+D 또는 다른 위젯의 끄기로.
-            글씨색 선택기(Brush)는 디스플레이 중 색 변경에 필요하므로 유지. */}
+            글씨색·배경색 선택기는 디스플레이 중에도 변경 가능하도록 유지. */}
         {!displayMode && (
         <button
           onClick={toggleMyDisplayMode}
-          className="rounded-lg transition-all flex items-center justify-center hover:scale-105"
-          style={{
-            width: 26,
-            height: 26,
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border-widget)',
-            background: 'transparent',
-          }}
+          className="hover:scale-110"
+          style={btnStyle}
           title="디스플레이 모드 — 목표만 크게 보이기. 모든 위젯에 동일 적용."
         >
-          <Monitor size={13} strokeWidth={2.2} />
+          <Monitor size={8} strokeWidth={2.8} />
         </button>
         )}
         {!displayMode && (
           <button
             onClick={() => setEditOpen(true)}
-            className="p-1.5 rounded-md text-[var(--text-muted)]/60 hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
+            className="hover:scale-110"
+            style={btnStyle}
             title="목표 관리"
           >
-            <Edit3 size={13} strokeWidth={2.2} />
+            <Edit3 size={8} strokeWidth={2.8} />
           </button>
         )}
       </div>
-      )}
+        )
+      })()}
 
       {pageGoals.length === 0 ? (
         <div className="flex flex-col items-center gap-3 text-center px-4">

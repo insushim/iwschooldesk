@@ -55,9 +55,11 @@ export function deleteRoutine(id: string): void {
  */
 export function getRoutineItemsForDate(routineId: string, date: string): RoutineItemWithStatus[] {
   const db = getDatabase()
+  // completion_count: 항목별 누적 체크 횟수 (모든 날짜 합산) — UI 의 "N일차" 표시용.
   return db.prepare(`
     SELECT i.*,
-           CASE WHEN c.id IS NULL THEN 0 ELSE 1 END AS is_completed
+           CASE WHEN c.id IS NULL THEN 0 ELSE 1 END AS is_completed,
+           (SELECT COUNT(*) FROM routine_completions cc WHERE cc.item_id = i.id) AS completion_count
     FROM routine_items i
     LEFT JOIN routine_completions c
       ON c.item_id = i.id AND c.date = ?

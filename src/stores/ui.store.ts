@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ViewType = 'home' | 'calendar' | 'tasks' | 'memos' | 'timetable' | 'checklists' | 'widgets' | 'statistics' | 'settings'
+export type ViewType = 'home' | 'calendar' | 'tasks' | 'memos' | 'timetable' | 'checklists' | 'routines' | 'habits' | 'studentrecord' | 'widgets' | 'statistics' | 'settings'
 
 interface Toast {
   id: string

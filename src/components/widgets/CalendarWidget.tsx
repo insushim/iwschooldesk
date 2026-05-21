@@ -5,6 +5,7 @@ import { getCalendarDays, isToday, isSameDay, formatDate, parseISO } from '../..
 import type { Schedule } from '../../types/schedule.types'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
+import { useIAmWallpaper } from '../../hooks/useIAmWallpaper'
 import { importScheduleFile } from '../../lib/schedule-import'
 import { getRedDayInfo, getKoreanHoliday, isDuplicateOfHoliday } from '../../lib/holidays'
 
@@ -15,6 +16,8 @@ import { getRedDayInfo, getKoreanHoliday, isDuplicateOfHoliday } from '../../lib
  *  - 파일(.csv / .ics) 로 한 번에 일정 import
  */
 export function CalendarWidget() {
+  // 배경화면 모드면 어차피 클릭이 통과되어 헤더의 모든 버튼이 무력 — 표시 자체를 숨겨 사용자 혼란 방지.
+  const iAmWallpaper = useIAmWallpaper('calendar')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -91,8 +94,12 @@ export function CalendarWidget() {
         background: 'radial-gradient(ellipse at 100% 0%, rgba(16,185,129,0.06) 0%, transparent 55%)',
       }}
     >
-      {/* Month Navigation — 모든 사이즈 cqmin 기반 */}
-      <div className="flex items-center justify-between shrink-0" style={{ marginBottom: 'clamp(6px, 2cqmin, 14px)' }}>
+      {/* Month Navigation — 배경화면 모드면 라벨만 가운데 표시 (버튼 숨김 — 어차피 클릭 통과로 안 눌림). */}
+      <div
+        className={`flex items-center shrink-0 ${iAmWallpaper ? 'justify-center' : 'justify-between'}`}
+        style={{ marginBottom: 'clamp(6px, 2cqmin, 14px)' }}
+      >
+        {!iAmWallpaper && (
         <button
           onClick={() => setCurrentDate(new Date(year, month - 1))}
           className="flex items-center justify-center rounded-lg hover:bg-[var(--bg-secondary)] transition-colors"
@@ -104,6 +111,7 @@ export function CalendarWidget() {
         >
           <ChevronLeft style={{ width: 'clamp(12px, 3.5cqmin, 20px)', height: 'clamp(12px, 3.5cqmin, 20px)' }} />
         </button>
+        )}
         <span
           className="tabular-nums"
           style={{
@@ -118,6 +126,7 @@ export function CalendarWidget() {
         >
           {year}년 {month + 1}월
         </span>
+        {!iAmWallpaper && (
         <div className="flex items-center" style={{ gap: 'clamp(2px, 0.8cqmin, 5px)' }}>
           <button
             onClick={() => setShowImportHint(true)}
@@ -167,6 +176,7 @@ export function CalendarWidget() {
             <ChevronRight style={{ width: 'clamp(12px, 3.5cqmin, 20px)', height: 'clamp(12px, 3.5cqmin, 20px)' }} />
           </button>
         </div>
+        )}
         <input
           ref={fileInputRef}
           type="file"

@@ -801,6 +801,9 @@ function OverrideManager({ kind }: { kind: OverrideKind }) {
 
   const [formDate, setFormDate] = useState(formatDate(new Date(), 'yyyy-MM-dd'))
   const [formPeriod, setFormPeriod] = useState(1)
+  // 연차시 — 끝 교시. 기본은 시작과 동일(=단일 교시). 1~2교시처럼 묶어 한 번에 추가할 수 있게.
+  // 편집 모드에선 단일 record 만 수정하므로 항상 시작과 동일하게 보이고 select 는 숨김.
+  const [formPeriodEnd, setFormPeriodEnd] = useState(1)
   const [formSubject, setFormSubject] = useState('')
   const [formTeacher, setFormTeacher] = useState('')
   const [formRoom, setFormRoom] = useState('')
@@ -834,18 +837,46 @@ function OverrideManager({ kind }: { kind: OverrideKind }) {
 
   }, [filterFrom, filterTo, kind])
 
-  const resetForm = () => { setFormDate(formatDate(new Date(), 'yyyy-MM-dd')); setFormPeriod(1); setFormSubject(''); setFormTeacher(''); setFormRoom(''); setFormMemo(''); setEditingId(null) }
-  const handleEdit = (ov: TimetableOverride) => { setEditingId(ov.id); setFormDate(ov.date); setFormPeriod(ov.period); setFormSubject(ov.subject); setFormTeacher(ov.teacher); setFormRoom(ov.room); setFormMemo(ov.memo); setDialogOpen(true) }
+  const resetForm = () => { setFormDate(formatDate(new Date(), 'yyyy-MM-dd')); setFormPeriod(1); setFormPeriodEnd(1); setFormSubject(''); setFormTeacher(''); setFormRoom(''); setFormMemo(''); setEditingId(null) }
+  const handleEdit = (ov: TimetableOverride) => { setEditingId(ov.id); setFormDate(ov.date); setFormPeriod(ov.period); setFormPeriodEnd(ov.period); setFormSubject(ov.subject); setFormTeacher(ov.teacher); setFormRoom(ov.room); setFormMemo(ov.memo); setDialogOpen(true) }
+  // 시작 교시 변경 시 끝 교시가 시작보다 앞이면 자동으로 시작과 같게 보정.
+  const handleStartPeriodChange = (n: number): void => {
+    setFormPeriod(n)
+    if (formPeriodEnd < n) setFormPeriodEnd(n)
+  }
 
   const handleSave = async () => {
     if (!formSubject.trim()) { addToast('warning', '과목명을 입력해주세요.'); return }
-    await window.api.timetable.createOverride({
-      date: formDate, period: formPeriod,
-      subject: formSubject.trim(), teacher: formTeacher.trim(),
-      room: formRoom.trim(), color: defaultColor, memo: formMemo.trim(),
-      kind,
-    })
-    addToast('success', editingId ? `${label.dialogTitle}이(가) 수정되었습니다.` : `${label.dialogTitle}이(가) 추가되었습니다.`)
+    // 편집 모드 = 단일 record. 신규 모드 = formPeriod ~ formPeriodEnd 까지 연차시 전체 추가.
+    if (editingId) {
+      await window.api.timetable.createOverride({
+        date: formDate, period: formPeriod,
+        subject: formSubject.trim(), teacher: formTeacher.trim(),
+        room: formRoom.trim(), color: defaultColor, memo: formMemo.trim(),
+        kind,
+      })
+      addToast('success', `${label.dialogTitle}이(가) 수정되었습니다.`)
+    } else {
+      const periodValues = periods.map((p) => p.period)
+      const targets: number[] = []
+      for (let p = formPeriod; p <= formPeriodEnd; p++) {
+        if (periodValues.includes(p)) targets.push(p)
+      }
+      for (const p of targets) {
+        await window.api.timetable.createOverride({
+          date: formDate, period: p,
+          subject: formSubject.trim(), teacher: formTeacher.trim(),
+          room: formRoom.trim(), color: defaultColor, memo: formMemo.trim(),
+          kind,
+        })
+      }
+      addToast(
+        'success',
+        targets.length > 1
+          ? `${formPeriod}~${formPeriodEnd}교시 ${targets.length}개 ${label.dialogTitle}이(가) 추가되었습니다.`
+          : `${label.dialogTitle}이(가) 추가되었습니다.`,
+      )
+    }
     setDialogOpen(false); resetForm(); loadOverrides()
   }
 
@@ -943,11 +974,41 @@ function OverrideManager({ kind }: { kind: OverrideKind }) {
           <div className="grid grid-cols-2 gap-4">
             <Input label="날짜" type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[var(--text-secondary)]">교시</label>
-              <select value={formPeriod} onChange={(e) => setFormPeriod(Number(e.target.value))}
-                className="h-9 w-full rounded-[var(--radius-xs)] border border-[var(--border-widget)] bg-[var(--bg-widget)] px-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]">
-                {periods.map((p) => <option key={p.period} value={p.period}>{p.period}교시 ({p.start_time})</option>)}
-              </select>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-[var(--text-secondary)]">교시</label>
+                {!editingId && formPeriodEnd > formPeriod && (
+                  <span className="text-[10px] font-semibold text-[var(--accent)] px-2 py-0.5 rounded-full bg-[var(--accent-light)]">
+                    {formPeriod}~{formPeriodEnd}교시 · {formPeriodEnd - formPeriod + 1}개 한꺼번에
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={formPeriod}
+                  onChange={(e) => handleStartPeriodChange(Number(e.target.value))}
+                  className="h-9 flex-1 min-w-0 rounded-[var(--radius-xs)] border border-[var(--border-widget)] bg-[var(--bg-widget)] px-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  title="시작 교시"
+                >
+                  {periods.map((p) => <option key={p.period} value={p.period}>{p.period}교시 ({p.start_time})</option>)}
+                </select>
+                {!editingId && (
+                  <>
+                    <span className="text-xs text-[var(--text-muted)] font-bold">~</span>
+                    <select
+                      value={formPeriodEnd}
+                      onChange={(e) => setFormPeriodEnd(Number(e.target.value))}
+                      className="h-9 flex-1 min-w-0 rounded-[var(--radius-xs)] border border-[var(--border-widget)] bg-[var(--bg-widget)] px-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                      title="끝 교시 — 시작과 같으면 단일 교시, 더 크면 연차시(1~2, 1~3 …)"
+                    >
+                      {periods.filter((p) => p.period >= formPeriod).map((p) => (
+                        <option key={p.period} value={p.period}>
+                          {p.period === formPeriod ? `${p.period}교시 (단일)` : `${p.period}교시`}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           {isExtra ? (

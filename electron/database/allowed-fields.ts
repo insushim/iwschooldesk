@@ -38,6 +38,9 @@ export const ALLOWED_UPDATE_FIELDS = {
   routines: new Set([
     'title', 'color', 'icon', 'sort_order', 'start_date', 'kind',
   ]),
+  habits: new Set([
+    'title', 'color', 'icon', 'sort_order',
+  ]),
   goals: new Set([
     'content', 'emoji', 'color', 'sort_order',
   ]),

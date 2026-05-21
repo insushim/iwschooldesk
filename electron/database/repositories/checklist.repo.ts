@@ -76,14 +76,15 @@ export function toggleChecklistItem(id: string): ChecklistItem {
   return db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id) as ChecklistItem
 }
 
-/** 체크된 지 24시간 이상 지난 항목을 일괄 삭제. 반환값은 삭제된 row 수. */
+/** 자정 기준 삭제 — 어제(또는 이전) 체크된 항목을 일괄 삭제. 오늘 체크한 건 유지.
+ *  매일 반복 사용은 습관 위젯이 담당, 체크리스트는 일회성 할일 누적용. 반환값은 삭제된 row 수. */
 export function deleteExpiredCheckedItems(): number {
   const db = getDatabase()
   const res = db.prepare(`
     DELETE FROM checklist_items
     WHERE is_checked = 1
       AND checked_at IS NOT NULL
-      AND datetime(checked_at, '+24 hours') <= datetime('now','localtime')
+      AND date(checked_at) < date('now','localtime')
   `).run()
   return res.changes ?? 0
 }

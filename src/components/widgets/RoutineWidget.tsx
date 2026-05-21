@@ -23,7 +23,6 @@ export function RoutineWidget() {
   const [routines, setRoutines] = useState<Routine[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(lockedInstanceId)
   const [items, setItems] = useState<RoutineItemWithStatus[]>([])
-  const [dayNumber, setDayNumber] = useState<number>(1)
   const [newContent, setNewContent] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
@@ -86,21 +85,15 @@ export function RoutineWidget() {
     return () => clearInterval(timer)
   }, [today])
 
-  // 선택된 루틴 / today 변경 시 items + dayNumber 재조회.
-  // 선택 없으면 dayNumber 도 1 로 초기화 — 이전 루틴 잔여값(예: 4일차)이 남는 버그 방지.
+  // 선택된 루틴 / today 변경 시 items 재조회.
+  // (이전엔 루틴 시작일 기준 dayNumber 도 함께 가져왔지만, 사용자 요청으로 항목별
+  //  누적 체크 횟수(item.completion_count) 로 변경 — getItems 응답에 포함됨.)
   useEffect(() => {
     if (!selectedId) {
       setItems([])
-      setDayNumber(1)
       return
     }
     window.api.routine.getItems(selectedId, today).then(setItems)
-    const r = routines.find((x) => x.id === selectedId)
-    if (r) {
-      window.api.routine.dayNumber(r.start_date, today).then(setDayNumber)
-    } else {
-      setDayNumber(1)  // routines 목록에서 사라진 경우(삭제 직후)도 초기화
-    }
   }, [selectedId, today, routines])
 
   const selected = routines.find((r) => r.id === selectedId)
@@ -110,13 +103,18 @@ export function RoutineWidget() {
 
   const handleToggle = async (itemId: string) => {
     const { is_completed } = await window.api.routine.toggleCompletion(itemId, today)
-    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, is_completed } : i)))
+    // 누적 체크 횟수도 같이 ±1 (1일차 → 2일차 즉시 반영).
+    setItems((prev) => prev.map((i) => {
+      if (i.id !== itemId) return i
+      const delta = is_completed ? 1 : -1
+      return { ...i, is_completed, completion_count: Math.max(0, (i.completion_count ?? 0) + delta) }
+    }))
   }
 
   const handleAdd = async () => {
     if (!newContent.trim() || !selectedId) return
     const item = await window.api.routine.addItem({ routine_id: selectedId, content: newContent.trim() })
-    setItems((prev) => [...prev, { ...item, is_completed: 0 }])
+    setItems((prev) => [...prev, { ...item, is_completed: 0, completion_count: 0 }])
     setNewContent('')
   }
 
@@ -529,8 +527,9 @@ export function RoutineWidget() {
                 >
                   {String(idx + 1).padStart(2, '0')}
                 </span>
-                {/* 일차 pill — 각 항목별 (iwmemo 패턴). selected 있을 때만 표시. */}
-                {selected && (
+                {/* 일차 pill — 항목별 누적 체크 횟수 (이전엔 루틴 생성일 경과일을 썼지만 사용자 요청으로 변경).
+                    체크 0번이면 숨김 — 첫 체크부터 "1일차" 로 등장. */}
+                {selected && item.completion_count > 0 && (
                   <span
                     className="inline-flex items-center gap-0.5 tabular-nums shrink-0"
                     style={{
@@ -546,9 +545,10 @@ export function RoutineWidget() {
                       letterSpacing: '-0.3px',
                       whiteSpace: 'nowrap',
                     }}
+                    title={`누적 체크 ${item.completion_count}회`}
                   >
                     <Flame size={9} strokeWidth={2.6} />
-                    {dayNumber}일차
+                    {item.completion_count}일차
                   </span>
                 )}
                 {editingId === item.id ? (

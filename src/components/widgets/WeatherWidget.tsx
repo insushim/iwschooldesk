@@ -153,9 +153,11 @@ interface AirQuality { pm10: number | null; pm25: number | null }
 function weatherInfo(code: number): { label: string; Icon: typeof Sun; color: string } {
   if (code === 0) return { label: '맑음', Icon: Sun, color: '#F59E0B' }
   if (code === 1) return { label: '대체로 맑음', Icon: Sun, color: '#F59E0B' }
-  if (code === 2) return { label: '부분 흐림', Icon: CloudSun, color: '#94A3B8' }
-  if (code === 3) return { label: '흐림', Icon: Cloud, color: '#94A3B8' }
-  if (code === 45 || code === 48) return { label: '안개', Icon: CloudFog, color: '#9CA3AF' }
+  // 흐림 계열 색상을 진한 slate 로 — slate-400 (#94A3B8) → slate-700 (#334155).
+  // 시인성: 메인 기온·시간별 기온·아이콘·슬롯 톤 모두 한 번에 진해짐.
+  if (code === 2) return { label: '부분 흐림', Icon: CloudSun, color: '#334155' }
+  if (code === 3) return { label: '흐림', Icon: Cloud, color: '#334155' }
+  if (code === 45 || code === 48) return { label: '안개', Icon: CloudFog, color: '#475569' }
   if (code >= 51 && code <= 57) return { label: '이슬비', Icon: CloudDrizzle, color: '#60A5FA' }
   if (code >= 61 && code <= 67) return { label: '비', Icon: CloudRain, color: '#3B82F6' }
   if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { label: '눈', Icon: CloudSnow, color: '#A5B4FC' }
@@ -584,8 +586,12 @@ export function WeatherWidget() {
             <div
               style={{
                 fontSize: 'clamp(13px, 1.8vw, 19px)',
-                fontWeight: 800, letterSpacing: '-0.02em',
-                color: 'var(--text-secondary)', marginTop: 3,
+                fontWeight: 900, letterSpacing: '-0.02em',
+                // 시인성 강화 — 회색(text-secondary) → 진한 검정(text-primary) + 미세 검정 stroke + 밝은 그림자.
+                color: 'var(--text-primary)',
+                WebkitTextStroke: '0.3px rgba(0,0,0,0.6)',
+                textShadow: '0 1px 2px rgba(255,255,255,0.55)',
+                marginTop: 3,
               }}
             >
               {/* KMA 가 강수형태 한글 라벨(빗방울/눈날림 등 세분) 주면 우선 사용. */}
@@ -683,7 +689,7 @@ export function WeatherWidget() {
                   gap: 2,
                 }}
               >
-                <span className="tabular-nums" style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '-0.3px', lineHeight: 1 }}>
+                <span className="tabular-nums" style={{ fontSize: 9.5, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.3px', lineHeight: 1 }}>
                   {h.hour}
                 </span>
                 <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 900, color: info.color, lineHeight: 1 }}>

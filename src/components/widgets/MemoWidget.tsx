@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Plus, Pin, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Memo } from '../../types/memo.types'
 import { parseSectionedText } from '../../lib/section-parser'
 import { useDataChange } from '../../hooks/useDataChange'
 import { useAutoRefresh } from '../../hooks/useAutoRefresh'
-import { Dialog } from '../ui/Dialog'
 
 export function MemoWidget() {
   const [memos, setMemos] = useState<Memo[]>([])
@@ -29,22 +28,44 @@ export function MemoWidget() {
   useAutoRefresh(reloadMemos)
 
   const current = memos[currentIndex]
+  const taRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const handleSave = async () => {
+  // 메모 전환 시 편집 모드면 해제 (다른 메모 내용이 덮어쓰는 사고 방지)
+  useEffect(() => { setIsEditing(false) }, [current?.id])
+
+  const handleSave = async (): Promise<void> => {
     if (!current) return
-    await window.api.memo.update(current.id, { content: editContent })
-    const updated = await window.api.memo.list()
-    setMemos(updated)
+    // 내용 동일하면 IPC 생략
+    if (editContent !== (current.content ?? '')) {
+      await window.api.memo.update(current.id, { content: editContent })
+      const updated = await window.api.memo.list()
+      setMemos(updated)
+    }
     setIsEditing(false)
   }
 
-  const handleNew = async () => {
+  const startEdit = (): void => {
+    if (!current) return
+    setEditContent(current.content ?? '')
+    setIsEditing(true)
+    // textarea 마운트 후 포커스 + 끝으로 캐럿
+    setTimeout(() => {
+      const ta = taRef.current
+      if (!ta) return
+      ta.focus()
+      const len = ta.value.length
+      try { ta.setSelectionRange(len, len) } catch { /* noop */ }
+    }, 0)
+  }
+
+  const handleNew = async (): Promise<void> => {
     const m = await window.api.memo.create({ title: '', content: '' })
     const updated = await window.api.memo.list()
     setMemos(updated)
     setCurrentIndex(updated.findIndex((x) => x.id === m.id))
     setEditContent('')
     setIsEditing(true)
+    setTimeout(() => { taRef.current?.focus() }, 0)
   }
 
   // 하단 빠른 추가 input: 엔터 시 바로 새 메모 생성 + 해당 메모로 전환 + 편집 모드
@@ -167,13 +188,44 @@ export function MemoWidget() {
         </button>
       </div>
 
-      {/* Content — 본문은 *항상* 블록 표시 (섹션 박스). 편집은 별도 Dialog 로 띄움 → 본문 화면 안 바뀜. */}
+      {/* Content — 편집 중이면 textarea(인라인), 아니면 블록 표시.
+          외부 클릭(blur)·Esc 시 자동 저장 → 별도 저장 버튼 없이 그 자리에서 바로 수정. */}
       <div className="flex-1 overflow-y-auto" style={{ padding: '2px 16px 4px' }}>
-          <div
-            onClick={() => {
-              setEditContent(current?.content ?? '')
-              setIsEditing(true)
+        {isEditing ? (
+          <textarea
+            ref={taRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setEditContent(current?.content ?? '')
+                setIsEditing(false)
+              }
             }}
+            placeholder="메모를 입력하세요...  (팁: [제목] 섹션, - 항목)"
+            style={{
+              width: '100%',
+              minHeight: '100%',
+              height: '100%',
+              padding: '4px 2px',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 500,
+              color: 'var(--text-primary)',
+              lineHeight: 1.55,
+              letterSpacing: '-0.2px',
+              resize: 'none',
+              caretColor: 'var(--accent)',
+              whiteSpace: 'pre-wrap',
+            }}
+          />
+        ) : (
+          <div
+            onClick={startEdit}
             className="cursor-text min-h-[60px]"
             title="클릭하여 편집"
           >
@@ -255,43 +307,8 @@ export function MemoWidget() {
               })
             )}
           </div>
+        )}
       </div>
-
-      {/* 편집 Dialog — 본문 화면은 그대로 두고 별도 모달로 편집 → "첫번째 화면 유지" */}
-      <Dialog open={isEditing} onOpenChange={(o) => { if (!o) { handleSave(); } }} title="메모 편집">
-        <div style={{ width: 'min(80vw, 480px)' }}>
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            autoFocus
-            style={{
-              width: '100%',
-              minHeight: 180,
-              maxHeight: '50vh',
-              padding: '12px 14px',
-              border: '1px solid var(--border-widget)',
-              borderRadius: 10,
-              backgroundColor: 'var(--bg-secondary)',
-              fontFamily: 'inherit',
-              fontSize: 14, fontWeight: 500,
-              color: 'var(--text-primary)', lineHeight: 1.55,
-              letterSpacing: '-0.2px', resize: 'vertical', outline: 'none',
-              caretColor: 'var(--accent)',
-            }}
-            placeholder="메모를 입력하세요...  (팁: [제목] 으로 섹션을, - 또는 • 로 항목 구분)"
-          />
-          <div className="flex justify-end gap-2" style={{ marginTop: 10 }}>
-            <button
-              onClick={() => { setIsEditing(false); setEditContent(current?.content ?? '') }}
-              style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border-widget)', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-            >취소</button>
-            <button
-              onClick={handleSave}
-              style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--accent)', border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
-            >저장</button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Navigation + Quick add — 세련된 pill 스타일 */}
       <div

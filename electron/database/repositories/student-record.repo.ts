@@ -2,6 +2,32 @@ import { v4 as uuid } from 'uuid'
 import { createHash, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import { getDatabase } from '../connection'
 import { getSetting, setSetting } from './settings.repo'
+import { encryptField, decryptField } from '../../lib/student-record-crypto'
+
+// ─── 컬럼 변환 헬퍼 ───────────────────────────────────────────
+// 학생 기록은 PIPA §29 안전조치 의무 대응을 위해 application-level AES-256-GCM 컬럼 암호화.
+// DB 저장 시점에만 암호화, 외부 노출(API/CSV/export) 시점은 평문. computeLogHash는 평문 기준.
+
+function decryptRecord(row: StudentRecord | undefined): StudentRecord | undefined {
+  if (!row) return row
+  return {
+    ...row,
+    student_name: decryptField(row.student_name),
+    content: decryptField(row.content),
+    tag: decryptField(row.tag),
+  }
+}
+
+function decryptLog(row: StudentRecordLog): StudentRecordLog {
+  return {
+    ...row,
+    student_name: decryptField(row.student_name),
+    content_before: row.content_before == null ? row.content_before : decryptField(row.content_before),
+    content_after: row.content_after == null ? row.content_after : decryptField(row.content_after),
+    tag_before: row.tag_before == null ? row.tag_before : decryptField(row.tag_before),
+    tag_after: row.tag_after == null ? row.tag_after : decryptField(row.tag_after),
+  }
+}
 
 /**
  * 학생 기록 위젯 저장소.
@@ -111,6 +137,7 @@ function appendLog(params: {
   const timestamp = nowIsoMs()
   // 글로벌 체인 사용 — record 간 삽입 순서 보증도 가능.
   const prev_hash = getLastGlobalHash()
+  // hash는 평문 기준 — 외부 검증·해시체인 호환성 보존.
   const hash = computeLogHash({
     record_id: params.record_id,
     action: params.action,
@@ -120,26 +147,31 @@ function appendLog(params: {
     timestamp,
     prev_hash,
   })
+  // DB 저장 시점에만 민감 컬럼 암호화.
   const info = db.prepare(`
     INSERT INTO student_record_logs
       (record_id, action, student_name, content_before, content_after, tag_before, tag_after, timestamp, prev_hash, hash)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    params.record_id, params.action, params.student_name,
-    params.content_before, params.content_after,
-    params.tag_before, params.tag_after,
+    params.record_id, params.action, encryptField(params.student_name),
+    params.content_before == null ? null : encryptField(params.content_before),
+    params.content_after == null ? null : encryptField(params.content_after),
+    params.tag_before == null ? null : encryptField(params.tag_before),
+    params.tag_after == null ? null : encryptField(params.tag_after),
     timestamp, prev_hash, hash
   )
-  return db.prepare('SELECT * FROM student_record_logs WHERE id = ?').get(info.lastInsertRowid) as StudentRecordLog
+  const stored = db.prepare('SELECT * FROM student_record_logs WHERE id = ?').get(info.lastInsertRowid) as StudentRecordLog
+  return decryptLog(stored)
 }
 
 // ─── CRUD ────────────────────────────────────────────────────
 
 export function listStudentRecords(): StudentRecord[] {
   const db = getDatabase()
-  return db.prepare(
+  const rows = db.prepare(
     'SELECT * FROM student_records WHERE is_deleted = 0 ORDER BY updated_at DESC'
   ).all() as StudentRecord[]
+  return rows.map((r) => decryptRecord(r)!) as StudentRecord[]
 }
 
 export function createStudentRecord(data: {
@@ -158,7 +190,7 @@ export function createStudentRecord(data: {
   db.transaction(() => {
     db.prepare(
       'INSERT INTO student_records (id, student_name, content, tag, is_deleted, created_at, updated_at) VALUES (?,?,?,?,0,?,?)'
-    ).run(id, name, content, tag, now, now)
+    ).run(id, encryptField(name), encryptField(content), encryptField(tag), now, now)
     appendLog({
       record_id: id,
       action: 'create',
@@ -169,7 +201,8 @@ export function createStudentRecord(data: {
       tag_after: tag,
     })
   })()
-  return db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord
+  const stored = db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord
+  return decryptRecord(stored) as StudentRecord
 }
 
 export function updateStudentRecord(id: string, data: {
@@ -178,8 +211,9 @@ export function updateStudentRecord(id: string, data: {
   tag?: string
 }): StudentRecord {
   const db = getDatabase()
-  const current = db.prepare('SELECT * FROM student_records WHERE id = ? AND is_deleted = 0').get(id) as StudentRecord | undefined
-  if (!current) throw new Error('기록을 찾을 수 없어요.')
+  const raw = db.prepare('SELECT * FROM student_records WHERE id = ? AND is_deleted = 0').get(id) as StudentRecord | undefined
+  if (!raw) throw new Error('기록을 찾을 수 없어요.')
+  const current = decryptRecord(raw) as StudentRecord
 
   const nextName = (data.student_name ?? current.student_name).trim()
   const nextContent = (data.content ?? current.content).trim()
@@ -189,7 +223,7 @@ export function updateStudentRecord(id: string, data: {
   db.transaction(() => {
     db.prepare(
       "UPDATE student_records SET student_name = ?, content = ?, tag = ?, updated_at = datetime('now','localtime') WHERE id = ?"
-    ).run(nextName, nextContent, nextTag, id)
+    ).run(encryptField(nextName), encryptField(nextContent), encryptField(nextTag), id)
     appendLog({
       record_id: id,
       action: 'update',
@@ -200,13 +234,15 @@ export function updateStudentRecord(id: string, data: {
       tag_after: nextTag,
     })
   })()
-  return db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord
+  const stored = db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord
+  return decryptRecord(stored) as StudentRecord
 }
 
 export function deleteStudentRecord(id: string): void {
   const db = getDatabase()
-  const current = db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord | undefined
-  if (!current || current.is_deleted === 1) return
+  const raw = db.prepare('SELECT * FROM student_records WHERE id = ?').get(id) as StudentRecord | undefined
+  if (!raw || raw.is_deleted === 1) return
+  const current = decryptRecord(raw) as StudentRecord
   db.transaction(() => {
     db.prepare(
       "UPDATE student_records SET is_deleted = 1, updated_at = datetime('now','localtime') WHERE id = ?"
@@ -225,7 +261,8 @@ export function deleteStudentRecord(id: string): void {
 
 export function listAllLogs(): StudentRecordLog[] {
   const db = getDatabase()
-  return db.prepare('SELECT * FROM student_record_logs ORDER BY id ASC').all() as StudentRecordLog[]
+  const rows = db.prepare('SELECT * FROM student_record_logs ORDER BY id ASC').all() as StudentRecordLog[]
+  return rows.map(decryptLog)
 }
 
 // ─── 시한·파기 ─────────────────────────────────────────────

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import { runMigrations } from './migrations'
+import { runDataMigrations } from './data-migrations'
 
 let db: Database.Database | null = null
 
@@ -15,6 +16,7 @@ export function getDatabase(): Database.Database {
   db.pragma('foreign_keys = ON')
 
   runMigrations(db)
+  runDataMigrations(db)
 
   return db
 }

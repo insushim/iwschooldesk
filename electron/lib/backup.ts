@@ -20,6 +20,39 @@
 
 import { createHash } from 'node:crypto'
 import type Database from 'better-sqlite3'
+import { encryptField, decryptField } from './student-record-crypto'
+
+// 학생 기록은 DB에 암호화 컬럼으로 저장되지만, 백업 payload에는 *평문*으로 dump 한다.
+// 이유:
+//   - verifyLogsChain 이 평문 기준 SHA-256 으로 동작 (해시체인 외부 검증 호환)
+//   - .sdbackup 자체가 AES-GCM 으로 봉인되어 있어 디스크 상 노출 위험 없음
+//   - 새 PC 복원 시 그 PC의 master key 로 재암호화 → master key 분실 시에도 백업으로 복원 가능
+const STUDENT_RECORD_TABLE = 'student_records'
+const STUDENT_RECORD_LOGS_TABLE = 'student_record_logs'
+const STUDENT_RECORD_ENC_COLS = ['student_name', 'content', 'tag'] as const
+const STUDENT_RECORD_LOGS_ENC_COLS = [
+  'student_name', 'content_before', 'content_after', 'tag_before', 'tag_after',
+] as const
+
+function decryptRowFields(row: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...row }
+  for (const c of cols) {
+    const v = out[c]
+    if (v === null || v === undefined) continue
+    out[c] = decryptField(String(v))
+  }
+  return out
+}
+
+function encryptRowFields(row: Record<string, unknown>, cols: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...row }
+  for (const c of cols) {
+    const v = out[c]
+    if (v === null || v === undefined) continue
+    out[c] = encryptField(String(v))
+  }
+  return out
+}
 
 export const BACKUP_EXPORT_TABLES = [
   // 일반 위젯 데이터
@@ -133,7 +166,13 @@ export function buildBackupPayload(params: {
 
   for (const table of BACKUP_EXPORT_TABLES) {
     // table 은 상수 배열에서만 오므로 동적 주입 불가
-    const rows = db.prepare(`SELECT * FROM ${table}`).all() as unknown[]
+    const rawRows = db.prepare(`SELECT * FROM ${table}`).all() as Array<Record<string, unknown>>
+    let rows: unknown[] = rawRows
+    if (table === STUDENT_RECORD_TABLE) {
+      rows = rawRows.map((r) => decryptRowFields(r, STUDENT_RECORD_ENC_COLS))
+    } else if (table === STUDENT_RECORD_LOGS_TABLE) {
+      rows = rawRows.map((r) => decryptRowFields(r, STUDENT_RECORD_LOGS_ENC_COLS))
+    }
     data[table] = rows
     rowCounts[table] = rows.length
   }
@@ -208,8 +247,13 @@ export function applyBackupPayload(params: {
       const stmt = db.prepare(
         `INSERT INTO ${table} (${useCols.join(', ')}) VALUES (${placeholders})`,
       )
+      // 학생 기록 트랙은 payload 에 평문으로 들어와 있음 → 새 기기의 master key 로 재암호화 후 INSERT.
+      const encCols =
+        table === STUDENT_RECORD_TABLE ? STUDENT_RECORD_ENC_COLS :
+        table === STUDENT_RECORD_LOGS_TABLE ? STUDENT_RECORD_LOGS_ENC_COLS : null
       for (const row of rows) {
-        stmt.run(...useCols.map((c) => (row as Record<string, unknown>)[c] ?? null))
+        const normalized = encCols ? encryptRowFields(row, encCols) : row
+        stmt.run(...useCols.map((c) => normalized[c] ?? null))
         inserted++
       }
       replaced.push(table)

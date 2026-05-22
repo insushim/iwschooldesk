@@ -25,6 +25,36 @@ export function TimerWidget() {
   const [editMin, setEditMin] = useState('')
   const [editSec, setEditSec] = useState('')
   const secRef = useRef<HTMLInputElement>(null)
+
+  // 시계 원의 실제 가로 픽셀을 측정해서 시계 숫자·input·phase label·연필 아이콘 크기를 직접 px로 계산.
+  // 이전엔 cqmin 기반(`clamp(28px, 18cqmin, 80px)` 등)이었는데, WidgetShell이 글씨 크기 배율을
+  // CSS `zoom`으로 적용하면 zoom 은 visual scaling 이고 cqmin 은 raw layout 기준이라
+  // 시계 영역 글자가 글씨 크기 배율을 못 따라가 안 커지던 버그. ResizeObserver 는 layout(raw) 박스를
+  // 보고하므로 zoom 으로 시각만 자연 확대 → 시계 원과 함께 시계 숫자도 동일 배율로 그려진다.
+  const clockBoxRef = useRef<HTMLDivElement>(null)
+  const [clockPx, setClockPx] = useState(200)
+  useEffect(() => {
+    const el = clockBoxRef.current
+    if (!el) return
+    const apply = (w: number): void => {
+      if (!w) return
+      setClockPx((cur) => (Math.abs(cur - w) > 0.5 ? w : cur))
+    }
+    apply(el.getBoundingClientRect().width)
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w) apply(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // 시계 원 width 기준 비율 — 기존 cqmin 클램프와 같은 시각 크기가 나오도록 튜닝.
+  const timeFontPx     = Math.max(28, Math.min(110, clockPx * 0.26))   // 시계 숫자
+  const editFontPx     = Math.max(18, Math.min(64,  clockPx * 0.16))   // 편집 input
+  const pencilIconPx   = Math.max(10, Math.min(16,  clockPx * 0.045))  // 연필 아이콘
+  const phaseFontPx    = Math.max(10, Math.min(16,  clockPx * 0.065))  // 일반 phase 라벨
+  const phaseFontPxWp  = Math.max(14, Math.min(26,  clockPx * 0.11))   // 배경화면 모드 phase 라벨
   // 배경화면 모드 진입 시 타이머 위젯은 완전히 숨김 (자주 안 쓰는 도구라 배경에 방해만 됨).
   const [iAmWallpaper, setIAmWallpaper] = useState(false)
   const myWidgetId = useRef<string>('widget-timer')
@@ -150,6 +180,7 @@ export function TimerWidget() {
         style={{ flex: '1 1 0', minHeight: 0 }}
       >
         <div
+          ref={clockBoxRef}
           className="relative"
           style={{
             // 시계가 작아 보이던 문제 → 55 → 70cqmin 으로 확대해 가독성 향상.
@@ -207,7 +238,7 @@ export function TimerWidget() {
               <div
                 className="flex items-center tabular-nums font-bold"
                 style={{
-                  fontSize: 'clamp(18px, 11cqmin, 44px)',
+                  fontSize: editFontPx,
                   color: 'var(--text-primary)',
                   gap: 2,
                 }}
@@ -274,8 +305,8 @@ export function TimerWidget() {
                 <span
                   className="tabular-nums"
                   style={{
-                    // 시간 숫자가 작아 보이던 문제 → 13cqmin / max 54px → 18cqmin / max 80px 으로 확대.
-                    fontSize: 'clamp(28px, 18cqmin, 80px)',
+                    // 글씨 크기 배율(zoom) 호환을 위해 cqmin → ResizeObserver 측정 기반 px 로 변경.
+                    fontSize: timeFontPx,
                     fontWeight: 900,
                     letterSpacing: '-0.04em',
                     lineHeight: 1,
@@ -293,8 +324,8 @@ export function TimerWidget() {
                     size={12}
                     className="text-[var(--text-muted)] shrink-0"
                     style={{
-                      width: 'clamp(9px, 2.5cqmin, 14px)',
-                      height: 'clamp(9px, 2.5cqmin, 14px)',
+                      width: pencilIconPx,
+                      height: pencilIconPx,
                     }}
                   />
                 )}
@@ -305,12 +336,13 @@ export function TimerWidget() {
                 className="inline-flex items-center tabular-nums"
                 style={{
                   gap: 4,
-                  fontSize: iAmWallpaper ? 'clamp(14px, 3.8cqmin, 22px)' : 'clamp(9px, 2.2cqmin, 13px)',
+                  // 글씨 크기 배율(zoom) 호환을 위해 cqmin → ResizeObserver 측정 기반 px 로 변경.
+                  fontSize: iAmWallpaper ? phaseFontPxWp : phaseFontPx,
                   fontWeight: 800,
-                  marginTop: 'clamp(2px, 1cqmin, 6px)',
+                  marginTop: Math.max(2, Math.min(6, clockPx * 0.012)),
                   padding: iAmWallpaper
-                    ? 'clamp(4px, 1.4cqmin, 8px) clamp(10px, 2.6cqmin, 16px)'
-                    : 'clamp(2px, 0.8cqmin, 4px) clamp(6px, 1.6cqmin, 10px)',
+                    ? `${Math.max(4, Math.min(8, clockPx * 0.022))}px ${Math.max(10, Math.min(16, clockPx * 0.045))}px`
+                    : `${Math.max(2, Math.min(4, clockPx * 0.011))}px ${Math.max(6, Math.min(10, clockPx * 0.028))}px`,
                   borderRadius: 999,
                   backgroundColor: `${palette.primary}18`,
                   color: palette.dark,

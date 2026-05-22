@@ -109,7 +109,7 @@ export function WidgetLauncher() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-6 pr-10 max-w-5xl">
+      <div className="p-6">
         <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -166,7 +166,7 @@ export function WidgetLauncher() {
 
         <div
           className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
         >
           {WIDGETS.map((w) => {
             const Icon = w.icon

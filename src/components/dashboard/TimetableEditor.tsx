@@ -756,6 +756,7 @@ function CellButton({ slot, isHighlighted, onClick }: { slot: TimetableSlot | un
         backgroundColor: `${color}${isSpec ? '12' : '18'}`,
         borderLeft: isHighlighted ? '3px solid var(--accent)' : `3px solid ${color}`,
         borderTop: isSpec ? `2px dashed ${color}50` : 'none',
+        borderBottom: isSpec ? `2px dashed ${color}50` : 'none',
       }}
       whileHover={{ scale: 1.02 }} transition={{ duration: 0.15 }}>
       {isHighlighted && (

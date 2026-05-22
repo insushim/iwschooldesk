@@ -57,9 +57,15 @@ export function SettingsPanel() {
       {/* Settings content */}
       <div className="flex-1 overflow-y-auto p-8">
         {activeTab === 'general' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">일반 설정</h2>
-            <div className="space-y-5">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+                gap: 16,
+              }}
+            >
               <Input
                 label="학교 이름"
                 value={settings.school_name}
@@ -78,6 +84,8 @@ export function SettingsPanel() {
                 onChange={(e) => updateSetting('class_name', e.target.value)}
                 placeholder="예: 5-3"
               />
+            </div>
+            <div className="space-y-3">
               <ToggleRow
                 label="시작 시 자동 실행"
                 description="Windows 시작 시 트레이에 숨은 채 켜둔 위젯만 복원합니다 (메인 창은 뜨지 않음)"
@@ -112,7 +120,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'theme' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">테마 설정</h2>
             <div className="space-y-5">
               <div>
@@ -156,7 +164,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'timer' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">타이머 설정</h2>
             <div className="space-y-5">
               <Input
@@ -188,7 +196,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'data' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">데이터 관리</h2>
 
             <EncryptedBackupSection />
@@ -314,7 +322,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'shortcuts' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">단축키</h2>
             <div className="space-y-2">
               {[
@@ -336,7 +344,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'privacy' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">개인정보 보호</h2>
 
             {/* 결론 박스 */}
@@ -413,7 +421,7 @@ export function SettingsPanel() {
         )}
 
         {activeTab === 'about' && (
-          <div className="max-w-2xl space-y-6">
+          <div className="w-full max-w-[1200px] mx-auto space-y-6">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">앱 정보</h2>
             <div className="glass p-8 text-center">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-400 flex items-center justify-center mx-auto mb-4">

@@ -119,6 +119,9 @@ contextBridge.exposeInMainWorld('api', {
     clearPassword: (curPw: string) => ipcRenderer.invoke('studentRecord:clearPassword', curPw),
     exportLogs: () => ipcRenderer.invoke('studentRecord:exportLogs'),
     exportCsv: () => ipcRenderer.invoke('studentRecord:exportCsv'),
+    retentionInfo: () => ipcRenderer.invoke('studentRecord:retentionInfo'),
+    listExpiredIds: () => ipcRenderer.invoke('studentRecord:listExpiredIds'),
+    purgeExpired: () => ipcRenderer.invoke('studentRecord:purgeExpired'),
   },
   meal: {
     searchSchool: (name: string, apiKey?: string) => ipcRenderer.invoke('meal:searchSchool', name, apiKey),

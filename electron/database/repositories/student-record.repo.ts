@@ -228,6 +228,120 @@ export function listAllLogs(): StudentRecordLog[] {
   return db.prepare('SELECT * FROM student_record_logs ORDER BY id ASC').all() as StudentRecordLog[]
 }
 
+// ─── 시한·파기 ─────────────────────────────────────────────
+// 보관 기간 정책: 작성 시점 + retentionYears. 만료 시 일괄 파기.
+// 모드:
+//   - 'auto'      : 일반 설정의 school_name(초/중/고) + class_name(학년) 파싱 → 학생 성년 도달
+//                   + 공소시효 worst 10년 자동 계산. 추론 실패 시 RETENTION_DEFAULT.
+//   - 'fixed'     : retention_years 값 그대로 사용
+//   - 'unlimited' : 0 (만료 없음)
+// 근거: 아동학대처벌법 §34 — 공소시효는 학생 성년 도달일부터 시작.
+
+const RETENTION_MODE_KEY = 'student_record_retention_mode'   // 'auto' | 'fixed' | 'unlimited'
+const RETENTION_YEARS_KEY = 'student_record_retention_years' // fixed 모드에서 사용
+const RETENTION_DEFAULT = 20
+
+type RetentionMode = 'auto' | 'fixed' | 'unlimited'
+
+function readSettingString(key: string): string {
+  const v = getSetting(key as Parameters<typeof getSetting>[0]) as unknown
+  return typeof v === 'string' ? v : ''
+}
+
+/** 일반 설정의 학교명·학급명에서 학생 보관 기간 추론.
+ *  반환: years(추론 결과 또는 default) + 설명용 grade/level. */
+export function computeAutoRetention(): { years: number; level: 'elem' | 'mid' | 'high' | 'unknown'; grade: number | null; reason: string } {
+  const schoolName = readSettingString('school_name')
+  const className = readSettingString('class_name')
+
+  // 학교급
+  let level: 'elem' | 'mid' | 'high' | 'unknown' = 'unknown'
+  if (/초등|국민학교|초$|초학교/.test(schoolName) || /^초/.test(className)) level = 'elem'
+  else if (/중학교|중$/.test(schoolName) || /^중/.test(className)) level = 'mid'
+  else if (/고등|고$|고교/.test(schoolName) || /^고/.test(className)) level = 'high'
+
+  // 학년 (class_name 의 첫 숫자)
+  const m = className.match(/(\d+)/)
+  const grade = m ? parseInt(m[1], 10) : null
+
+  if (!grade || level === 'unknown') {
+    return { years: RETENTION_DEFAULT, level, grade, reason: '학교급·학년 추론 불가 → default 20년' }
+  }
+
+  // 학년별 학생 만 나이 추정 (한국 표준 — 만 6세 초1 입학 기준, 보수적으로 학년 시작 시점)
+  const baseAge: Record<'elem' | 'mid' | 'high', number> = { elem: 5, mid: 11, high: 14 }
+  const studentAge = baseAge[level] + grade // 초1: 6세, 중1: 12세, 고1: 15세 (학년 시작 직후 기준)
+
+  // 19세까지 남은 햇수 + 공소시효 worst 10년. 최소 10년은 보장(이미 성인이라도 분쟁 가능).
+  const yearsToAdult = Math.max(0, 19 - studentAge)
+  const years = Math.max(10, yearsToAdult + 10)
+
+  const levelKr = level === 'elem' ? '초' : level === 'mid' ? '중' : '고'
+  return {
+    years,
+    level,
+    grade,
+    reason: `${levelKr}${grade}학년 → 만 ${studentAge}세 추정 → 19세까지 ${yearsToAdult}년 + 공소시효 10년 = ${years}년`,
+  }
+}
+
+export function getRetentionYears(): number {
+  const modeRaw = readSettingString(RETENTION_MODE_KEY) as RetentionMode | ''
+  const mode: RetentionMode = (modeRaw === 'auto' || modeRaw === 'fixed' || modeRaw === 'unlimited') ? modeRaw : 'auto'
+
+  if (mode === 'unlimited') return 0
+  if (mode === 'fixed') {
+    const v = readSettingString(RETENTION_YEARS_KEY)
+    const n = parseInt(v, 10)
+    if (!isNaN(n) && n >= 0) return n
+    return RETENTION_DEFAULT
+  }
+  // auto
+  return computeAutoRetention().years
+}
+
+/** 한 행이 만료됐는지 — 0(무제한)이면 항상 false. */
+function isExpired(createdAt: string, retentionYears: number, nowMs: number): boolean {
+  if (retentionYears <= 0) return false
+  const created = new Date(createdAt).getTime()
+  if (isNaN(created)) return false
+  const expireAt = created + retentionYears * 365.25 * 24 * 60 * 60 * 1000
+  return nowMs > expireAt
+}
+
+/** 만료된 (= soft-delete 되지 않은) 기록 hard-delete + 로그도 함께 삭제.
+ *  반환: 삭제된 본 기록 + 삭제된 로그 행 수. */
+export function purgeExpiredStudentRecords(): { records: number; logs: number; retentionYears: number } {
+  const retentionYears = getRetentionYears()
+  if (retentionYears <= 0) return { records: 0, logs: 0, retentionYears }
+
+  const db = getDatabase()
+  const now = Date.now()
+  const allRecords = db.prepare('SELECT id, created_at FROM student_records').all() as Array<{ id: string; created_at: string }>
+  const expiredIds = allRecords.filter((r) => isExpired(r.created_at, retentionYears, now)).map((r) => r.id)
+  if (expiredIds.length === 0) return { records: 0, logs: 0, retentionYears }
+
+  const placeholders = expiredIds.map(() => '?').join(',')
+  let recordCount = 0, logCount = 0
+  db.transaction(() => {
+    const r1 = db.prepare(`DELETE FROM student_record_logs WHERE record_id IN (${placeholders})`).run(...expiredIds)
+    logCount = Number(r1.changes)
+    const r2 = db.prepare(`DELETE FROM student_records WHERE id IN (${placeholders})`).run(...expiredIds)
+    recordCount = Number(r2.changes)
+  })()
+  return { records: recordCount, logs: logCount, retentionYears }
+}
+
+/** UI 표시용 — 만료된 기록 ID 목록. (실제 삭제는 사용자가 트리거 또는 자동 파기) */
+export function listExpiredRecordIds(): string[] {
+  const retentionYears = getRetentionYears()
+  if (retentionYears <= 0) return []
+  const db = getDatabase()
+  const now = Date.now()
+  const all = db.prepare('SELECT id, created_at FROM student_records WHERE is_deleted = 0').all() as Array<{ id: string; created_at: string }>
+  return all.filter((r) => isExpired(r.created_at, retentionYears, now)).map((r) => r.id)
+}
+
 // ─── 비밀번호 (scrypt, salt 포함) ─────────────────────────────
 // 저장 포맷: "scrypt$<N>$<r>$<p>$<salt-hex>$<hash-hex>"
 const SCRYPT_N = 16384, SCRYPT_R = 8, SCRYPT_P = 1, SCRYPT_KEYLEN = 64

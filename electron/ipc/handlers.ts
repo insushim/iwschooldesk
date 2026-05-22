@@ -339,6 +339,19 @@ ${os.hostname()} (${os.userInfo().username}) 에서 SchoolDesk v${appVersion} �
     return { ok: true as const, count, path: result.filePath }
   })
 
+  // 학생 기록 — 보관 기간(시한) 정책
+  ipcMain.handle('studentRecord:retentionInfo', () => {
+    const auto = studentRecordRepo.computeAutoRetention()
+    const effective = studentRecordRepo.getRetentionYears()
+    return { auto, effectiveYears: effective }
+  })
+  ipcMain.handle('studentRecord:listExpiredIds', () => studentRecordRepo.listExpiredRecordIds())
+  ipcMain.handle('studentRecord:purgeExpired', () => {
+    const r = studentRecordRepo.purgeExpiredStudentRecords()
+    if (r.records > 0) broadcastChange('studentrecord')
+    return r
+  })
+
   // Goal (우리반 목표)
   ipcMain.handle('goal:list', () => goalRepo.listGoals())
   ipcMain.handle('goal:create', (_e, data) => { const r = goalRepo.createGoal(data); broadcastChange('goal'); return r })

@@ -3,6 +3,7 @@ import {
   Lock, Unlock, ShieldCheck, Plus, Trash2, Download, Key, X, Check, AlertCircle,
   FileSpreadsheet, Search, Pencil, Users,
   FileText, Stamp, AlertTriangle, Building2, Scale, Server, Save, Clock,
+  Timer, Eraser,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDataChange } from '../../hooks/useDataChange'
@@ -27,9 +28,12 @@ type StudentRecord = {
 
 type Mode =
   | { kind: 'loading' }
+  | { kind: 'consent' }    // 첫 사용 동의 — 비밀번호 설정 이전 단계
   | { kind: 'setup' }
   | { kind: 'locked' }
   | { kind: 'unlocked' }
+
+const CONSENT_KEY = 'student_record_consent_at'
 
 const ACCENT = '#8B5CF6'
 const TAG_OPTIONS = ['생활', '학습', '상담', '출결', '칭찬', '지도'] as const
@@ -69,6 +73,9 @@ export function StudentRecordManager(): React.ReactElement {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [exportToast, setExportToast] = useState<string | null>(null)
   const [schoolMoveGuideOpen, setSchoolMoveGuideOpen] = useState(false)
+  const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set())
+  const [retentionYears, setRetentionYears] = useState<number>(20)
+  const [confirmPurgeOpen, setConfirmPurgeOpen] = useState(false)
 
   const unlockInputRef = useRef<HTMLInputElement>(null)
 
@@ -98,23 +105,54 @@ export function StudentRecordManager(): React.ReactElement {
 
   useEffect(() => {
     let alive = true
-    window.api.studentRecord.isPasswordSet().then((set) => {
+    // 1) 이미 비밀번호 설정돼 있으면 잠금 화면. 동의 절차도 이미 거친 것으로 간주.
+    // 2) 비밀번호 미설정 + 동의 이력 있음 → setup 화면
+    // 3) 비밀번호 미설정 + 동의 이력 없음 → consent 화면 (첫 사용)
+    Promise.all([
+      window.api.studentRecord.isPasswordSet().catch(() => false),
+      window.api.settings.get(CONSENT_KEY as 'theme').catch(() => null),
+    ]).then(([set, consent]) => {
       if (!alive) return
-      setMode(set ? { kind: 'locked' } : { kind: 'setup' })
+      if (set) {
+        setMode({ kind: 'locked' })
+      } else if (typeof consent === 'string' && consent.length > 0) {
+        setMode({ kind: 'setup' })
+      } else {
+        setMode({ kind: 'consent' })
+      }
     }).catch(() => {
-      if (alive) setMode({ kind: 'setup' })
+      if (alive) setMode({ kind: 'consent' })
     })
     return () => { alive = false }
   }, [])
 
+  const handleAcceptConsent = async (): Promise<void> => {
+    try {
+      await window.api.settings.set(CONSENT_KEY as 'theme', new Date().toISOString() as never)
+    } catch { /* ignore */ }
+    setMode({ kind: 'setup' })
+  }
+
+  const reloadRetention = useCallback(() => {
+    if (mode.kind !== 'unlocked') return
+    window.api.studentRecord.retentionInfo()
+      .then((info) => setRetentionYears(info.effectiveYears))
+      .catch(() => {})
+    window.api.studentRecord.listExpiredIds()
+      .then((ids) => setExpiredIds(new Set(ids)))
+      .catch(() => setExpiredIds(new Set()))
+  }, [mode.kind])
+
   useEffect(() => {
     if (mode.kind !== 'unlocked') { setRecords([]); return }
     window.api.studentRecord.list().then(setRecords).catch(() => setRecords([]))
-  }, [mode.kind])
+    reloadRetention()
+  }, [mode.kind, reloadRetention])
 
   useDataChange('studentrecord', () => {
     if (mode.kind === 'unlocked') {
       window.api.studentRecord.list().then(setRecords).catch(() => setRecords([]))
+      reloadRetention()
     }
   })
 
@@ -196,6 +234,23 @@ export function StudentRecordManager(): React.ReactElement {
     setConfirmDeleteId(null)
   }
 
+  const handlePurgeExpired = async () => {
+    try {
+      const r = await window.api.studentRecord.purgeExpired()
+      setConfirmPurgeOpen(false)
+      if (r.records > 0) {
+        setExportToast(`보관 기간(${r.retentionYears}년) 경과 ${r.records}건 파기 완료`)
+        setTimeout(() => setExportToast(null), 4500)
+      } else {
+        setExportToast('파기할 기록이 없어요')
+        setTimeout(() => setExportToast(null), 2500)
+      }
+    } catch {
+      setExportToast('파기 중 오류가 발생했어요')
+      setTimeout(() => setExportToast(null), 3500)
+    }
+  }
+
   const handleExport = async () => {
     try {
       setExportToast('저장 중… (타임스탬프 요청 포함 최대 20초)')
@@ -265,6 +320,13 @@ export function StudentRecordManager(): React.ReactElement {
       <div className="flex items-center justify-center h-full text-sm text-[var(--text-muted)]">
         불러오는 중…
       </div>
+    )
+  }
+
+  // ─── consent: 첫 사용 동의 ───
+  if (mode.kind === 'consent') {
+    return (
+      <ConsentScreen onAccept={handleAcceptConsent} />
     )
   }
 
@@ -520,6 +582,22 @@ export function StudentRecordManager(): React.ReactElement {
           >
             해제됨 · 10분 후 자동 잠금
           </span>
+          {expiredIds.size > 0 && (
+            <button
+              onClick={() => setConfirmPurgeOpen(true)}
+              className="shrink-0 flex items-center gap-1 hover:opacity-90 transition-opacity"
+              style={{
+                fontSize: 11, fontWeight: 800, color: '#fff',
+                padding: '4px 10px', borderRadius: 999,
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                letterSpacing: '-0.2px',
+                boxShadow: '0 3px 10px rgba(245,158,11,0.32)',
+              }}
+              title={`보관 기간(${retentionYears}년) 경과 ${expiredIds.size}건. 클릭해서 일괄 파기.`}
+            >
+              <Timer size={11} strokeWidth={2.6} /> 만료 {expiredIds.size}건 정리
+            </button>
+          )}
           <div className="ml-auto flex items-center gap-1.5">
             <button
               onClick={handleExportCsv}
@@ -763,21 +841,30 @@ export function StudentRecordManager(): React.ReactElement {
                   {selectedRecords.map((r) => {
                     const tc = tagColor(r.tag)
                     const isEditing = editingId === r.id
+                    const isExpired = expiredIds.has(r.id)
                     return (
                       <motion.div
                         key={r.id}
                         layout
                         initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        animate={{ opacity: isExpired ? 0.55 : 1, y: 0 }}
                         exit={{ opacity: 0, x: 30 }}
                         className="group"
                         style={{
                           padding: '11px 13px', borderRadius: 11,
-                          background: 'var(--bg-secondary)',
-                          border: '1px solid transparent',
+                          background: isExpired ? 'rgba(245,158,11,0.08)' : 'var(--bg-secondary)',
+                          border: isExpired ? '1px solid rgba(245,158,11,0.30)' : '1px solid transparent',
                           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.28)',
                         }}
                       >
+                        {isExpired && !isEditing && (
+                          <div className="flex items-center" style={{ gap: 5, marginBottom: 4 }}>
+                            <Timer size={10} strokeWidth={2.6} style={{ color: '#B45309' }} />
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#92400E', letterSpacing: '-0.2px' }}>
+                              보관 기간 경과 · 파기 대상
+                            </span>
+                          </div>
+                        )}
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
                             <div className="flex gap-2">
@@ -984,6 +1071,73 @@ export function StudentRecordManager(): React.ReactElement {
             <SchoolMoveGuideModal onClose={() => setSchoolMoveGuideOpen(false)} />
           )}
         </AnimatePresence>
+
+        {/* 만료 일괄 파기 확인 모달 */}
+        <AnimatePresence>
+          {confirmPurgeOpen && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 z-40 flex items-center justify-center"
+              style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setConfirmPurgeOpen(false) }}
+            >
+              <motion.div
+                initial={{ scale: 0.94 }} animate={{ scale: 1 }} exit={{ scale: 0.94 }}
+                style={{
+                  padding: 22, maxWidth: 380, width: '92%',
+                  borderRadius: 16, background: 'var(--bg-widget)',
+                  boxShadow: '0 24px 56px rgba(15,23,42,0.32)',
+                  border: '1px solid rgba(15,23,42,0.08)',
+                }}
+              >
+                <div className="flex items-center" style={{ gap: 10, marginBottom: 10 }}>
+                  <span
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                      width: 36, height: 36, borderRadius: 11,
+                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                      color: '#fff',
+                    }}
+                  >
+                    <Timer size={18} strokeWidth={2.4} />
+                  </span>
+                  <span className="font-bold text-[var(--text-primary)]" style={{ fontSize: 15.5, letterSpacing: '-0.3px' }}>
+                    만료 기록 {expiredIds.size}건 파기
+                  </span>
+                </div>
+                <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+                  보관 기간({retentionYears}년)이 지난 학생 기록과 그에 연결된 해시체인 로그를 <b>영구 삭제</b>합니다.
+                  되돌릴 수 없으니, 필요한 자료는 미리 "증거 내보내기" 또는 자동 CSV 백업으로 보관해 두세요.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmPurgeOpen(false)}
+                    className="flex-1"
+                    style={{
+                      padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10,
+                      backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-widget)',
+                    }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handlePurgeExpired}
+                    className="flex-1 flex items-center justify-center"
+                    style={{
+                      padding: '10px', fontSize: 13, fontWeight: 800, borderRadius: 10,
+                      gap: 5,
+                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                      color: '#fff', boxShadow: '0 4px 12px rgba(245,158,11,0.32)',
+                    }}
+                  >
+                    <Eraser size={13} strokeWidth={2.6} /> 영구 삭제
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -1064,6 +1218,154 @@ function ChangePasswordPanel({ onClose }: { onClose: () => void }) {
         </button>
       </motion.div>
     </motion.div>
+  )
+}
+
+// ─── 첫 사용 동의 화면 ─────────────────────────────────────────
+// 비밀번호 설정 이전 1회만 표시. settings.student_record_consent_at 에 ISO timestamp 저장.
+// 목적·정보처리자 책임을 사용자가 인지·동의했다는 흔적을 남겨 분쟁 시 자기 보호용으로도 활용.
+function ConsentScreen({ onAccept }: { onAccept: () => void }): React.ReactElement {
+  const [checks, setChecks] = useState({ purpose: false, processor: false, official: false })
+  const allChecked = checks.purpose && checks.processor && checks.official
+
+  const items: { key: keyof typeof checks; title: string; body: string }[] = [
+    {
+      key: 'purpose',
+      title: '사용 목적이 한정됨을 이해합니다',
+      body:
+        '본 기능은 ① 교사 직무수행 보조, ② 「아동학대처벌법」 §10 신고의무 대비, ③ 「교원지위향상법」 §15 교권 침해 분쟁 대비 — 이 세 목적에 한정하여 사용합니다. 그 외 목적(평가·차별·외부 공유 등)으로 사용하지 않습니다.',
+    },
+    {
+      key: 'processor',
+      title: '제가 정보처리자임을 이해합니다',
+      body:
+        '입력된 모든 학생 정보의 정보처리자(개인정보보호법 §2.5)는 제 본인이며, 수집·이용·파기·안전 관리 책임은 제게 있습니다. SchoolDesk 개발사는 도구 제공자이고, 처리 결과에 대한 법적 책임을 부담하지 않습니다.',
+    },
+    {
+      key: 'official',
+      title: '공식 자료는 NEIS 등에 별도 기록함을 이해합니다',
+      body:
+        '학생부·행동발달 누가기록 등 공식 학생 자료는 NEIS 등 학교 공식 시스템에 기록하고, 본 앱은 일상 메모와 사후 조작 부인을 위한 시점 보존 보조 도구로만 사용합니다.',
+    },
+  ]
+
+  return (
+    <div
+      className="h-full overflow-y-auto flex items-center justify-center"
+      style={{
+        padding: 24,
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.08) 0%, transparent 55%)',
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col"
+        style={{
+          width: '100%', maxWidth: 640, padding: 28, gap: 18,
+          borderRadius: 18, background: 'var(--bg-widget)',
+          border: '1px solid var(--border-widget)',
+          boxShadow: '0 24px 48px rgba(15,23,42,0.10)',
+        }}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center" style={{ gap: 12 }}>
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+              boxShadow: '0 10px 28px rgba(139,92,246,0.32)',
+              color: '#fff',
+            }}
+          >
+            <Scale size={22} strokeWidth={2.4} />
+          </div>
+          <div>
+            <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 17, letterSpacing: '-0.3px' }}>
+              학생 기록 — 시작 전 안내 (1회만 표시)
+            </div>
+            <div className="text-[var(--text-muted)]" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.5, letterSpacing: '-0.2px' }}>
+              민감한 학생 정보를 다루는 기능이라, 사용 목적과 책임을 한 번만 확인하고 시작합니다.
+            </div>
+          </div>
+        </div>
+
+        {/* 체크리스트 */}
+        <div className="flex flex-col" style={{ gap: 10 }}>
+          {items.map((it) => {
+            const checked = checks[it.key]
+            return (
+              <button
+                key={it.key}
+                onClick={() => setChecks((c) => ({ ...c, [it.key]: !c[it.key] }))}
+                className="flex items-start text-left transition-all"
+                style={{
+                  gap: 12,
+                  padding: '13px 15px',
+                  borderRadius: 12,
+                  background: checked ? 'rgba(139,92,246,0.08)' : 'var(--bg-secondary)',
+                  border: checked ? '1.5px solid #8B5CF6' : '1.5px solid var(--border-widget)',
+                }}
+              >
+                <span
+                  className="flex items-center justify-center shrink-0"
+                  style={{
+                    width: 22, height: 22, borderRadius: 6,
+                    background: checked ? 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)' : 'var(--bg-widget)',
+                    border: checked ? 'none' : '1.5px solid var(--border-widget)',
+                    color: '#fff',
+                    marginTop: 1,
+                  }}
+                >
+                  {checked && <Check size={14} strokeWidth={3} />}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 13.5, letterSpacing: '-0.2px' }}>
+                    {it.title}
+                  </div>
+                  <div className="text-[var(--text-secondary)]" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.6, letterSpacing: '-0.2px', wordBreak: 'keep-all' }}>
+                    {it.body}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* 면책 박스 */}
+        <div
+          style={{
+            padding: '11px 13px', borderRadius: 11,
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.28)',
+            fontSize: 11.5, color: '#78350F', lineHeight: 1.6, letterSpacing: '-0.2px',
+          }}
+        >
+          <b style={{ fontWeight: 800, color: '#92400E' }}>참고:</b> 본 안내는 일반 정보이며 법률 자문이 아닙니다.
+          정식 법적 절차 또는 분쟁 발생 시에는 학교 변호사·교육청 정보보호 담당의 검토를 받으세요.
+          동의 시각은 settings에 저장되어, 분쟁 시 "사용 목적과 책임을 인지한 상태였음"을 보여주는 자료로도 활용 가능합니다.
+        </div>
+
+        <button
+          onClick={onAccept}
+          disabled={!allChecked}
+          className="font-bold transition-all"
+          style={{
+            padding: '13px', fontSize: 14, borderRadius: 11,
+            background: allChecked
+              ? 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)'
+              : 'var(--bg-secondary)',
+            color: allChecked ? '#fff' : 'var(--text-muted)',
+            boxShadow: allChecked ? '0 6px 18px rgba(139,92,246,0.32)' : 'none',
+            cursor: allChecked ? 'pointer' : 'not-allowed',
+            letterSpacing: '-0.2px',
+          }}
+        >
+          {allChecked ? '동의하고 시작' : '세 가지 항목에 모두 체크해 주세요'}
+        </button>
+      </motion.div>
+    </div>
   )
 }
 

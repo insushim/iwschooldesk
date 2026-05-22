@@ -19,7 +19,7 @@ import { getSetting, setSetting } from '../database/repositories/settings.repo'
 import { secureGet, secureHas } from './secure-storage'
 import { buildBackupPayload } from './backup'
 import { encryptBackup } from './crypto'
-import { buildRecordsCsv } from '../database/repositories/student-record.repo'
+import { buildRecordsCsv, purgeExpiredStudentRecords } from '../database/repositories/student-record.repo'
 
 type Frequency = 'off' | 'daily' | 'weekly'
 
@@ -181,12 +181,53 @@ async function runStudentRecordCsv(): Promise<void> {
   }
 }
 
+/* ─── 만료된 학생 기록 자동 파기 ────────────────────────────────
+ * 토글이 ON 일 때만 작동. 기본 OFF (실수 삭제 방지).
+ * 매일 1회 (last 기준 24h 경과 시) 만료된 행을 hard-delete + 로그도 함께 삭제.
+ * 만료 판정은 repo 의 student_record_retention_mode / years 정책 사용. */
+const KEY_AUTO_PURGE_ENABLED = 'student_record_auto_purge_enabled'
+const KEY_AUTO_PURGE_LAST = 'student_record_auto_purge_last'
+const PURGE_PERIOD_MS = 24 * 60 * 60 * 1000
+
+function runStudentRecordPurge(): void {
+  try {
+    const enabled = readSetting(KEY_AUTO_PURGE_ENABLED) === 'true'
+    if (!enabled) return
+
+    const last = parseInt(readSetting(KEY_AUTO_PURGE_LAST) || '0', 10) || 0
+    if (Date.now() < last + PURGE_PERIOD_MS) return
+
+    const r = purgeExpiredStudentRecords()
+    writeSetting(KEY_AUTO_PURGE_LAST, String(Date.now()))
+    if (r.records > 0) {
+      notifyTeacher(
+        '만료된 학생 기록 자동 파기',
+        `${r.records}건 (${r.retentionYears}년 보관 기간 경과) 자동 삭제됨.`,
+      )
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (w.isDestroyed()) continue
+        try { w.webContents.send('data:changed', 'studentrecord') } catch { /* ignore */ }
+      }
+    }
+  } catch (err) {
+    console.warn('[auto-purge] student-record failed:', err)
+  }
+}
+
 /** 앱 시작 시 1회 호출. 이후 15분마다 체크. */
 export function startBackupScheduler(): void {
   if (timer) return
   // 시작 직후 1회 — 어제 놓친 백업 보정
-  setTimeout(() => { void runOnce(); void runStudentRecordCsv() }, 10_000)
-  timer = setInterval(() => { void runOnce(); void runStudentRecordCsv() }, CHECK_INTERVAL_MS)
+  setTimeout(() => {
+    void runOnce()
+    void runStudentRecordCsv()
+    runStudentRecordPurge()
+  }, 10_000)
+  timer = setInterval(() => {
+    void runOnce()
+    void runStudentRecordCsv()
+    runStudentRecordPurge()
+  }, CHECK_INTERVAL_MS)
 }
 
 export function stopBackupScheduler(): void {

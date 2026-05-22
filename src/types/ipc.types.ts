@@ -307,6 +307,20 @@ export interface ElectronAPI {
       | { ok: true; count: number; path: string }
       | { ok: false; reason: string }
     >
+    /** 자동 보관 기간 추론 + 현재 유효 적용 연수. */
+    retentionInfo: () => Promise<{
+      auto: {
+        years: number
+        level: 'elem' | 'mid' | 'high' | 'unknown'
+        grade: number | null
+        reason: string
+      }
+      effectiveYears: number
+    }>
+    /** 보관 기간 경과한 기록 ID 목록 (UI 표시용). */
+    listExpiredIds: () => Promise<string[]>
+    /** 만료된 기록 + 로그 hard-delete. */
+    purgeExpired: () => Promise<{ records: number; logs: number; retentionYears: number }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

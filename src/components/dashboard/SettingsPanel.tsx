@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Settings, Palette, Clock, Database, Keyboard, Info, Download, Upload, Trash2, AlertTriangle, Shield, Lock, Server, Check } from 'lucide-react'
+import { Settings, Palette, Clock, Database, Keyboard, Info, Download, Upload, Trash2, AlertTriangle, Shield, Lock, Server, Check, Timer, Scale } from 'lucide-react'
 import { useAppStore } from '../../stores/app.store'
 import { useUIStore } from '../../stores/ui.store'
 import { Button } from '../ui/Button'
@@ -204,6 +204,9 @@ export function SettingsPanel() {
             {/* ── 학생 기록 자동 CSV 백업 ── */}
             <StudentRecordAutoCsvSection />
 
+            {/* ── 학생 기록 보관 기간·자동 파기 ── */}
+            <StudentRecordRetentionSection />
+
             <div style={{ borderTop: '1px solid var(--border-widget)', paddingTop: 20 }}>
               <h3 className="text-base font-semibold text-[var(--text-primary)]" style={{ marginBottom: 12 }}>
                 평문 JSON 백업 (임시용 · 학생기록 미포함)
@@ -365,6 +368,32 @@ export function SettingsPanel() {
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#047857', lineHeight: 1.55 }}>
                     SchoolDesk 는 텔레메트리·자동 동기화·클라우드 백업 기능이 없으며, 모든 데이터는 사용자의 PC 에만 로컬 저장됩니다.
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 정보처리자 구분 — 책임 분리 명시 */}
+            <div style={{
+              padding: 18, borderRadius: 14,
+              background: 'rgba(139,92,246,0.07)',
+              border: '1px solid rgba(139,92,246,0.28)',
+            }}>
+              <div className="flex items-start" style={{ gap: 12 }}>
+                <Scale size={22} color="#7C3AED" strokeWidth={2.2} style={{ marginTop: 2, flexShrink: 0 }} />
+                <div className="flex-1">
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#5B21B6', marginBottom: 6 }}>
+                    정보처리자 = 사용자 (교사·학교) · 개발사는 도구 제공자
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#5B21B6', lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+                    개인정보보호법 §2.5 상 "개인정보처리자"는 <b>업무를 목적으로 개인정보파일을 운용하는 자</b>입니다.
+                    SchoolDesk는 학생 정보를 직접 수집·저장·이용하지 않고(외부 서버 0, 모든 데이터 로컬 SQLite), 사용자가 본인 PC에서 본인 직무수행을 위해 사용하는 도구일 뿐입니다.
+                  </div>
+                  <ul style={{ marginTop: 10, paddingLeft: 16, listStyle: 'disc', fontSize: 12, color: '#5B21B6', lineHeight: 1.7 }}>
+                    <li><b>사용자(교사·학교)</b>는 정보처리자로서 학생 정보의 수집·이용·파기·안전 조치 책임을 집니다.</li>
+                    <li><b>개발사(SchoolDesk)</b>는 정보처리자가 아니며, 본 도구 사용으로 발생한 처리 결과·법적 책임을 부담하지 않습니다.</li>
+                    <li><b>공식 학생 자료</b>는 NEIS 행동발달누가기록 등 정식 시스템에 기록하고, 본 앱은 교사 직무수행 보조 메모로만 사용 권장.</li>
+                    <li><b>분쟁 또는 정식 신고 절차</b> 진행 시 학교 변호사·교육청 정보보호 담당의 검토를 받으세요.</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -682,6 +711,183 @@ function StudentRecordAutoCsvSection(): React.ReactElement {
           위 "암호화 자동 백업" 섹션에서 폴더를 먼저 지정해 주세요. 폴더가 비어 있으면 자동 CSV도 실행되지 않습니다.
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── 학생 기록 보관 기간·자동 파기 ────────────────────────────
+// auto: 학교명·학급에서 학년 추론 → 학생 성년 도달 + 공소시효 10년 자동 계산
+// fixed: 사용자가 10/15/20/25 년 선택
+// unlimited: 보관 기간 없음
+function StudentRecordRetentionSection(): React.ReactElement {
+  type Mode = 'auto' | 'fixed' | 'unlimited'
+  const [mode, setMode] = useState<Mode>('auto')
+  const [fixedYears, setFixedYears] = useState<number>(20)
+  const [autoPurge, setAutoPurge] = useState(false)
+  const [info, setInfo] = useState<{ effectiveYears: number; autoReason: string } | null>(null)
+
+  const reload = (): void => {
+    window.api.settings.get('student_record_retention_mode' as 'theme').then((v) => {
+      const raw = v as unknown
+      if (raw === 'auto' || raw === 'fixed' || raw === 'unlimited') setMode(raw)
+    }).catch(() => {})
+    window.api.settings.get('student_record_retention_years' as 'theme').then((v) => {
+      const n = parseInt(String(v ?? '20'), 10)
+      if (!isNaN(n) && n > 0) setFixedYears(n)
+    }).catch(() => {})
+    window.api.settings.get('student_record_auto_purge_enabled' as 'theme').then((v) => {
+      const raw = v as unknown
+      setAutoPurge(raw === 'true' || raw === true)
+    }).catch(() => {})
+    window.api.studentRecord.retentionInfo()
+      .then((r) => setInfo({ effectiveYears: r.effectiveYears, autoReason: r.auto.reason }))
+      .catch(() => {})
+  }
+  useEffect(() => { reload() }, [])
+
+  const saveMode = async (next: Mode): Promise<void> => {
+    await window.api.settings.set('student_record_retention_mode' as 'theme', next as never)
+    setMode(next)
+    setTimeout(reload, 80)
+  }
+  const saveFixedYears = async (years: number): Promise<void> => {
+    await window.api.settings.set('student_record_retention_years' as 'theme', String(years) as never)
+    setFixedYears(years)
+    setTimeout(reload, 80)
+  }
+  const saveAutoPurge = async (next: boolean): Promise<void> => {
+    await window.api.settings.set('student_record_auto_purge_enabled' as 'theme', String(next) as never)
+    setAutoPurge(next)
+  }
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        padding: 18, gap: 14, borderRadius: 14,
+        background: 'var(--bg-widget)',
+        border: '1px solid var(--border-widget)',
+      }}
+    >
+      <div className="flex items-start" style={{ gap: 12 }}>
+        <Scale size={18} strokeWidth={2.2} style={{ color: '#0EA5E9', marginTop: 2, flexShrink: 0 }} />
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 14.5, letterSpacing: '-0.2px' }}>
+            학생 기록 보관 기간 · 자동 파기
+          </div>
+          <div className="text-[var(--text-muted)]" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.55, letterSpacing: '-0.2px' }}>
+            아동학대처벌법 §34 (공소시효는 학생 성년 도달부터 시작)을 고려해, 작성 시점 기준으로 보관 기간이 지나면 만료 표시됩니다.
+            만료 기록은 학생 기록 화면 헤더의 "만료 N건 정리" 버튼으로 일괄 파기 가능.
+          </div>
+        </div>
+      </div>
+
+      {/* 모드 선택 */}
+      <div className="flex flex-wrap" style={{ gap: 8 }}>
+        {([
+          { id: 'auto', label: '자동 (학년 기반)', desc: '학교/학급 정보에서 추론' },
+          { id: 'fixed', label: '고정 (직접 선택)', desc: '아래 연수 선택' },
+          { id: 'unlimited', label: '무제한', desc: '만료 없음' },
+        ] as { id: Mode; label: string; desc: string }[]).map((opt) => {
+          const active = mode === opt.id
+          return (
+            <button
+              key={opt.id}
+              onClick={() => saveMode(opt.id)}
+              className="flex flex-col items-start transition-all"
+              style={{
+                padding: '10px 14px',
+                borderRadius: 11,
+                background: active
+                  ? 'linear-gradient(135deg, rgba(14,165,233,0.14) 0%, rgba(2,132,199,0.20) 100%)'
+                  : 'var(--bg-secondary)',
+                border: active ? '1.5px solid #0284C7' : '1.5px solid var(--border-widget)',
+                color: active ? '#0369A1' : 'var(--text-secondary)',
+                minWidth: 150,
+                letterSpacing: '-0.2px',
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 800 }}>{opt.label}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.8, marginTop: 2 }}>{opt.desc}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {mode === 'fixed' && (
+        <div className="flex items-center" style={{ gap: 8 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 700, letterSpacing: '-0.2px' }}>
+            보관 기간
+          </span>
+          {[10, 15, 20, 25].map((y) => {
+            const active = fixedYears === y
+            return (
+              <button
+                key={y}
+                onClick={() => saveFixedYears(y)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  fontSize: 12, fontWeight: 800, letterSpacing: '-0.2px',
+                  background: active ? '#0284C7' : 'var(--bg-secondary)',
+                  color: active ? '#fff' : 'var(--text-secondary)',
+                  border: active ? 'none' : '1px solid var(--border-widget)',
+                }}
+              >
+                {y}년
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 현재 적용 정보 */}
+      {info && (
+        <div
+          style={{
+            padding: '10px 13px', borderRadius: 11,
+            background: 'rgba(2,132,199,0.07)',
+            border: '1px solid rgba(2,132,199,0.22)',
+            fontSize: 12, color: '#0C4A6E', letterSpacing: '-0.2px', lineHeight: 1.55,
+          }}
+        >
+          <b style={{ fontWeight: 800 }}>현재 적용:</b> {info.effectiveYears === 0 ? '무제한 (만료 없음)' : `${info.effectiveYears}년`}
+          {mode === 'auto' && (
+            <span className="block" style={{ marginTop: 2, fontSize: 11.5, color: '#075985' }}>
+              {info.autoReason}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 자동 파기 토글 */}
+      <div className="flex items-start justify-between" style={{ gap: 16 }}>
+        <div className="flex items-start" style={{ gap: 11 }}>
+          <Timer size={16} strokeWidth={2.4} style={{ color: '#B45309', marginTop: 2, flexShrink: 0 }} />
+          <div className="min-w-0">
+            <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 13.5, letterSpacing: '-0.2px' }}>
+              만료된 기록 자동 파기
+            </div>
+            <div className="text-[var(--text-muted)]" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.55, letterSpacing: '-0.2px' }}>
+              <b>기본 OFF (권장)</b> — 실수 삭제 방지를 위해 보통은 사용자가 직접 "만료 N건 정리" 버튼을 눌러 파기합니다.
+              ON 시 매일 1회 만료된 기록을 자동 hard-delete 합니다.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => saveAutoPurge(!autoPurge)}
+          className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${
+            autoPurge ? 'bg-amber-500' : 'bg-[var(--text-muted)]'
+          }`}
+          style={{ marginTop: 4 }}
+        >
+          <div
+            className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
+              autoPurge ? 'left-6' : 'left-1'
+            }`}
+          />
+        </button>
+      </div>
     </div>
   )
 }

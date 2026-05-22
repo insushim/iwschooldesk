@@ -68,6 +68,7 @@ export function StudentRecordManager(): React.ReactElement {
   const [editTag, setEditTag] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [exportToast, setExportToast] = useState<string | null>(null)
+  const [schoolMoveGuideOpen, setSchoolMoveGuideOpen] = useState(false)
 
   const unlockInputRef = useRef<HTMLInputElement>(null)
 
@@ -547,6 +548,14 @@ export function StudentRecordManager(): React.ReactElement {
               <Download size={13} strokeWidth={2.4} /> 증거 내보내기
             </button>
             <button
+              onClick={() => setSchoolMoveGuideOpen(true)}
+              className="flex items-center justify-center hover:bg-[var(--bg-secondary)] transition-colors"
+              style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid rgba(234,88,12,0.30)', color: '#C2410C' }}
+              title="학교/PC 이동 시 안내 — 이전 학교 기록은 어떻게 보관할까?"
+            >
+              <Building2 size={13} strokeWidth={2.4} />
+            </button>
+            <button
               onClick={() => setChangePwOpen(true)}
               className="flex items-center justify-center hover:bg-[var(--bg-secondary)] transition-colors text-[var(--text-muted)]"
               style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid var(--border-widget)' }}
@@ -968,6 +977,13 @@ export function StudentRecordManager(): React.ReactElement {
             <ChangePasswordPanel onClose={() => setChangePwOpen(false)} />
           )}
         </AnimatePresence>
+
+        {/* 학교/PC 이동 안내 모달 */}
+        <AnimatePresence>
+          {schoolMoveGuideOpen && (
+            <SchoolMoveGuideModal onClose={() => setSchoolMoveGuideOpen(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -1045,6 +1061,137 @@ function ChangePasswordPanel({ onClose }: { onClose: () => void }) {
           }}
         >
           변경
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── 학교/PC 이동 안내 모달 ─────────────────────────────────
+// 잠금 해제된 메인 화면에서 헤더의 Building2 버튼으로 열림.
+// 잠금 화면 가이드의 "학교 옮길 때" 박스와 동일 톤·내용.
+function SchoolMoveGuideModal({ onClose }: { onClose: () => void }): React.ReactElement {
+  const steps: { icon: typeof Download; text: string }[] = [
+    { icon: Download, text: '이동 직전 마지막 "증거 내보내기" 1회 실행 — 시점 고정 (JSON + 증명서 + .ots)' },
+    { icon: Save, text: '내보낸 폴더 + 자동 백업 폴더 + DB 파일(school-desk.db) 통째로 본인 USB·외장하드에 복사' },
+    { icon: Lock, text: 'BitLocker(Win) / FileVault(Mac) / VeraCrypt 로 USB 암호화 보관' },
+    { icon: ShieldCheck, text: '새 PC는 SchoolDesk 새로 설치 → 빈 상태로 시작 (이전 학생 정보 가져가지 X)' },
+    { icon: Scale, text: '나중에 그 학교 시절 분쟁이 생기면 보관함에서 꺼내 제출 — 해시체인·OTS 그대로라 시점 입증' },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="absolute inset-0 z-40 flex items-center justify-center"
+      style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.div
+        initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }}
+        className="flex flex-col"
+        style={{
+          padding: 24, maxWidth: 520, width: '92%', maxHeight: '85vh', overflowY: 'auto',
+          gap: 14, borderRadius: 18,
+          background: 'var(--bg-widget)',
+          boxShadow: '0 24px 56px rgba(15,23,42,0.32)',
+          border: '1px solid rgba(15,23,42,0.08)',
+        }}
+      >
+        {/* 헤더 */}
+        <div className="flex items-start" style={{ gap: 12 }}>
+          <span
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 40, height: 40, borderRadius: 12,
+              background: 'linear-gradient(135deg, #EA580C 0%, #C2410C 100%)',
+              color: '#fff',
+              boxShadow: '0 8px 20px rgba(234,88,12,0.32)',
+            }}
+          >
+            <Building2 size={20} strokeWidth={2.4} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 16, letterSpacing: '-0.3px' }}>
+              학교 옮길 때 · PC 옮길 때
+            </div>
+            <div className="text-[var(--text-muted)]" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.55, letterSpacing: '-0.2px' }}>
+              이전 학교 학생 기록을 새 학교 PC로 옮기지 마세요. 본인 보관함에 안전하게 두고 분쟁 시 꺼내 제출하는 게 맞습니다.
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* 왜 그래야 하는가 */}
+        <div
+          style={{
+            padding: '11px 13px', borderRadius: 11,
+            background: 'rgba(245,158,11,0.10)',
+            border: '1px solid rgba(245,158,11,0.30)',
+            fontSize: 12, color: '#78350F', lineHeight: 1.6, letterSpacing: '-0.2px',
+          }}
+        >
+          <div style={{ fontWeight: 800, color: '#92400E', marginBottom: 4 }}>왜 이렇게 해야 하나요?</div>
+          개인정보보호법 §15·22에 따라 수집 목적이 끝나면 지체 없이 파기·분리 보관해야 합니다.
+          이전 학교 학생들의 정보처리자는 그 학교지, 옮긴 학교가 아니에요.
+          그래도 분쟁이 생길 수 있으니 — <b>본인이 안전한 보관함에 분리 보관</b>해 두는 게 정답입니다.
+        </div>
+
+        {/* 5단계 */}
+        <div className="flex flex-col" style={{ gap: 8 }}>
+          {steps.map((s, i) => (
+            <div
+              key={i}
+              className="flex items-start"
+              style={{
+                gap: 10, padding: '10px 12px', borderRadius: 11,
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-widget)',
+              }}
+            >
+              <span
+                className="flex items-center justify-center shrink-0"
+                style={{
+                  width: 26, height: 26, borderRadius: 8,
+                  background: 'rgba(234,88,12,0.14)',
+                  color: '#EA580C',
+                  fontSize: 11, fontWeight: 900,
+                }}
+              >
+                {i + 1}
+              </span>
+              <s.icon size={13} strokeWidth={2.4} style={{ color: '#C2410C', flexShrink: 0, marginTop: 5 }} />
+              <span style={{ fontSize: 12.5, color: 'var(--text-primary)', letterSpacing: '-0.2px', lineHeight: 1.6 }}>
+                {s.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* 핵심 메시지 */}
+        <div
+          style={{
+            padding: '11px 13px', borderRadius: 11,
+            background: 'rgba(139,92,246,0.08)',
+            border: '1px solid rgba(139,92,246,0.28)',
+            fontSize: 12, color: '#5B21B6', lineHeight: 1.6, letterSpacing: '-0.2px',
+          }}
+        >
+          <b style={{ fontWeight: 800 }}>핵심:</b> 해시체인과 .ots는 파일을 옮겨도 그대로 유효합니다.
+          USB에 보관해 두었다가 몇 년 후에 제출해도 "그 시점의 기록이 변조되지 않았다"가 시점적으로 증명됩니다.
+        </div>
+
+        <button
+          onClick={onClose}
+          className="font-bold mt-2"
+          style={{
+            padding: '11px', borderRadius: 11, fontSize: 13.5,
+            background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+            color: '#fff', boxShadow: '0 6px 18px rgba(139,92,246,0.32)',
+            letterSpacing: '-0.2px',
+          }}
+        >
+          확인했어요
         </button>
       </motion.div>
     </motion.div>
@@ -1217,6 +1364,43 @@ function CourtEvidenceGuide(): React.ReactElement {
             그래도 "사후에 만든 기록이 아니다"를 시점적으로 증명하는 <u>매우 강력한 보조 증거</u>입니다.
             학교장 결재·정기 백업·공증을 더하면 실제 법정에서 충분한 가치가 있습니다.
           </div>
+        </div>
+      </div>
+
+      {/* 학교/PC 이동 시 워크플로우 (개인정보보호법 + 분쟁 대비) */}
+      <div
+        className="flex flex-col"
+        style={{
+          gap: 8, padding: '12px 14px', borderRadius: 12,
+          background: 'rgba(234,88,12,0.07)',
+          border: '1px solid rgba(234,88,12,0.28)',
+        }}
+      >
+        <div className="flex items-center" style={{ gap: 8 }}>
+          <Building2 size={14} strokeWidth={2.4} style={{ color: '#C2410C' }} />
+          <span className="font-bold" style={{ fontSize: 12.5, color: '#9A3412', letterSpacing: '-0.2px' }}>
+            학교 옮길 때 · PC 옮길 때
+          </span>
+        </div>
+        <div style={{ fontSize: 11.5, color: '#7C2D12', lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+          이전 학교 학생 기록을 <b>새 학교 PC로 옮기지 마세요</b>. 개인정보보호법상 학교 종료 시 분리 보관이 원칙입니다.
+          대신 본인 USB·외장하드에 보관해 두고 분쟁 발생 시 꺼내서 제출하면 됩니다.
+        </div>
+        <div className="flex flex-col" style={{ gap: 6, marginTop: 2 }}>
+          {[
+            { Icon: Download, text: '① 이동 직전 마지막 "증거 내보내기" 1회 — 시점 고정' },
+            { Icon: Save,     text: '② JSON·증명서·.ots·자동 CSV 폴더 + DB 파일(school-desk.db) 통째로 본인 USB/외장하드에 복사' },
+            { Icon: Lock,     text: '③ BitLocker(Win)/FileVault(Mac) 또는 VeraCrypt로 USB 암호화 보관' },
+            { Icon: ShieldCheck, text: '④ 새 PC는 SchoolDesk 새로 설치 → 빈 상태로 시작 (이전 학생 정보 가져가지 X)' },
+            { Icon: Scale,    text: '⑤ 나중에 그 학교 시절 분쟁이 생기면 보관함에서 꺼내 제출 — 해시체인·OTS 그대로라 시점 입증' },
+          ].map((c, i) => (
+            <div key={i} className="flex items-start" style={{ gap: 8 }}>
+              <c.Icon size={12} strokeWidth={2.4} style={{ color: '#EA580C', flexShrink: 0, marginTop: 2 }} />
+              <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', letterSpacing: '-0.2px', lineHeight: 1.55 }}>
+                {c.text}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

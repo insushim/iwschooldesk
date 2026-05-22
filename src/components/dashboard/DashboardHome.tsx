@@ -15,6 +15,8 @@ import {
   X,
   Check,
   UserCheck,
+  Repeat,
+  Flame,
 } from 'lucide-react'
 import { isSectionLine } from '../../lib/section-parser'
 import { GREETING, CATEGORY_COLORS } from '../../lib/constants'
@@ -495,6 +497,43 @@ export function DashboardHome() {
   const [newDdayDate, setNewDdayDate] = useState('')
   const [newDdayEmoji, setNewDdayEmoji] = useState('📅')
 
+  // 루틴·습관 — 홈 카드용. mini progress 표시.
+  const [routineCards, setRoutineCards] = useState<Array<{
+    id: string; title: string; icon: string; color: string; done: number; total: number
+  }>>([])
+  const [habitCards, setHabitCards] = useState<Array<{
+    id: string; title: string; icon: string; today_done: boolean; streak_current: number
+  }>>([])
+  const reloadRoutineCards = useCallback(() => {
+    window.api.routine.list().then(async (rs) => {
+      const cards = await Promise.all(
+        rs.map(async (r) => {
+          const items = await window.api.routine.getItems(r.id, todayStr).catch(() => [])
+          return {
+            id: r.id,
+            title: r.title,
+            icon: r.icon,
+            color: r.color,
+            done: items.filter((it) => it.is_completed === 1).length,
+            total: items.length,
+          }
+        }),
+      )
+      setRoutineCards(cards)
+    }).catch(() => setRoutineCards([]))
+  }, [todayStr])
+  const reloadHabitCards = useCallback(() => {
+    window.api.habit.listWithStats(todayStr).then((hs) => {
+      setHabitCards(hs.map((h) => ({
+        id: h.id, title: h.title, icon: h.icon,
+        today_done: h.today_done, streak_current: h.streak_current,
+      })))
+    }).catch(() => setHabitCards([]))
+  }, [todayStr])
+  useEffect(() => { reloadRoutineCards(); reloadHabitCards() }, [reloadRoutineCards, reloadHabitCards])
+  useDataChange('routine', reloadRoutineCards)
+  useDataChange('habit', reloadHabitCards)
+
   // D-Day + 달력 7일 이내 일정 통합 reload. DDayWidget 과 동일 정책으로 동기화.
   const reloadDdayData = useCallback(() => {
     window.api.dday.list().then((data) => setDdays(data.filter((d) => d.is_active))).catch(() => {})
@@ -649,11 +688,14 @@ export function DashboardHome() {
         })}
       </motion.div>
 
-      {/* ─── 메인 그리드 — 3x2 균일 격자 (모든 카드 같은 높이) ─── */}
-      <div className="grid grid-cols-3 grid-rows-2 gap-4 flex-1 min-h-0">
+      {/* ─── 메인 그리드 — 6cols × 3rows (8 카드, 마지막 행 루틴·습관) ─── */}
+      <div
+        className="grid grid-cols-6 gap-4 flex-1 min-h-0"
+        style={{ gridTemplateRows: 'repeat(3, minmax(200px, 1fr))' }}
+      >
 
         {/* [행1·열1] 오늘 시간표 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Timer size={15} className="text-[var(--accent)]" />
@@ -679,7 +721,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행1·열2] 오늘 일정 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <CalendarDays size={15} className="text-[var(--accent)]" />
@@ -715,12 +757,12 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행1·열3] 미니 달력 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
           <MiniCalendar schedules={monthSchedules.map((s) => ({ start_date: s.start_date, color: s.color }))} />
         </motion.div>
 
         {/* [행2·열1] D-Day */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <Target size={15} style={{ color: '#EF4444' }} />
@@ -772,7 +814,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행2·열2] 할 일 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <ListTodo size={15} style={{ color: '#F97316' }} />
@@ -859,7 +901,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행2·열3] 체크리스트 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <BookOpen size={15} style={{ color: '#10B981' }} />
@@ -879,6 +921,126 @@ export function DashboardHome() {
               <div className="flex flex-col" style={{ gap: 8 }}>
                 {checklists.filter((c) => !c.is_template).slice(0, 6).map((c) => (
                   <ChecklistProgress key={c.id} checklistId={c.id} title={c.title} />
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* [행3·왼쪽] 루틴 */}
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-3">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <Repeat size={15} style={{ color: '#8B5CF6' }} />
+              <h2 className="text-base font-bold text-[var(--text-primary)]">루틴</h2>
+            </div>
+            <button onClick={() => setView('routines')} className="text-xs text-[var(--text-muted)] hover:text-[var(--accent)] flex items-center gap-0.5">
+              관리 <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {routineCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
+                <Repeat size={28} strokeWidth={1.2} className="mb-2 opacity-25" />
+                <p className="text-xs">루틴이 없어요</p>
+              </div>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                {routineCards.slice(0, 6).map((r) => {
+                  const pct = r.total > 0 ? Math.round((r.done / r.total) * 100) : 0
+                  const isDone = r.total > 0 && r.done === r.total
+                  return (
+                    <div key={r.id} className="flex items-center" style={{ gap: 10 }}>
+                      <span className="shrink-0" style={{ fontSize: 15, lineHeight: 1 }}>{r.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1" style={{ gap: 8 }}>
+                          <span className="truncate text-[var(--text-primary)]" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '-0.2px' }}>
+                            {r.title}
+                          </span>
+                          <span className="tabular-nums shrink-0" style={{ fontSize: 11, fontWeight: 700, color: isDone ? '#10B981' : 'var(--text-muted)' }}>
+                            {r.done}/{r.total}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              background: isDone
+                                ? 'linear-gradient(90deg, #10B981 0%, #047857 100%)'
+                                : `linear-gradient(90deg, ${r.color || '#8B5CF6'} 0%, ${r.color || '#6D28D9'} 100%)`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* [행3·오른쪽] 습관 */}
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-3">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <Flame size={15} style={{ color: '#F97316' }} />
+              <h2 className="text-base font-bold text-[var(--text-primary)]">습관</h2>
+              {habitCards.length > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(249,115,22,0.15)', color: '#C2410C' }}>
+                  오늘 {habitCards.filter((h) => h.today_done).length}/{habitCards.length}
+                </span>
+              )}
+            </div>
+            <button onClick={() => setView('habits')} className="text-xs text-[var(--text-muted)] hover:text-[var(--accent)] flex items-center gap-0.5">
+              관리 <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {habitCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
+                <Flame size={28} strokeWidth={1.2} className="mb-2 opacity-25" />
+                <p className="text-xs">습관이 없어요</p>
+              </div>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 6 }}>
+                {habitCards.slice(0, 6).map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => window.api.habit.toggleToday(h.id, todayStr).then(reloadHabitCards)}
+                    title={h.today_done ? '오늘 체크 해제' : '오늘 체크'}
+                    className="flex items-center text-left transition-all hover:bg-[var(--bg-secondary)]"
+                    style={{
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      background: h.today_done ? 'rgba(249,115,22,0.08)' : 'transparent',
+                      border: h.today_done ? '1px solid rgba(249,115,22,0.22)' : '1px solid transparent',
+                    }}
+                  >
+                    <span
+                      className="shrink-0 flex items-center justify-center"
+                      style={{
+                        width: 22, height: 22, borderRadius: 999,
+                        border: `1.8px solid ${h.today_done ? '#F97316' : 'var(--text-muted)'}`,
+                        background: h.today_done ? 'linear-gradient(135deg, #F97316 0%, #C2410C 100%)' : 'transparent',
+                        color: '#fff',
+                      }}
+                    >
+                      {h.today_done && <Check size={12} strokeWidth={3} />}
+                    </span>
+                    <span style={{ fontSize: 14, lineHeight: 1 }}>{h.icon}</span>
+                    <span className="flex-1 min-w-0 truncate text-[var(--text-primary)]" style={{ fontSize: 12.5, fontWeight: h.today_done ? 700 : 600, letterSpacing: '-0.2px' }}>
+                      {h.title}
+                    </span>
+                    {h.streak_current > 0 && (
+                      <span className="shrink-0 flex items-center tabular-nums" style={{ gap: 3, fontSize: 11, fontWeight: 800, color: '#F97316' }}>
+                        <Flame size={11} strokeWidth={2.6} />
+                        {h.streak_current}일
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
             )}

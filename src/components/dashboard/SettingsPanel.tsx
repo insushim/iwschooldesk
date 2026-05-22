@@ -631,6 +631,9 @@ function StudentRecordAutoCsvSection(): React.ReactElement {
               위에서 지정한 자동 백업 폴더 안의 <code style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-secondary)', fontSize: 11 }}>student-records/</code> 하위에 매주 한 번 학생 기록 CSV가 자동 저장됩니다.
               잠금 상태와 무관하게 동작하고, 시점이 매주 분산되어 사후 조작 부인 보강용으로 매우 유용합니다.
               <b className="text-[var(--text-primary)]"> 결정적 증거가 필요한 사건은 별도로 "증거 내보내기"를 수동 실행</b>해 주세요.
+              <span className="block" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--text-muted)' }}>
+                백업 파일은 자동으로 지우지 않고 <b>전부 누적 보관</b>합니다 (학생 기록 본체는 항상 DB에 그대로 있어요).
+              </span>
             </div>
           </div>
         </div>

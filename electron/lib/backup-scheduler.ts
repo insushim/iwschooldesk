@@ -170,17 +170,9 @@ async function runStudentRecordCsv(): Promise<void> {
     const target = path.join(subDir, name)
     fs.writeFileSync(target, csv, 'utf8')
 
-    // 오래된 자동 CSV 정리 — 최신 52개(약 1년) 보관
-    try {
-      const files = fs
-        .readdirSync(subDir)
-        .filter((f) => /^학생기록_.*\.csv$/i.test(f))
-        .map((f) => ({ f, full: path.join(subDir, f), mtime: fs.statSync(path.join(subDir, f)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime)
-      for (const old of files.slice(52)) {
-        try { fs.unlinkSync(old.full) } catch { /* ignore */ }
-      }
-    } catch { /* ignore */ }
+    // 백업 CSV는 무제한 보관 — 시점 분산이 길수록 사후 조작 부인 보강이 강력해짐.
+    // 한 폴더 5000개+(약 100년) 누적되면 파일 시스템 탐색이 느려질 수 있지만 그때까지는 무리 없음.
+    // 디스크 용량: 기록 1000건 가정 시 CSV ~300KB → 10년 누적 ~160MB.
 
     writeSetting(KEY_STUDENT_CSV_LAST, String(Date.now()))
     notifyTeacher('학생 기록 CSV 자동 백업 완료', `${name} (${Math.round(Buffer.byteLength(csv, 'utf8') / 1024)} KB)`)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Plus, Trash2, Repeat, Flame, Check, Pencil, X as XIcon } from 'lucide-react'
-import type { Routine, RoutineItemWithStatus } from '../../types/routine.types'
+import type { Routine, RoutineItemWithStatus, RoutineKind } from '../../types/routine.types'
 import { cn } from '../../lib/utils'
 
 const ACCENT = '#8B5CF6'
@@ -16,8 +16,17 @@ function ymdAddDays(ymd: string, n: number): string {
 
 /** 루틴 관리 대시보드.
  *  좌측: 루틴 리스트 (선택)
- *  우측: 선택 루틴의 항목 관리 + 30일 히트맵 + 통계 */
-export function RoutineManager(): React.ReactElement {
+ *  우측: 선택 루틴의 항목 관리 + 30일 히트맵 + 통계
+ *
+ *  kind prop으로 personal(개인 루틴) / classroom(학급 체크) 분기.
+ *  사이드바에서 '루틴' 메뉴는 personal, '학급 체크' 메뉴는 classroom 으로 들어옴.
+ */
+export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {}): React.ReactElement {
+  const isClassroom = kind === 'classroom'
+  const labels = isClassroom
+    ? { plural: '학급 체크', singular: '체크', placeholder: '새 학급 체크 (예: 아침 출석)', itemPlaceholder: '새 학생/항목 (예: 김민준)' }
+    : { plural: '루틴', singular: '루틴', placeholder: '새 루틴 (예: 양치 한 사람)', itemPlaceholder: '새 항목 (예: 책상 정리)' }
+
   const [routines, setRoutines] = useState<Routine[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [items, setItems] = useState<RoutineItemWithStatus[]>([])
@@ -39,12 +48,16 @@ export function RoutineManager(): React.ReactElement {
   }, [today])
 
   const reloadRoutines = useCallback(() => {
-    window.api.routine.list().then((rs) => {
+    window.api.routine.list(kind).then((rs) => {
       setRoutines(rs)
       setSelectedId((cur) => cur ?? rs[0]?.id ?? null)
     })
-  }, [])
-  useEffect(() => { reloadRoutines() }, [reloadRoutines])
+  }, [kind])
+  useEffect(() => {
+    // kind 변경 시 선택 초기화 + 재로드
+    setSelectedId(null)
+    reloadRoutines()
+  }, [kind, reloadRoutines])
 
   // 선택 변경 시 items + 30일 completions 재조회
   useEffect(() => {
@@ -82,7 +95,7 @@ export function RoutineManager(): React.ReactElement {
   const addRoutine = async () => {
     const t = newRoutineTitle.trim()
     if (!t) return
-    const r = await window.api.routine.create({ title: t })
+    const r = await window.api.routine.create({ title: t, kind })
     setNewRoutineTitle('')
     setRoutines((prev) => [...prev, r])
     setSelectedId(r.id)
@@ -132,14 +145,14 @@ export function RoutineManager(): React.ReactElement {
       <div className="shrink-0 flex flex-col" style={{ width: 280, borderRight: '1px solid var(--border-widget)', padding: 16 }}>
         <div className="flex items-center gap-2 mb-3">
           <Repeat size={16} strokeWidth={2.4} style={{ color: ACCENT }} />
-          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: 14 }}>루틴 목록</h2>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: 14 }}>{labels.plural} 목록</h2>
         </div>
         <div className="flex gap-1.5 mb-3">
           <input
             value={newRoutineTitle}
             onChange={(e) => setNewRoutineTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addRoutine() }}
-            placeholder="새 루틴 이름"
+            placeholder={labels.placeholder}
             className="flex-1 h-8 rounded-md border border-[var(--border-widget)] bg-[var(--bg-widget)] px-2 text-xs text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
           <button
@@ -246,7 +259,7 @@ export function RoutineManager(): React.ReactElement {
                   value={newItemContent}
                   onChange={(e) => setNewItemContent(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') addItem() }}
-                  placeholder="새 항목 (예: 책상 정리)"
+                  placeholder={labels.itemPlaceholder}
                   className="flex-1 h-9 rounded-md border border-[var(--border-widget)] bg-[var(--bg-widget)] px-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
                 <button

@@ -45,6 +45,9 @@ import {
   GraduationCap, CalendarCheck, ShieldCheck, Utensils, Megaphone, CloudSun,
 } from 'lucide-react'
 
+const ClassCheckManager = (): React.ReactElement => <RoutineManager kind="classroom" />
+const PersonalRoutineManager = (): React.ReactElement => <RoutineManager kind="personal" />
+
 const views = {
   home: DashboardHome,
   calendar: CalendarView,
@@ -52,7 +55,8 @@ const views = {
   memos: MemoGrid,
   timetable: TimetableEditor,
   checklists: ChecklistManager,
-  routines: RoutineManager,
+  routines: PersonalRoutineManager,
+  classcheck: ClassCheckManager,
   habits: HabitManager,
   studentrecord: StudentRecordManager,
   widgets: WidgetLauncher,

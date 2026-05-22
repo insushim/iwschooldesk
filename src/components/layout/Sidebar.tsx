@@ -1,4 +1,4 @@
-import { Home, Calendar, CheckSquare, StickyNote, Table, ListChecks, LayoutGrid, BarChart3, Settings, Moon, Sun, PanelLeftClose, PanelLeft, Repeat, Flame, ShieldCheck } from 'lucide-react'
+import { Home, Calendar, CheckSquare, StickyNote, Table, ListChecks, LayoutGrid, BarChart3, Settings, Moon, Sun, PanelLeftClose, PanelLeft, Repeat, Flame, ShieldCheck, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useUIStore, type ViewType } from '../../stores/ui.store'
 import { useTheme } from '../../hooks/useTheme'
@@ -12,6 +12,7 @@ const navItems: { view: ViewType; icon: typeof Home; label: string }[] = [
   { view: 'timetable', icon: Table, label: '시간표' },
   { view: 'checklists', icon: ListChecks, label: '체크리스트' },
   { view: 'routines', icon: Repeat, label: '루틴' },
+  { view: 'classcheck', icon: Users, label: '학급 체크' },
   { view: 'habits', icon: Flame, label: '습관' },
   { view: 'studentrecord', icon: ShieldCheck, label: '학생 기록' },
   { view: 'widgets', icon: LayoutGrid, label: '바탕화면 위젯' },

@@ -19,6 +19,7 @@ import { getSetting, setSetting } from '../database/repositories/settings.repo'
 import { secureGet, secureHas } from './secure-storage'
 import { buildBackupPayload } from './backup'
 import { encryptBackup } from './crypto'
+import { buildRecordsCsv } from '../database/repositories/student-record.repo'
 
 type Frequency = 'off' | 'daily' | 'weekly'
 
@@ -32,13 +33,14 @@ const SEC_MNEMONIC = 'backup.mnemonic'
 const SEC_PASSWORD = 'backup.password'
 
 function readSetting(key: string): string {
-  const v = getSetting(key) as unknown
+  // settings 테이블은 임의 키를 허용하지만 타입은 keyof AppSettings 로 좁혀져 있어 cast.
+  const v = getSetting(key as Parameters<typeof getSetting>[0]) as unknown
   if (typeof v === 'string') return v
   return ''
 }
 
 function writeSetting(key: string, value: string): void {
-  setSetting(key, value as unknown as string)
+  setSetting(key as Parameters<typeof setSetting>[0], value as never)
 }
 
 function frequencyMs(f: Frequency): number {
@@ -132,12 +134,67 @@ function pruneOldAutoBackups(folder: string, keep: number): void {
   } catch { /* ignore */ }
 }
 
+/* ─── 학생 기록 자동 CSV 백업 ───────────────────────────────
+ * 매주 1회, 같은 자동 백업 폴더의 'student-records/' 하위에 CSV 한 파일을 떨군다.
+ * 잠금 상태와 무관하게 동작(서버 측에서 DB 직접 읽음, 비밀번호는 화면 표시용).
+ *
+ * 신뢰도: 자동이라 작성자 의도 없이 떨어진 파일이지만, 시점은 객관적.
+ *   - "사후 조작이 아님"을 시점 분산으로 입증하는 보강용
+ *   - 결정적 증거는 여전히 수동 "증거 내보내기" (JSON + 해시체인 + .ots)
+ */
+const KEY_STUDENT_CSV_ENABLED = 'student_record_auto_csv_enabled'
+const KEY_STUDENT_CSV_LAST = 'student_record_auto_csv_last'
+const STUDENT_CSV_PERIOD_MS = 7 * 24 * 60 * 60 * 1000 // 매주
+
+async function runStudentRecordCsv(): Promise<void> {
+  try {
+    const enabled = readSetting(KEY_STUDENT_CSV_ENABLED) === 'true'
+    if (!enabled) return
+    const folder = readSetting(KEY_FOLDER)
+    if (!folder || !isUsableFolder(folder)) return
+
+    const last = parseInt(readSetting(KEY_STUDENT_CSV_LAST) || '0', 10) || 0
+    if (Date.now() < last + STUDENT_CSV_PERIOD_MS) return
+
+    const csv = buildRecordsCsv()
+    if (!csv || csv.split('\r\n').length <= 2) {
+      // 기록이 전혀 없으면 빈 CSV 굳이 안 떨굼 — 다만 마지막 실행 시각은 갱신해
+      // 다음 주에 다시 시도(매번 0건 백업 알림이 뜨지 않도록).
+      writeSetting(KEY_STUDENT_CSV_LAST, String(Date.now()))
+      return
+    }
+
+    const subDir = path.join(folder, 'student-records')
+    fs.mkdirSync(subDir, { recursive: true })
+    const name = `학생기록_${new Date().toISOString().slice(0, 10)}.csv`
+    const target = path.join(subDir, name)
+    fs.writeFileSync(target, csv, 'utf8')
+
+    // 오래된 자동 CSV 정리 — 최신 52개(약 1년) 보관
+    try {
+      const files = fs
+        .readdirSync(subDir)
+        .filter((f) => /^학생기록_.*\.csv$/i.test(f))
+        .map((f) => ({ f, full: path.join(subDir, f), mtime: fs.statSync(path.join(subDir, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime)
+      for (const old of files.slice(52)) {
+        try { fs.unlinkSync(old.full) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+
+    writeSetting(KEY_STUDENT_CSV_LAST, String(Date.now()))
+    notifyTeacher('학생 기록 CSV 자동 백업 완료', `${name} (${Math.round(Buffer.byteLength(csv, 'utf8') / 1024)} KB)`)
+  } catch (err) {
+    console.warn('[auto-backup] student-record CSV failed:', err)
+  }
+}
+
 /** 앱 시작 시 1회 호출. 이후 15분마다 체크. */
 export function startBackupScheduler(): void {
   if (timer) return
   // 시작 직후 1회 — 어제 놓친 백업 보정
-  setTimeout(() => { void runOnce() }, 10_000)
-  timer = setInterval(() => { void runOnce() }, CHECK_INTERVAL_MS)
+  setTimeout(() => { void runOnce(); void runStudentRecordCsv() }, 10_000)
+  timer = setInterval(() => { void runOnce(); void runStudentRecordCsv() }, CHECK_INTERVAL_MS)
 }
 
 export function stopBackupScheduler(): void {

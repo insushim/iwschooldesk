@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   BarChart3, TrendingUp, Award, Clock, NotebookPen, CheckCheck,
-  Repeat, Flame, ShieldCheck, ListTodo, CheckCircle2, Lock,
+  Repeat, Flame, ShieldCheck, ListTodo, CheckCircle2, Lock, Users,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Task } from '../../types/task.types'
@@ -28,6 +28,7 @@ type ChecklistAgg = {
 type RoutineAgg = {
   id: string
   name: string
+  kind: 'personal' | 'classroom'
   itemCount: number
   todayDone: number
   totalCompletions: number
@@ -131,6 +132,7 @@ export function StatisticsView() {
             return {
               id: r.id,
               name: r.title,
+              kind: r.kind,
               itemCount: items.length,
               todayDone,
               totalCompletions: completions.length,
@@ -304,7 +306,8 @@ export function StatisticsView() {
         <SummaryCard icon={TrendingUp} label="일일 평균 완료" value={`${taskStats.avgDaily}건`} accent="#3B82F6" sub="이번 달 기준" />
         <SummaryCard icon={NotebookPen} label="메모" value={`${memoCount}개`} accent="#F59E0B" sub={`이번 달 ${memoThisMonth}개 작성`} />
         <SummaryCard icon={CheckCheck} label="체크리스트" value={`${checklists.length}개`} accent="#0EA5E9" sub={`항목 ${checklists.reduce((s, c) => s + c.total, 0)}개`} />
-        <SummaryCard icon={Repeat} label="루틴" value={`${routines.length}개`} accent="#8B5CF6" sub={`오늘 체크 ${routines.reduce((s, r) => s + r.todayDone, 0)}개`} />
+        <SummaryCard icon={Repeat} label="루틴 (개인)" value={`${routines.filter((r) => r.kind === 'personal').length}개`} accent="#8B5CF6" sub={`오늘 체크 ${routines.filter((r) => r.kind === 'personal').reduce((s, r) => s + r.todayDone, 0)}개`} />
+        <SummaryCard icon={Users} label="학급 체크" value={`${routines.filter((r) => r.kind === 'classroom').length}개`} accent="#0EA5E9" sub={`오늘 체크 ${routines.filter((r) => r.kind === 'classroom').reduce((s, r) => s + r.todayDone, 0)}개`} />
         <SummaryCard icon={Flame} label="습관" value={`${habits.length}개`} accent="#F97316" sub={`오늘 ${habitTotals.todayDone}/${habits.length} · 최장 ${habitTotals.longest}일`} />
       </CardGrid>
 
@@ -446,43 +449,29 @@ export function StatisticsView() {
         </>
       )}
 
-      {/* ─── 루틴 통계 ─── */}
-      {routines.length > 0 && (
+      {/* ─── 개인 루틴 통계 ─── */}
+      {routines.some((r) => r.kind === 'personal') && (
         <>
-          <SectionTitle icon={<Repeat size={15} style={{ color: '#8B5CF6' }} />} title="루틴" mt={28} />
+          <SectionTitle icon={<Repeat size={15} style={{ color: '#8B5CF6' }} />} title="개인 루틴" mt={28} />
           <CardGrid minColumn={380}>
-            <ChartCard title="루틴별 오늘 진행">
-              <div className="flex flex-col" style={{ gap: 12, padding: '6px 2px' }}>
-                {routines.map((r) => {
-                  const pct = r.itemCount > 0 ? Math.round((r.todayDone / r.itemCount) * 100) : 0
-                  return (
-                    <div key={r.id} className="flex items-center" style={{ gap: 12 }}>
-                      <span className="text-xs font-bold text-[var(--text-secondary)] truncate" style={{ minWidth: 110, maxWidth: 180 }}>
-                        {r.name}
-                      </span>
-                      <div className="flex-1 h-6 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${pct}%`,
-                            background: `linear-gradient(90deg, #8B5CF6 0%, #6D28D9 100%)`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs font-bold text-[var(--text-primary)] tabular-nums" style={{ width: 70, textAlign: 'right' }}>
-                        {r.todayDone}/{r.itemCount}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </ChartCard>
-            <BigStatCard
-              metrics={[
-                { label: '루틴', value: routines.length, accent: '#8B5CF6', suffix: '개' },
-                { label: '오늘 체크', value: routines.reduce((s, r) => s + r.todayDone, 0), accent: '#10B981', suffix: '개' },
-                { label: '최근 7일 누적', value: routines.reduce((s, r) => s + r.totalCompletions, 0), accent: '#2563EB', suffix: '회' },
-              ]}
+            <RoutineKindStats
+              rows={routines.filter((r) => r.kind === 'personal')}
+              barFrom="#8B5CF6" barTo="#6D28D9"
+              metricColors={['#8B5CF6', '#10B981', '#2563EB']}
+            />
+          </CardGrid>
+        </>
+      )}
+
+      {/* ─── 학급 체크 통계 ─── */}
+      {routines.some((r) => r.kind === 'classroom') && (
+        <>
+          <SectionTitle icon={<Users size={15} style={{ color: '#0EA5E9' }} />} title="학급 체크" mt={28} />
+          <CardGrid minColumn={380}>
+            <RoutineKindStats
+              rows={routines.filter((r) => r.kind === 'classroom')}
+              barFrom="#0EA5E9" barTo="#0284C7"
+              metricColors={['#0EA5E9', '#10B981', '#2563EB']}
             />
           </CardGrid>
         </>
@@ -760,6 +749,53 @@ function BigStatCard({
         ))}
       </div>
     </motion.div>
+  )
+}
+
+function RoutineKindStats({
+  rows, barFrom, barTo, metricColors,
+}: {
+  rows: RoutineAgg[]
+  barFrom: string
+  barTo: string
+  metricColors: [string, string, string]
+}): React.ReactElement {
+  return (
+    <>
+      <ChartCard title="항목별 오늘 진행">
+        <div className="flex flex-col" style={{ gap: 12, padding: '6px 2px' }}>
+          {rows.map((r) => {
+            const pct = r.itemCount > 0 ? Math.round((r.todayDone / r.itemCount) * 100) : 0
+            return (
+              <div key={r.id} className="flex items-center" style={{ gap: 12 }}>
+                <span className="text-xs font-bold text-[var(--text-secondary)] truncate" style={{ minWidth: 110, maxWidth: 180 }}>
+                  {r.name}
+                </span>
+                <div className="flex-1 h-6 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${pct}%`,
+                      background: `linear-gradient(90deg, ${barFrom} 0%, ${barTo} 100%)`,
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-[var(--text-primary)] tabular-nums" style={{ width: 70, textAlign: 'right' }}>
+                  {r.todayDone}/{r.itemCount}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </ChartCard>
+      <BigStatCard
+        metrics={[
+          { label: '개수', value: rows.length, accent: metricColors[0], suffix: '개' },
+          { label: '오늘 체크', value: rows.reduce((s, r) => s + r.todayDone, 0), accent: metricColors[1], suffix: '개' },
+          { label: '최근 7일 누적', value: rows.reduce((s, r) => s + r.totalCompletions, 0), accent: metricColors[2], suffix: '회' },
+        ]}
+      />
+    </>
   )
 }
 

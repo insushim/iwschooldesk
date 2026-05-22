@@ -1066,9 +1066,9 @@ function CourtEvidenceGuide(): React.ReactElement {
     {
       icon: FileSpreadsheet,
       accent: '#10B981',
-      title: '2. 매주 1회 CSV 백업으로 시점 분산',
+      title: '2. 매주 자동 CSV 백업 켜두기 (설정 → 데이터)',
       body:
-        '주마다 CSV 내보내기 → USB나 학교 보안망에 보관. 백업 시점이 여러 개로 분산되어 있으면 "사건 후 급조한 자료가 아님"이 자연스럽게 증명됩니다.',
+        '"학생 기록 매주 CSV 자동 백업"을 켜두면 매주 한 번 학교 보안망 폴더에 CSV가 자동 저장됩니다. 손으로 매주 백업할 필요 없이 시점이 촘촘하게 분산되어 "사건 후 급조한 자료가 아님"이 더 강력하게 증명됩니다.',
     },
     {
       icon: Download,
@@ -1238,7 +1238,7 @@ function CourtEvidenceGuide(): React.ReactElement {
         {[
           { Icon: Clock, text: '비밀번호 설정 — 4자 이상, 학생이 알기 어려운 것' },
           { Icon: Building2, text: 'OS 로그인 비밀번호 + 화면 잠금 단축키(Win+L) 익히기' },
-          { Icon: FileSpreadsheet, text: '주 1회 CSV 백업 루틴 만들기 (학교 보안망 폴더 미리 정해두기)' },
+          { Icon: FileSpreadsheet, text: '설정 → 데이터 → "학생 기록 매주 CSV 자동 백업" 켜두기 (폴더는 학교 보안망 권장)' },
         ].map((c, i) => (
           <div key={i} className="flex items-center" style={{ gap: 9 }}>
             <c.Icon size={13} strokeWidth={2.4} style={{ color: '#7C3AED', flexShrink: 0 }} />

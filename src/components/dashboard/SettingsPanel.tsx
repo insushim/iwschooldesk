@@ -201,6 +201,9 @@ export function SettingsPanel() {
 
             <EncryptedBackupSection />
 
+            {/* ── 학생 기록 자동 CSV 백업 ── */}
+            <StudentRecordAutoCsvSection />
+
             <div style={{ borderTop: '1px solid var(--border-widget)', paddingTop: 20 }}>
               <h3 className="text-base font-semibold text-[var(--text-primary)]" style={{ marginBottom: 12 }}>
                 평문 JSON 백업 (임시용 · 학생기록 미포함)
@@ -571,6 +574,111 @@ export function SettingsPanel() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── 학생 기록 매주 CSV 자동 백업 ───────────────────────────────
+// 위의 암호화 자동 백업 폴더(backup_auto_folder)를 그대로 재사용해 'student-records/' 하위에 떨굼.
+// 잠금 상태와 무관하게 동작. 결정적 증거는 여전히 수동 "증거 내보내기"를 써야 함.
+function StudentRecordAutoCsvSection(): React.ReactElement {
+  const [enabled, setEnabled] = useState(false)
+  const [folder, setFolder] = useState<string>('')
+  const [lastAt, setLastAt] = useState<number>(0)
+
+  const load = (): void => {
+    window.api.settings.get('student_record_auto_csv_enabled' as 'theme')
+      .then((v) => {
+        const raw = v as unknown
+        setEnabled(raw === 'true' || raw === true)
+      })
+      .catch(() => {})
+    window.api.settings.get('backup_auto_folder' as 'theme')
+      .then((v) => setFolder(typeof v === 'string' ? v : ''))
+      .catch(() => {})
+    window.api.settings.get('student_record_auto_csv_last' as 'theme')
+      .then((v) => setLastAt(parseInt(String(v) || '0', 10) || 0))
+      .catch(() => {})
+  }
+  useEffect(() => { load() }, [])
+
+  const toggle = async (next: boolean): Promise<void> => {
+    await window.api.settings.set('student_record_auto_csv_enabled' as 'theme', String(next) as never)
+    setEnabled(next)
+  }
+
+  const lastLabel = lastAt > 0
+    ? `${new Date(lastAt).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`
+    : '아직 실행 안 됨'
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        padding: 18, gap: 12, borderRadius: 14,
+        background: 'var(--bg-widget)',
+        border: '1px solid var(--border-widget)',
+      }}
+    >
+      <div className="flex items-start justify-between" style={{ gap: 16 }}>
+        <div className="flex items-start" style={{ gap: 12 }}>
+          <Shield size={18} strokeWidth={2.2} style={{ color: '#8B5CF6', marginTop: 2, flexShrink: 0 }} />
+          <div className="min-w-0">
+            <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 14.5, letterSpacing: '-0.2px' }}>
+              학생 기록 매주 CSV 자동 백업
+            </div>
+            <div className="text-[var(--text-muted)]" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.55, letterSpacing: '-0.2px' }}>
+              위에서 지정한 자동 백업 폴더 안의 <code style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-secondary)', fontSize: 11 }}>student-records/</code> 하위에 매주 한 번 학생 기록 CSV가 자동 저장됩니다.
+              잠금 상태와 무관하게 동작하고, 시점이 매주 분산되어 사후 조작 부인 보강용으로 매우 유용합니다.
+              <b className="text-[var(--text-primary)]"> 결정적 증거가 필요한 사건은 별도로 "증거 내보내기"를 수동 실행</b>해 주세요.
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => toggle(!enabled)}
+          className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${
+            enabled ? 'bg-purple-500' : 'bg-[var(--text-muted)]'
+          }`}
+          style={{ marginTop: 4 }}
+          title={enabled ? '자동 백업 끄기' : '자동 백업 켜기'}
+        >
+          <div
+            className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
+              enabled ? 'left-6' : 'left-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="flex items-center" style={{ gap: 16, fontSize: 12, letterSpacing: '-0.2px' }}>
+        <div className="flex items-center" style={{ gap: 6 }}>
+          <span className="text-[var(--text-muted)]" style={{ fontWeight: 700 }}>저장 폴더</span>
+          <span className="text-[var(--text-primary)] truncate" style={{ fontWeight: 600, maxWidth: 380 }}>
+            {folder ? folder : '— 자동 백업 폴더가 먼저 지정돼야 합니다 (위 섹션에서 설정)'}
+          </span>
+        </div>
+        <div className="flex items-center ml-auto" style={{ gap: 6 }}>
+          <span className="text-[var(--text-muted)]" style={{ fontWeight: 700 }}>마지막 실행</span>
+          <span className="text-[var(--text-primary)] tabular-nums" style={{ fontWeight: 600 }}>
+            {lastLabel}
+          </span>
+        </div>
+      </div>
+
+      {enabled && !folder && (
+        <div
+          className="flex items-start"
+          style={{
+            gap: 8, padding: '8px 11px', borderRadius: 9,
+            background: 'rgba(245,158,11,0.10)',
+            border: '1px solid rgba(245,158,11,0.30)',
+            fontSize: 11.5, color: '#92400E', letterSpacing: '-0.2px', lineHeight: 1.5,
+          }}
+        >
+          <AlertTriangle size={12} strokeWidth={2.6} style={{ marginTop: 1, flexShrink: 0 }} />
+          위 "암호화 자동 백업" 섹션에서 폴더를 먼저 지정해 주세요. 폴더가 비어 있으면 자동 CSV도 실행되지 않습니다.
+        </div>
+      )}
     </div>
   )
 }

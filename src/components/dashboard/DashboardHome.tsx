@@ -497,16 +497,17 @@ export function DashboardHome() {
   const [newDdayDate, setNewDdayDate] = useState('')
   const [newDdayEmoji, setNewDdayEmoji] = useState('📅')
 
-  // 루틴·습관 — 홈 카드용. mini progress 표시.
-  const [routineCards, setRoutineCards] = useState<Array<{
-    id: string; title: string; icon: string; color: string; done: number; total: number
-  }>>([])
+  // 루틴·학급체크·습관 — 홈 카드용. mini progress 표시.
+  type RoutineCard = { id: string; title: string; icon: string; color: string; done: number; total: number }
+  const [personalRoutineCards, setPersonalRoutineCards] = useState<RoutineCard[]>([])
+  const [classroomRoutineCards, setClassroomRoutineCards] = useState<RoutineCard[]>([])
   const [habitCards, setHabitCards] = useState<Array<{
     id: string; title: string; icon: string; today_done: boolean; streak_current: number
   }>>([])
   const reloadRoutineCards = useCallback(() => {
-    window.api.routine.list().then(async (rs) => {
-      const cards = await Promise.all(
+    const fetchKind = async (kind: 'personal' | 'classroom'): Promise<RoutineCard[]> => {
+      const rs = await window.api.routine.list(kind).catch(() => [])
+      return Promise.all(
         rs.map(async (r) => {
           const items = await window.api.routine.getItems(r.id, todayStr).catch(() => [])
           return {
@@ -519,8 +520,9 @@ export function DashboardHome() {
           }
         }),
       )
-      setRoutineCards(cards)
-    }).catch(() => setRoutineCards([]))
+    }
+    fetchKind('personal').then(setPersonalRoutineCards).catch(() => setPersonalRoutineCards([]))
+    fetchKind('classroom').then(setClassroomRoutineCards).catch(() => setClassroomRoutineCards([]))
   }, [todayStr])
   const reloadHabitCards = useCallback(() => {
     window.api.habit.listWithStats(todayStr).then((hs) => {
@@ -688,14 +690,14 @@ export function DashboardHome() {
         })}
       </motion.div>
 
-      {/* ─── 메인 그리드 — 6cols × 3rows (8 카드, 마지막 행 루틴·습관) ─── */}
+      {/* ─── 메인 그리드 — 3cols × 3rows (9 카드, 균일 격자) ─── */}
       <div
-        className="grid grid-cols-6 gap-4 flex-1 min-h-0"
+        className="grid grid-cols-3 gap-4 flex-1 min-h-0"
         style={{ gridTemplateRows: 'repeat(3, minmax(200px, 1fr))' }}
       >
 
         {/* [행1·열1] 오늘 시간표 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Timer size={15} className="text-[var(--accent)]" />
@@ -721,7 +723,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행1·열2] 오늘 일정 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <CalendarDays size={15} className="text-[var(--accent)]" />
@@ -757,12 +759,12 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행1·열3] 미니 달력 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <MiniCalendar schedules={monthSchedules.map((s) => ({ start_date: s.start_date, color: s.color }))} />
         </motion.div>
 
         {/* [행2·열1] D-Day */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <Target size={15} style={{ color: '#EF4444' }} />
@@ -814,7 +816,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행2·열2] 할 일 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <ListTodo size={15} style={{ color: '#F97316' }} />
@@ -901,7 +903,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행2·열3] 체크리스트 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-2">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <BookOpen size={15} style={{ color: '#10B981' }} />
@@ -928,7 +930,7 @@ export function DashboardHome() {
         </motion.div>
 
         {/* [행3·왼쪽] 루틴 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-3">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Repeat size={15} style={{ color: '#8B5CF6' }} />
@@ -939,14 +941,14 @@ export function DashboardHome() {
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {routineCards.length === 0 ? (
+            {personalRoutineCards.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
                 <Repeat size={28} strokeWidth={1.2} className="mb-2 opacity-25" />
                 <p className="text-xs">루틴이 없어요</p>
               </div>
             ) : (
               <div className="flex flex-col" style={{ gap: 8 }}>
-                {routineCards.slice(0, 6).map((r) => {
+                {personalRoutineCards.slice(0, 6).map((r) => {
                   const pct = r.total > 0 ? Math.round((r.done / r.total) * 100) : 0
                   const isDone = r.total > 0 && r.done === r.total
                   return (
@@ -981,8 +983,62 @@ export function DashboardHome() {
           </div>
         </motion.div>
 
+        {/* [행3·가운데] 학급 체크 */}
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <UserCheck size={15} style={{ color: '#0EA5E9' }} />
+              <h2 className="text-base font-bold text-[var(--text-primary)]">학급 체크</h2>
+            </div>
+            <button onClick={() => setView('classcheck')} className="text-xs text-[var(--text-muted)] hover:text-[var(--accent)] flex items-center gap-0.5">
+              관리 <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {classroomRoutineCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
+                <UserCheck size={28} strokeWidth={1.2} className="mb-2 opacity-25" />
+                <p className="text-xs">학급 체크가 없어요</p>
+              </div>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                {classroomRoutineCards.slice(0, 6).map((r) => {
+                  const pct = r.total > 0 ? Math.round((r.done / r.total) * 100) : 0
+                  const isDone = r.total > 0 && r.done === r.total
+                  return (
+                    <div key={r.id} className="flex items-center" style={{ gap: 10 }}>
+                      <span className="shrink-0" style={{ fontSize: 15, lineHeight: 1 }}>{r.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1" style={{ gap: 8 }}>
+                          <span className="truncate text-[var(--text-primary)]" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '-0.2px' }}>
+                            {r.title}
+                          </span>
+                          <span className="tabular-nums shrink-0" style={{ fontSize: 11, fontWeight: 700, color: isDone ? '#10B981' : 'var(--text-muted)' }}>
+                            {r.done}/{r.total}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              background: isDone
+                                ? 'linear-gradient(90deg, #10B981 0%, #047857 100%)'
+                                : `linear-gradient(90deg, ${r.color || '#0EA5E9'} 0%, ${r.color || '#0284C7'} 100%)`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </motion.div>
+
         {/* [행3·오른쪽] 습관 */}
-        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden col-span-3">
+        <motion.div variants={fadeIn} className="glass p-4 flex flex-col min-h-0 overflow-hidden ">
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-2">
               <Flame size={15} style={{ color: '#F97316' }} />

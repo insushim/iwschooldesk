@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Lock, Unlock, ShieldCheck, Plus, Trash2, Download, Key, X, Check, AlertCircle,
   FileSpreadsheet, Search, Pencil, Users,
+  FileText, Stamp, AlertTriangle, Building2, Scale, Server, Save, Clock,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDataChange } from '../../hooks/useDataChange'
@@ -266,21 +267,32 @@ export function StudentRecordManager(): React.ReactElement {
     )
   }
 
-  // ─── setup / locked: 중앙 잠금 화면 ───
+  // ─── setup / locked: 중앙 잠금 화면 + 법원 증거 워크플로우 가이드 ───
   if (mode.kind === 'setup' || mode.kind === 'locked') {
     const isSetup = mode.kind === 'setup'
     return (
       <div
-        className="flex items-center justify-center h-full overflow-y-auto"
+        className="h-full overflow-y-auto"
         style={{
           padding: 24,
           background: 'radial-gradient(ellipse at 50% 0%, rgba(239,68,68,0.07) 0%, transparent 55%)',
         }}
       >
         <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))',
+            gap: 24,
+            maxWidth: 1280,
+            margin: '0 auto',
+            alignItems: 'start',
+          }}
+        >
+        <div
           className="flex flex-col items-center"
           style={{
-            width: '100%', maxWidth: 420, padding: 28, gap: 16,
+            width: '100%', maxWidth: 480, justifySelf: 'center',
+            padding: 28, gap: 16,
             borderRadius: 18, background: 'var(--bg-widget)',
             border: '1px solid var(--border-widget)',
             boxShadow: '0 24px 48px rgba(15,23,42,0.10)',
@@ -389,6 +401,10 @@ export function StudentRecordManager(): React.ReactElement {
               <AlertCircle size={12} /> {pwError}
             </div>
           )}
+        </div>
+
+        {/* ── 법원 증거 사용 가이드 ── */}
+        <CourtEvidenceGuide />
         </div>
       </div>
     )
@@ -1032,5 +1048,206 @@ function ChangePasswordPanel({ onClose }: { onClose: () => void }) {
         </button>
       </motion.div>
     </motion.div>
+  )
+}
+
+// ─── 법원 증거 사용 가이드 ─────────────────────────────────
+// 잠금/셋업 화면에 표시. 학생기록 export → 법원 제출 워크플로우를 5단계로 안내하고,
+// 이 시스템 단독으로는 결정적 증거가 아니라는 한계도 정직하게 명시한다.
+function CourtEvidenceGuide(): React.ReactElement {
+  const steps: { icon: typeof Save; title: string; body: string; accent: string }[] = [
+    {
+      icon: Save,
+      accent: '#0EA5E9',
+      title: '1. 사건이 생기면 즉시 기록 (1~2시간 이내)',
+      body:
+        '기억이 흐려지기 전에 사실 그대로 입력하세요. 추측·감정·평가는 빼고, 보고 들은 것만 시간·장소·관련자와 함께. 잠금을 풀고 입력한 뒤 다시 잠그면 됩니다 — 10분 후 자동 잠금.',
+    },
+    {
+      icon: FileSpreadsheet,
+      accent: '#10B981',
+      title: '2. 매주 1회 CSV 백업으로 시점 분산',
+      body:
+        '주마다 CSV 내보내기 → USB나 학교 보안망에 보관. 백업 시점이 여러 개로 분산되어 있으면 "사건 후 급조한 자료가 아님"이 자연스럽게 증명됩니다.',
+    },
+    {
+      icon: Download,
+      accent: '#0284C7',
+      title: '3. 사건이 발생하면 즉시 "증거 내보내기"',
+      body:
+        '인터넷에 연결한 상태에서 실행하세요. JSON 본문 · 증명서(txt) · .ots 비트코인 시간증명 3종이 자동 생성됩니다. 출력 폴더를 통째로 학교 보안망에 복사해 두세요.',
+    },
+    {
+      icon: Stamp,
+      accent: '#F59E0B',
+      title: '4. 학교장 결재 또는 공증으로 신뢰도 보강',
+      body:
+        'JSON·증명서를 인쇄해 학교장(또는 부장교사) 결재 도장을 받아 두세요. 큰 사건은 공증인 인증을 받으면 민사소송법상 진정성립 추정 효과가 생깁니다.',
+    },
+    {
+      icon: Scale,
+      accent: '#8B5CF6',
+      title: '5. 학교 법무·교육청 정보보호 담당 자문',
+      body:
+        '정식 법적 절차에 들어가기 전 학교 변호사 또는 교육청 정보보호 담당과 먼저 협의하세요. 어떤 증거가 필요한지·어떤 방식이 인정되는지 학교마다 다릅니다.',
+    },
+    {
+      icon: Server,
+      accent: '#6D28D9',
+      title: '6. 원본 DB 파일도 함께 보관 (변경 금지)',
+      body:
+        '%APPDATA%\\school-desk\\school-desk.db (Windows) 또는 ~/Library/Application Support/school-desk/ (mac) 파일을 변경 없이 보관하세요. 해시체인 재검증과 변조 탐지에 필요합니다.',
+    },
+  ]
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        padding: 22,
+        gap: 14,
+        borderRadius: 18,
+        background: 'var(--bg-widget)',
+        border: '1px solid var(--border-widget)',
+        boxShadow: '0 24px 48px rgba(15,23,42,0.10)',
+      }}
+    >
+      {/* 헤더 */}
+      <div className="flex items-center" style={{ gap: 12 }}>
+        <span
+          className="flex items-center justify-center shrink-0"
+          style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)',
+            color: '#fff',
+            boxShadow: '0 8px 20px rgba(139,92,246,0.32)',
+          }}
+        >
+          <Scale size={20} strokeWidth={2.4} />
+        </span>
+        <div className="min-w-0">
+          <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 15.5, letterSpacing: '-0.3px' }}>
+            법원 증거로 사용하기 — 권장 워크플로우
+          </div>
+          <div className="text-[var(--text-muted)]" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.4, letterSpacing: '-0.2px' }}>
+            기록 → 백업 → 증거 export → 결재·공증 → 자문 → 원본 보관, 6단계로 보강하세요.
+          </div>
+        </div>
+      </div>
+
+      {/* 어떻게 보호되고 있는가 — 기술 요약 */}
+      <div
+        className="flex items-start"
+        style={{
+          gap: 11, padding: '12px 14px', borderRadius: 12,
+          background: 'rgba(16,185,129,0.08)',
+          border: '1px solid rgba(16,185,129,0.25)',
+        }}
+      >
+        <ShieldCheck size={16} strokeWidth={2.4} style={{ color: '#059669', marginTop: 2, flexShrink: 0 }} />
+        <div style={{ fontSize: 12, color: '#065F46', lineHeight: 1.55, letterSpacing: '-0.2px' }}>
+          <b style={{ fontWeight: 800 }}>이미 시스템이 자동으로 해주는 것</b> — 모든 생성·수정·삭제가 SHA-256 해시체인 로그로 append-only 보존되어
+          한 행만 변조해도 즉시 탐지됩니다. 증거 export 시 JSON·증명서와 함께 OpenTimestamps .ots 파일(Bitcoin 블록체인에 해시 등록)이 자동 생성되어
+          "그 시점 이전에 이미 그 내용이 존재했다"가 수학적으로 증명됩니다.
+        </div>
+      </div>
+
+      {/* 6단계 */}
+      <div className="flex flex-col" style={{ gap: 8 }}>
+        {steps.map((s, idx) => (
+          <div
+            key={idx}
+            className="flex items-start"
+            style={{
+              gap: 12, padding: '12px 14px', borderRadius: 12,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-widget)',
+            }}
+          >
+            <span
+              className="flex items-center justify-center shrink-0"
+              style={{
+                width: 32, height: 32, borderRadius: 10,
+                background: `${s.accent}18`,
+                color: s.accent,
+                marginTop: 1,
+              }}
+            >
+              <s.icon size={15} strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-[var(--text-primary)]" style={{ fontSize: 13, letterSpacing: '-0.2px' }}>
+                {s.title}
+              </div>
+              <div className="text-[var(--text-secondary)]" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.55, letterSpacing: '-0.2px', wordBreak: 'keep-all' }}>
+                {s.body}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 한계 — 정직하게 명시 */}
+      <div
+        className="flex items-start"
+        style={{
+          gap: 11, padding: '12px 14px', borderRadius: 12,
+          background: 'rgba(245,158,11,0.10)',
+          border: '1px solid rgba(245,158,11,0.30)',
+        }}
+      >
+        <AlertTriangle size={16} strokeWidth={2.4} style={{ color: '#B45309', marginTop: 2, flexShrink: 0 }} />
+        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+          <div style={{ fontWeight: 800, color: '#92400E', marginBottom: 4 }}>이 시스템 단독으로는 결정적 증거가 아닙니다</div>
+          <ul style={{ marginTop: 2, paddingLeft: 14, listStyle: 'disc' }}>
+            <li>
+              <b>OpenTimestamps는 한국 공인 TSA가 아닙니다.</b> 한국 법원이 공식 인정하는 시점확인은 KISA 공인 TSA의 RFC 3161 토큰입니다.
+              OTS는 강력한 <b>보조 증거</b>로 활용하세요.
+            </li>
+            <li>
+              <b>작성자 신원·PC 사용자 입증은 외부 자료가 필요합니다.</b> "그 시각 그 PC를 누가 썼는가"는 학교 관리대장·OS 로그인 기록·
+              CCTV 등으로 보강해야 합니다.
+            </li>
+            <li>
+              <b>같은 Windows 계정 접근자는 DB 파일에 접근 가능합니다.</b> 단, 해시체인을 다시 만들지 못하므로 변조는 그대로 탐지됩니다.
+              개인 PC에서만 사용하고 OS 로그인 비밀번호·디스크 암호화(BitLocker / FileVault)를 켜 두세요.
+            </li>
+          </ul>
+          <div style={{ marginTop: 6, fontWeight: 700 }}>
+            그래도 "사후에 만든 기록이 아니다"를 시점적으로 증명하는 <u>매우 강력한 보조 증거</u>입니다.
+            학교장 결재·정기 백업·공증을 더하면 실제 법정에서 충분한 가치가 있습니다.
+          </div>
+        </div>
+      </div>
+
+      {/* 빠른 시작 체크리스트 */}
+      <div
+        className="flex flex-col"
+        style={{
+          gap: 8, padding: '12px 14px', borderRadius: 12,
+          background: 'rgba(139,92,246,0.06)',
+          border: '1px solid rgba(139,92,246,0.22)',
+        }}
+      >
+        <div className="flex items-center" style={{ gap: 8 }}>
+          <FileText size={14} strokeWidth={2.4} style={{ color: '#6D28D9' }} />
+          <span className="font-bold" style={{ fontSize: 12.5, color: '#5B21B6', letterSpacing: '-0.2px' }}>
+            오늘 바로 할 일
+          </span>
+        </div>
+        {[
+          { Icon: Clock, text: '비밀번호 설정 — 4자 이상, 학생이 알기 어려운 것' },
+          { Icon: Building2, text: 'OS 로그인 비밀번호 + 화면 잠금 단축키(Win+L) 익히기' },
+          { Icon: FileSpreadsheet, text: '주 1회 CSV 백업 루틴 만들기 (학교 보안망 폴더 미리 정해두기)' },
+        ].map((c, i) => (
+          <div key={i} className="flex items-center" style={{ gap: 9 }}>
+            <c.Icon size={13} strokeWidth={2.4} style={{ color: '#7C3AED', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', letterSpacing: '-0.2px', lineHeight: 1.5 }}>
+              {c.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

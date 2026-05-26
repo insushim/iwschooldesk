@@ -260,11 +260,11 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
             ) : (
               <span className="text-sm text-[var(--text-secondary)] opacity-60 flex-1">—</span>
             )}
-            {/* 임시수업 추가 버튼 (hover 시) */}
+            {/* 임시수업 추가 버튼 (hover 시) — hidden 으로 layout 공간 미차지. opacity-0 은 16px 폭이 잔류해 isCurrent 점이 우측으로 밀려 잘려 보이는 문제 발생. */}
             {!isPast && (
               <button
                 onClick={() => onAddOverride(p.period)}
-                className="opacity-0 group-hover:opacity-60 hover:!opacity-100 p-0.5 rounded text-[var(--text-muted)] transition-all shrink-0"
+                className="hidden group-hover:flex items-center justify-center opacity-60 hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] transition-opacity shrink-0"
                 title="임시 수업 추가"
               >
                 <Plus size={12} />

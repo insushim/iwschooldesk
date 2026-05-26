@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Dialog } from '../ui/Dialog'
 import { EncryptedBackupSection } from './EncryptedBackupSection'
+import pkg from '../../../package.json'
 
 type SettingsTab = 'general' | 'theme' | 'timetable' | 'timer' | 'data' | 'shortcuts' | 'privacy' | 'about'
 
@@ -461,7 +462,7 @@ export function SettingsPanel() {
               </div>
               <h3 className="text-xl font-bold text-[var(--text-primary)]">SchoolDesk</h3>
               <p className="text-sm text-[var(--text-muted)] mt-1">선생님의 책상 위, 가장 똑똑한 도우미</p>
-              <p className="text-xs text-[var(--text-muted)] mt-3">버전 1.0.0</p>
+              <p className="text-xs text-[var(--text-muted)] mt-3">버전 {pkg.version}</p>
               <p className="text-xs text-[var(--text-muted)] mt-1">Copyright 2026 SchoolDesk</p>
             </div>
 

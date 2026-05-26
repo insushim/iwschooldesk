@@ -180,7 +180,7 @@ function MiniCalendar({ schedules }: { schedules: { start_date: string; color: s
               !today && isMonth && dow > 0 && dow < 6 && 'text-[var(--text-primary)]',
             )}>
               {date.getDate()}
-              {hasSch && !today && <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--accent)]" />}
+              {hasSch && !today && <div className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-[var(--accent)]" />}
             </div>
           )
         })}
@@ -226,7 +226,7 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
           <div
             key={p.id}
             className={cn(
-              'flex items-center gap-3 px-3 rounded-lg transition-all group flex-1 min-h-0',
+              'flex items-center gap-3 pl-3 pr-4 rounded-lg transition-all group flex-1 min-h-0',
               isCurrent && 'bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/20',
               isPast && 'opacity-55',
             )}

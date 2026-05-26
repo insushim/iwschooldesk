@@ -16,6 +16,8 @@ export interface AppSettings {
   widget_theme: 'glassmorphism' | 'solid' | 'minimal'
   /** 학생 시간표 위젯 하단 알림 — 숙제·준비물·전달사항. 학생들이 보고 알 수 있도록. */
   student_timetable_note: string
+  /** 디스플레이 모드(전역 헤더 숨김 + NOACTIVATE) ON 여부. 앱 재시작 후에도 유지. */
+  display_mode_all: boolean
 }
 
 export type SettingKey = keyof AppSettings

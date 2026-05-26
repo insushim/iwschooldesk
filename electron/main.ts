@@ -212,7 +212,7 @@ import { getDatabase, closeDatabase } from './database/connection'
 import { registerIpcHandlers } from './ipc/handlers'
 import { startBackupScheduler, stopBackupScheduler } from './lib/backup-scheduler'
 import { seedTemplates, deleteExpiredCheckedItems } from './database/repositories/checklist.repo'
-import { getWidgetPositions, saveWidgetPosition, getSetting } from './database/repositories/settings.repo'
+import { getWidgetPositions, saveWidgetPosition, getSetting, setSetting } from './database/repositories/settings.repo'
 
 const AUTO_START_REG_NAME = 'SchoolDesk'
 const AUTO_START_REG_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
@@ -1587,6 +1587,8 @@ function registerWindowIpc(): void {
  */
 function broadcastAllDisplayMode(on: boolean): void {
   displayModeGlobalOn = !!on
+  // 앱 재시작 후에도 유지 — 사용자가 디스플레이 모드 ON 상태로 PC 종료해도 다음 부팅에 복원.
+  try { setSetting('display_mode_all', displayModeGlobalOn) } catch { /* noop */ }
   // 대시보드(mainWindow) 도 디스플레이 모드 중에는 뒤로 밀어서 위젯 클릭을 가리지 않게.
   // hide 대신 pushToBack — 사용자가 접근하고 싶을 때 taskbar/트레이로 복원 가능.
   if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
@@ -1721,6 +1723,19 @@ app.whenReady().then(async () => {
   registerShortcuts()
   cleanupStaleWallpapers()
   restoreVisibleWidgets()
+
+  // 디스플레이 모드 복원 — 사용자가 ON 상태로 PC 종료했다면 다음 부팅에도 ON 으로.
+  // wallpaper 모드는 widget_positions.wallpaper_mode 로 위젯별 복원되지만,
+  // 디스플레이 모드는 전역 toggle 이라 settings 에 저장 → 위젯 복원 후 한 번에 재적용.
+  // ready-to-show 이후 적용해야 위젯 HWND 가 유효하므로 800ms 지연.
+  try {
+    const wasDisplayModeOn = !!getSetting('display_mode_all')
+    if (wasDisplayModeOn) {
+      setTimeout(() => {
+        try { broadcastAllDisplayMode(true) } catch (err) { _crashLog('restore-display-mode', err) }
+      }, 800)
+    }
+  } catch (err) { _crashLog('read-display-mode-setting', err) }
 
   // 자동 백업 스케줄러 — 매 15분 체크, daily/weekly 설정 시 동기화 폴더로 자동 저장.
   // 스케줄러 내부에서 터져도 앱 시작은 계속되도록 방어.

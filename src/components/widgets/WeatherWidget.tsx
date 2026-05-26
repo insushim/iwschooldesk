@@ -601,8 +601,8 @@ export function WeatherWidget() {
                   · 1시간 {weather.current.precipNow}mm
                 </span>
               ) : weather.daily.precip > 0 ? (
-                <span style={{ marginLeft: 6, color: '#3B82F6' }}>
-                  · 강수 {weather.daily.precip}mm
+                <span style={{ marginLeft: 6, color: '#3B82F6' }} title="오늘(00~24시) 누적 강수량 예보 — 기상청 단기예보 PCP 합산">
+                  · 오늘 강수 {weather.daily.precip}mm
                 </span>
               ) : null}
             </div>

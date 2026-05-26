@@ -32,7 +32,7 @@ export function Sidebar() {
       // nav/footer 컨테이너 padding 은 실패하기 쉬우니(Tailwind purge, CSS override 등) inline 으로 고정.
       style={{ paddingLeft: 18, paddingRight: 14 }}
     >
-      <nav className="flex-1 flex flex-col gap-1" style={{ paddingTop: 20, paddingBottom: 10 }}>
+      <nav className="flex-1 flex flex-col gap-1 overflow-y-auto min-h-0" style={{ paddingTop: 20, paddingBottom: 10 }}>
         {navItems.map(({ view, icon: Icon, label }) => {
           const active = currentView === view
           return (

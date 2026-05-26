@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { getDatabase } from '../connection'
 import { ALLOWED_UPDATE_FIELDS } from '../allowed-fields'
+import { safeJsonParse } from '../../lib/safe-json'
 import type { AppSettings, SettingKey, DDayEvent, CreateDDayInput, UpdateDDayInput } from '../../../src/types/settings.types'
 import type { WidgetPosition } from '../../../src/types/widget.types'
 
@@ -8,7 +9,7 @@ export function getSetting<K extends SettingKey>(key: K): AppSettings[K] {
   const db = getDatabase()
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
   if (!row) return '' as AppSettings[K]
-  return JSON.parse(row.value) as AppSettings[K]
+  return safeJsonParse(row.value, '' as AppSettings[K])
 }
 
 export function setSetting<K extends SettingKey>(key: K, value: AppSettings[K]): void {
@@ -24,7 +25,7 @@ export function getAllSettings(): AppSettings {
   const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[]
   const settings: Record<string, unknown> = {}
   for (const row of rows) {
-    settings[row.key] = JSON.parse(row.value)
+    settings[row.key] = safeJsonParse(row.value, null)
   }
   return settings as AppSettings
 }

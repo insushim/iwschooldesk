@@ -270,7 +270,7 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
                 <Plus size={12} />
               </button>
             )}
-            {isCurrent && <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse shrink-0 mr-12" />}
+            {isCurrent && <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse shrink-0 group-hover:hidden" />}
           </div>
         )
       })}

@@ -226,7 +226,7 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
           <div
             key={p.id}
             className={cn(
-              'relative flex items-center gap-3 pl-3 pr-4 rounded-lg transition-all group flex-1 min-h-0',
+              'relative flex items-center gap-3 pl-3 pr-8 rounded-lg transition-all group flex-1 min-h-0',
               isCurrent && 'bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/20',
               isPast && 'opacity-55',
             )}

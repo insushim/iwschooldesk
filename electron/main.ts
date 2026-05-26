@@ -441,6 +441,7 @@ function applyDefaultNoActivate(win: BrowserWindow, widgetId: string): void {
  * blur 발생 즉시 scheduleBackPush 가 실행되므로 포커스 해제 후 자연스럽게 뒤로.
  */
 let _bottomTickTimer: NodeJS.Timeout | null = null
+let _cleanupExpiredTimer: NodeJS.Timeout | null = null
 function startBottomTickTimer(): void {
   if (_bottomTickTimer) return
   _bottomTickTimer = setInterval(() => {
@@ -1698,7 +1699,7 @@ app.whenReady().then(async () => {
     } catch { /* ignore */ }
   }
   cleanupExpired()
-  setInterval(cleanupExpired, 60 * 60 * 1000) // 매 1시간
+  _cleanupExpiredTimer = setInterval(cleanupExpired, 60 * 60 * 1000) // 매 1시간
 
   registerIpcHandlers()
   registerWindowIpc()
@@ -1886,6 +1887,12 @@ app.on('before-quit', () => {
   globalShortcut.unregisterAll()
   stopBackupScheduler()
   stopBottomTickTimer()
+  // wallpaper 모드 위젯들의 500ms tick interval 일괄 정리 — 메모리 누수/좀비 핸들 방지.
+  for (const [id, t] of wallpaperWidgets) {
+    try { clearInterval(t) } catch { /* noop */ }
+    wallpaperWidgets.delete(id)
+  }
+  if (_cleanupExpiredTimer) { clearInterval(_cleanupExpiredTimer); _cleanupExpiredTimer = null }
   closeDatabase()
   // 트레이 아이콘 명시적 정리 — 비정상 종료 시 좀비 아이콘 방지
   try { tray?.destroy() } catch { /* ignore */ }

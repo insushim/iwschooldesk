@@ -170,8 +170,8 @@ export function registerBackupHandlers(): void {
     secureDelete(KEY_PW_HASH)
     secureDelete(KEY_PW_PLAIN)
     // 자동 백업 폴더/주기도 같이 해제 (자격증명 없으면 자동 백업 불가)
-    setSetting(SET_FREQ, 'off' as unknown as string)
-    setSetting(SET_FOLDER, '' as unknown as string)
+    setSetting(SET_FREQ, 'off')
+    setSetting(SET_FOLDER, '')
     return { ok: true as const }
   })
 
@@ -191,9 +191,9 @@ export function registerBackupHandlers(): void {
   ipcMain.handle('backup:detectCloudFolders', () => detectCloudFolders())
 
   ipcMain.handle('backup:getAutoConfig', () => {
-    const freq = ((getSetting(SET_FREQ) as unknown as string) || 'off') as Frequency
-    const folder = (getSetting(SET_FOLDER) as unknown as string) || ''
-    const lastRaw = (getSetting(SET_LAST) as unknown as string) || ''
+    const freq = ((getSetting(SET_FREQ)) || 'off') as Frequency
+    const folder = (getSetting(SET_FOLDER)) || ''
+    const lastRaw = (getSetting(SET_LAST)) || ''
     const last = lastRaw ? parseInt(lastRaw, 10) || 0 : 0
     return { frequency: freq, folder, lastAt: last, nextAt: computeNextDueAt() }
   })
@@ -203,7 +203,7 @@ export function registerBackupHandlers(): void {
     if (!opts?.basePath) return { ok: false as const, reason: 'path_required' }
     try {
       const resolved = ensureSchoolDeskSubfolder(opts.basePath)
-      setSetting(SET_FOLDER, resolved as unknown as string)
+      setSetting(SET_FOLDER, resolved)
       return { ok: true as const, path: resolved }
     } catch (err) {
       return { ok: false as const, reason: 'mkdir_failed', detail: String(err) }
@@ -218,7 +218,7 @@ export function registerBackupHandlers(): void {
     })
     if (pick.canceled || !pick.filePaths[0]) return { ok: false as const, reason: 'canceled' }
     const resolved = ensureSchoolDeskSubfolder(pick.filePaths[0])
-    setSetting(SET_FOLDER, resolved as unknown as string)
+    setSetting(SET_FOLDER, resolved)
     return { ok: true as const, path: resolved }
   })
 
@@ -227,21 +227,21 @@ export function registerBackupHandlers(): void {
     if (f !== 'off' && f !== 'daily' && f !== 'weekly') {
       return { ok: false as const, reason: 'invalid_frequency' }
     }
-    setSetting(SET_FREQ, f as unknown as string)
+    setSetting(SET_FREQ, f)
     return { ok: true as const }
   })
 
   // 수동으로 "지금 자동 백업 실행" — 테스트 및 즉시 동기화용.
   ipcMain.handle('backup:runAutoNow', async () => {
     await triggerAutoBackupNow()
-    const lastRaw = (getSetting(SET_LAST) as unknown as string) || ''
+    const lastRaw = (getSetting(SET_LAST)) || ''
     const last = lastRaw ? parseInt(lastRaw, 10) || 0 : 0
     return { ok: true as const, lastAt: last }
   })
 
   // 자동 백업 폴더에 있는 .sdbackup 파일 목록 — 새 컴퓨터에서 복원할 때 드롭다운 표시용.
   ipcMain.handle('backup:listBackupsInFolder', (_e, opts: { folder?: string }) => {
-    const folder = opts?.folder || (getSetting(SET_FOLDER) as unknown as string) || ''
+    const folder = opts?.folder || (getSetting(SET_FOLDER)) || ''
     if (!folder) return { ok: false as const, reason: 'no_folder' }
     try {
       const entries = fs
@@ -275,7 +275,7 @@ export function registerBackupHandlers(): void {
       if (!opts?.filePath) return { ok: false as const, reason: 'path_required' }
       if (!opts.password && !opts.mnemonic) return { ok: false as const, reason: 'no_credentials' }
       // 허용 폴더 제한
-      const folder = (getSetting(SET_FOLDER) as unknown as string) || ''
+      const folder = (getSetting(SET_FOLDER)) || ''
       const normalized = path.normalize(opts.filePath)
       if (!folder || !normalized.startsWith(path.normalize(folder) + path.sep)) {
         return { ok: false as const, reason: 'path_not_allowed' }

@@ -623,7 +623,7 @@ function PeriodTimeEditor({ periods: initialPeriods, onSave }: { periods: Timeta
     await window.api.timetable.updatePeriods(editPeriods)
 
     // 종소리 설정 저장
-    await window.api.settings.set('bell_settings' as 'theme', bellSettings as unknown as string)
+    await window.api.settings.set('bell_settings', bellSettings)
 
     onSave()
     addToast('success', '교시 시간과 종소리 설정이 저장되었습니다.')

@@ -226,11 +226,14 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
           <div
             key={p.id}
             className={cn(
-              'flex items-center gap-3 pl-3 pr-8 rounded-lg transition-all group flex-1 min-h-0',
+              'relative flex items-center gap-3 pl-3 pr-4 rounded-lg transition-all group flex-1 min-h-0',
               isCurrent && 'bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/20',
               isPast && 'opacity-55',
             )}
           >
+            {isCurrent && (
+              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse pointer-events-none" />
+            )}
             <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[var(--bg-secondary)] shrink-0">
               <span className="text-xs font-bold text-[var(--text-primary)]">{p.period === 0 ? '아' : p.period}</span>
             </div>
@@ -270,7 +273,6 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
                 <Plus size={12} />
               </button>
             )}
-            {isCurrent && <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse shrink-0 group-hover:hidden" />}
           </div>
         )
       })}

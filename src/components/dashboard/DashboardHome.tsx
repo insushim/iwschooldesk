@@ -705,11 +705,11 @@ export function DashboardHome() {
       </motion.div>
 
       {/* ─── 메인 그리드 — 3cols × 3rows (9 카드, 균일 격자) ───
-       *  창이 작아 9 카드 합이 부모 높이 초과하면 세로 스크롤 (overflow-y-auto).
-       *  pr-2: 스크롤바와 마지막 카드 우측 간 시각 여백. */}
+       *  기본 창(1200×800) 에서는 1fr 로 부모 높이 균등 분배 → 9 카드 한눈에 (스크롤 X).
+       *  창을 더 줄이면 min 170px 보장 후 overflow-y-auto 로 세로 스크롤. */}
       <div
         className="grid grid-cols-3 gap-4 flex-1 min-h-0 overflow-y-auto pr-2"
-        style={{ gridTemplateRows: 'repeat(3, minmax(200px, auto))' }}
+        style={{ gridTemplateRows: 'repeat(3, minmax(170px, 1fr))' }}
       >
 
         {/* [행1·열1] 오늘 시간표 */}

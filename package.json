@@ -1,6 +1,6 @@
 {
   "name": "school-desk",
-  "version": "1.6.34",
+  "version": "1.6.35",
   "description": "선생님의 책상 위, 가장 똑똑한 도우미",
   "main": "out/main/index.mjs",
   "scripts": {

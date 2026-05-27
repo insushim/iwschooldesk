@@ -109,8 +109,9 @@ export function WidgetLauncher() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+      {/* max-w-[1400px] + mx-auto: 큰 모니터에서 카드가 좌우 끝에 안 붙고 가운데 정렬. */}
+      <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <LayoutGrid size={20} className="text-[var(--accent)]" />
@@ -165,8 +166,8 @@ export function WidgetLauncher() {
         </div>
 
         <div
-          className="grid gap-2"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gridAutoRows: '1fr' }}
+          className="grid gap-3"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gridAutoRows: '1fr' }}
         >
           {WIDGETS.map((w) => {
             const Icon = w.icon

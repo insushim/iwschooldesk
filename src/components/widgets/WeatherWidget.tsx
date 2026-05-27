@@ -624,7 +624,7 @@ export function WeatherWidget() {
             color={cur.color}
             style={{ filter: `drop-shadow(0 4px 12px ${cur.color}66)`, width: 'clamp(56px, 13vw, 96px)', height: 'clamp(56px, 13vw, 96px)' }}
           />
-          <div className="flex flex-col items-start">
+          <div className="flex flex-col items-center">
             <div
               className="tabular-nums"
               style={{
@@ -635,33 +635,27 @@ export function WeatherWidget() {
             >
               {weather.current.temperature}°
             </div>
+            {/* 라벨(맑음/흐림/비) + 강수확률 + 최저/최고 — 모두 한 줄. 가운데 정렬. */}
             <div
+              className="flex items-center justify-center gap-1.5 flex-wrap tabular-nums"
               style={{
-                fontSize: 'clamp(13px, 1.8vw, 19px)',
+                fontSize: 'clamp(12px, 1.6vw, 17px)',
                 fontWeight: 900, letterSpacing: '-0.02em',
                 color: 'var(--text-primary)',
-                WebkitTextStroke: '0.3px rgba(0,0,0,0.6)',
+                WebkitTextStroke: '0.25px rgba(0,0,0,0.55)',
                 textShadow: '0 1px 2px rgba(255,255,255,0.55)',
-                marginTop: 3,
+                marginTop: 4,
               }}
             >
-              {/* KMA 가 강수형태 한글 라벨(빗방울/눈날림 등 세분) 주면 우선 사용. */}
-              {weather.current.precipType || cur.label}
+              <span>{weather.current.precipType || cur.label}</span>
               {hasRain1h ? (
-                <span style={{ marginLeft: 6, color: '#3B82F6' }}>
-                  · 1시간 {weather.current.precipNow}mm
-                </span>
+                <span style={{ color: '#3B82F6' }}>· 1시간 {weather.current.precipNow}mm</span>
               ) : currentPop > 0 ? (
-                <span style={{ marginLeft: 6, color: '#3B82F6' }} title="현재 시간대 강수확률 — 기상청 단기예보 POP">
+                <span style={{ color: '#3B82F6' }} title="현재 시간대 강수확률 — 기상청 단기예보 POP">
                   · 강수확률 {currentPop}%
                 </span>
               ) : null}
-            </div>
-            {/* 최저/최고 — 온도 column 안에 컴팩트 inline. 한 줄 차지 X. */}
-            <div
-              className="flex items-center gap-2 tabular-nums"
-              style={{ fontSize: 11.5, fontWeight: 800, marginTop: 4 }}
-            >
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
               <span style={{ color: '#1D4ED8' }}>▼ {weather.daily.tempMin}°</span>
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
               <span style={{ color: '#B91C1C' }}>▲ {weather.daily.tempMax}°</span>

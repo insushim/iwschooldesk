@@ -469,11 +469,12 @@ const HIDE_ON_WALLPAPER_TYPES = new Set<string>([])
 // 단축키 toggle 시 wallpaper 모드 가능한 위젯 타입 — src/types/widget.types.ts 와 동기.
 // studentcheck 제외 — 사용자 요청 ("학급 체크는 배경화면 모드 빼달라").
 // timer 제외 — 사용자 요청 ("타이머는 배경화면 모드 삭제. 전체 배경화면 모드 시 디스플레이 모드로 동기").
+// calendar 제외 — 사용자 요청 (일정 클릭/추가 인터랙션이 잦아 배경모드 부적합. 디스플레이 모드만).
 //   전체 배경화면 모드 시 enterAllWallpaperMode 가 broadcastAllDisplayMode(true) 도 호출하므로
-//   타이머는 WidgetShell 의 shellDisplayMode 만 켜져 헤더가 숨겨진 디스플레이 모드 모양이 됨.
+//   타이머·달력은 WidgetShell 의 shellDisplayMode 만 켜져 헤더가 숨겨진 디스플레이 모드 모양이 됨.
 const WALLPAPER_ELIGIBLE_TYPES_M = new Set<string>([
   // 학생 시간표는 학생용 표시이므로 배경모드(클릭 통과) 대신 디스플레이 모드만 사용.
-  'timetable', 'calendar', 'goal',
+  'timetable', 'goal',
   'dday', 'clock', 'today', 'meal',
 ])
 

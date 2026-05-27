@@ -109,8 +109,8 @@ export function WidgetLauncher() {
 
   return (
     <div className="h-full overflow-y-auto">
-      {/* max-w-[1400px] + mx-auto: 큰 모니터에서 카드가 좌우 끝에 안 붙고 가운데 정렬. */}
-      <div className="p-6 max-w-[1400px] mx-auto">
+      {/* 좌우 패딩(px-8 = 32px)으로 카드가 끝에 안 붙되, 너비는 전체 사용. */}
+      <div className="py-6 px-8">
         <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -166,8 +166,8 @@ export function WidgetLauncher() {
         </div>
 
         <div
-          className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gridAutoRows: '1fr' }}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gridAutoRows: '1fr' }}
         >
           {WIDGETS.map((w) => {
             const Icon = w.icon

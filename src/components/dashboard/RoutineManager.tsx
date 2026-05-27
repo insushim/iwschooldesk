@@ -140,7 +140,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
   }
 
   return (
-    <div className="flex h-full overflow-hidden max-w-[1400px] mx-auto w-full">
+    <div className="flex h-full overflow-hidden">
       {/* 좌측 — 루틴 리스트 */}
       <div className="shrink-0 flex flex-col" style={{ width: 280, borderRight: '1px solid var(--border-widget)', padding: 16 }}>
         <div className="flex items-center gap-2 mb-3">

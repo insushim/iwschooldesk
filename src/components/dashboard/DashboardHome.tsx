@@ -207,8 +207,20 @@ function TodayTimetable({ slots, periods, overrides, onAddOverride }: {
     return <p className="text-sm text-[var(--text-muted)] text-center py-4">주말에는 수업이 없어요</p>
   }
 
-  const classPeriods = periods.filter((p) => p.is_break === 0).sort((a, b) => a.period - b.period)
+  const allClassPeriods = periods.filter((p) => p.is_break === 0).sort((a, b) => a.period - b.period)
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+  // 뒤에서부터 빈 교시(슬롯 X + 임시 수업 X) 자동 숨김 — 6교시까지 정의됐어도 오늘 6교시 슬롯 없으면 5교시까지만 표시.
+  // 앞쪽 빈 슬롯(예: 0교시 아침 자습)은 의도된 비움이라 유지.
+  let lastFilledIdx = allClassPeriods.length - 1
+  while (lastFilledIdx >= 0) {
+    const p = allClassPeriods[lastFilledIdx]
+    const hasOverride = overrides.some((o) => o.period === p.period)
+    const hasSlot = slots.some((s) => s.day_of_week === dayIdx && s.period === p.period)
+    if (hasOverride || hasSlot) break
+    lastFilledIdx--
+  }
+  const classPeriods = lastFilledIdx >= 0 ? allClassPeriods.slice(0, lastFilledIdx + 1) : allClassPeriods
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-0.5">

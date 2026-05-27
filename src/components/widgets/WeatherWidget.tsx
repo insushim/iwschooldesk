@@ -656,9 +656,9 @@ export function WeatherWidget() {
                 </span>
               ) : null}
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
-              <span style={{ color: '#1D4ED8' }}>▼ {weather.daily.tempMin}°</span>
+              <span style={{ color: '#1D4ED8' }}>최저 {weather.daily.tempMin}도</span>
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
-              <span style={{ color: '#B91C1C' }}>▲ {weather.daily.tempMax}°</span>
+              <span style={{ color: '#B91C1C' }}>최고 {weather.daily.tempMax}도</span>
             </div>
           </div>
         </div>

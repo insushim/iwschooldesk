@@ -141,7 +141,9 @@ interface WeatherData {
   }
   daily: { tempMin: number; tempMax: number; weatherCode: number; precip: number }
   hourly: { morning: { temp: number; code: number }; afternoon: { temp: number; code: number } }
-  hours: Array<{ hour: number; temp: number | null; code: number }>  // 3·6·9·12·15·18·21·24시 8슬롯
+  /** 3시간 간격 슬롯 — KMA 발표 시점은 0~24시 고정, 클라이언트가 현재 시간 이후만 필터링.
+   *  pop = 강수확률(%). KMA POP 또는 Open-Meteo precipitation_probability_max 값. */
+  hours: Array<{ hour: number; temp: number | null; code: number; pop: number }>
   alerts: string[]                // KMA 특보 기반 — 🥶한파/🔥폭염/💨강풍/🌊폭우
   source: 'kma' | 'open-meteo'    // 데이터 출처 표시용 (사용자에게 정확도 신호)
   fetchedAt: number
@@ -268,7 +270,7 @@ export function WeatherWidget() {
     const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${target.lat}&longitude=${target.lon}`
       + `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`
       + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum`
-      + `&hourly=temperature_2m,weather_code`
+      + `&hourly=temperature_2m,weather_code,precipitation_probability`
       + `&wind_speed_unit=ms&timezone=Asia%2FSeoul&forecast_days=1`
     const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${target.lat}&longitude=${target.lon}`
       + `&current=pm10,pm2_5&timezone=Asia%2FSeoul`
@@ -325,7 +327,7 @@ export function WeatherWidget() {
             }
             daily: { tempMin: number | null; tempMax: number | null; weatherCode: number; precip: number }
             hourly: { morning: { temp: number | null; code: number }; afternoon: { temp: number | null; code: number } }
-            hours?: Array<{ hour: number; temp: number | null; code: number }>
+            hours?: Array<{ hour: number; temp: number | null; code: number; pop?: number }>
             alerts: string[]
             source: 'kma'
           }
@@ -361,6 +363,7 @@ export function WeatherWidget() {
                 hour: h.hour,
                 temp: h.temp !== null ? Math.round(h.temp) : null,
                 code: h.code,
+                pop: h.pop ?? 0,
               })),
               alerts: k.alerts ?? [],
               source: 'kma',
@@ -379,7 +382,7 @@ export function WeatherWidget() {
         const w = await wRes.json() as {
           current: { temperature_2m: number; relative_humidity_2m: number; weather_code: number; wind_speed_10m?: number }
           daily: { temperature_2m_max: number[]; temperature_2m_min: number[]; weather_code: number[]; precipitation_sum: number[] }
-          hourly: { time: string[]; temperature_2m: number[]; weather_code: number[] }
+          hourly: { time: string[]; temperature_2m: number[]; weather_code: number[]; precipitation_probability?: number[] }
         }
         // 오전 9시 / 오후 3시 시점 hourly 추출 (없으면 가장 가까운 시각).
         const findHour = (h: number): number => {
@@ -417,12 +420,14 @@ export function WeatherWidget() {
               hour: h,
               temp: typeof w.hourly.temperature_2m[safe] === 'number' ? Math.round(w.hourly.temperature_2m[safe]) : null,
               code: w.hourly.weather_code[safe] ?? 0,
+              pop: w.hourly.precipitation_probability?.[safe] ?? 0,
             }
           }).concat([{
             // 24시 = 익일 0시. forecast_days=1 이라 익일 데이터 부재 — 23시 값을 24시 자리에 표시.
             hour: 24,
             temp: typeof w.hourly.temperature_2m[23] === 'number' ? Math.round(w.hourly.temperature_2m[23]) : null,
             code: w.hourly.weather_code[23] ?? 0,
+            pop: w.hourly.precipitation_probability?.[23] ?? 0,
           }]),
           alerts: buildAlerts(curTemp, curWind, null, dailyPrecip),  // Open-Meteo 는 시간당 강수 미제공
           source: 'open-meteo',
@@ -665,8 +670,14 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 시간별 예보 8슬롯 (3·6·9·12·15·18·21·24시) — 가로 컴팩트. 24시간 표기로 폭 최소화. */}
-      {weather && weather.hours.length > 0 && (
+      {/* 시간별 예보 슬롯 — 현재 시간 이후만 표시 (지난 시각 슬롯 제거).
+       *  24시 슬롯은 익일 0시. 현재가 21시 이상이면 24시만 남고 슬롯 1개 → 그래도 의미 있음. */}
+      {weather && (() => {
+        const nowH = new Date().getHours()
+        // hour > nowH 인 슬롯만. 24시는 항상 포함(익일 0시).
+        const upcoming = weather.hours.filter((h) => h.hour === 24 || h.hour > nowH)
+        if (upcoming.length === 0) return null
+        return (
         <div
           className="flex shrink-0 overflow-x-auto"
           style={{
@@ -674,15 +685,16 @@ export function WeatherWidget() {
             scrollbarWidth: 'thin',
           }}
         >
-          {weather.hours.map((h) => {
+          {upcoming.map((h) => {
             const info = weatherInfo(h.code)
+            const hasRain = h.pop > 0
             return (
               <div
                 key={h.hour}
                 className="flex flex-col items-center shrink-0"
                 style={{
                   flex: '1 1 0',
-                  minWidth: 32,
+                  minWidth: 36,
                   padding: '4px 2px', borderRadius: 6,
                   background: `linear-gradient(180deg, ${info.color}0A 0%, ${info.color}18 100%)`,
                   border: `1px solid ${info.color}22`,
@@ -696,11 +708,16 @@ export function WeatherWidget() {
                   {h.temp !== null ? `${h.temp}°` : '—'}
                 </span>
                 <info.Icon size={13} strokeWidth={2.2} color={info.color} />
+                {/* 강수확률 — KMA POP 또는 Open-Meteo precipitation_probability. 0%면 표시 X (공간 절약). */}
+                <span className="tabular-nums" style={{ fontSize: 9, fontWeight: 800, color: hasRain ? '#3B82F6' : 'transparent', letterSpacing: '-0.3px', lineHeight: 1, minHeight: 9 }}>
+                  {hasRain ? `${h.pop}%` : '0'}
+                </span>
               </div>
             )
           })}
         </div>
-      )}
+        )
+      })()}
 
       {/* 미세먼지(PM10, 왼쪽) / 초미세먼지(PM2.5, 오른쪽) — 한국 표기 관행. */}
       <div className="grid grid-cols-2 gap-2 shrink-0">

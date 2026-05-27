@@ -565,9 +565,19 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 현재 기온 + 날씨 아이콘 — 큰 영역 */}
-      {weather && cur && (
-        <div className="flex items-center justify-center gap-3 shrink-0" style={{ marginBottom: 'clamp(10px, 1.6vw, 18px)' }}>
+      {/* 현재 기온 + 날씨 아이콘 — 큰 영역.
+       *  레이아웃: [아이콘] | [온도 큰글씨 + 라벨(흐림 · 강수확률) + 최저/최고 컴팩트]
+       *  최저/최고를 온도 column 안으로 통합 → 별도 줄 차지 X (사용자 요청). */}
+      {weather && cur && (() => {
+        // 현재 시각이 속한 슬롯의 POP — KMA 단기예보 3시간 단위라 슬롯 단위가 한계.
+        const nowH = new Date().getHours()
+        const currentSlotStart = Math.floor(nowH / 3) * 3
+        const currentSlot = weather.hours.find((h) => h.hour === currentSlotStart)
+        const currentPop = currentSlot?.pop ?? 0
+        // 1시간 강수량(KMA RN1) 우선, 없으면 강수확률.
+        const hasRain1h = weather.current.precipNow !== null && weather.current.precipNow > 0
+        return (
+        <div className="flex items-center justify-center gap-3 shrink-0" style={{ marginBottom: 'clamp(6px, 1.2vw, 12px)' }}>
           <cur.Icon
             strokeWidth={1.8}
             color={cur.color}
@@ -588,7 +598,6 @@ export function WeatherWidget() {
               style={{
                 fontSize: 'clamp(13px, 1.8vw, 19px)',
                 fontWeight: 900, letterSpacing: '-0.02em',
-                // 시인성 강화 — 회색(text-secondary) → 진한 검정(text-primary) + 미세 검정 stroke + 밝은 그림자.
                 color: 'var(--text-primary)',
                 WebkitTextStroke: '0.3px rgba(0,0,0,0.6)',
                 textShadow: '0 1px 2px rgba(255,255,255,0.55)',
@@ -597,43 +606,33 @@ export function WeatherWidget() {
             >
               {/* KMA 가 강수형태 한글 라벨(빗방울/눈날림 등 세분) 주면 우선 사용. */}
               {weather.current.precipType || cur.label}
-              {(weather.current.precipNow !== null && weather.current.precipNow > 0) ? (
+              {hasRain1h ? (
                 <span style={{ marginLeft: 6, color: '#3B82F6' }}>
                   · 1시간 {weather.current.precipNow}mm
                 </span>
-              ) : weather.daily.precip > 0 ? (
-                <span style={{ marginLeft: 6, color: '#3B82F6' }} title="오늘(00~24시) 누적 강수량 예보 — 기상청 단기예보 PCP 합산">
-                  · 오늘 강수 {weather.daily.precip}mm
+              ) : currentPop > 0 ? (
+                <span style={{ marginLeft: 6, color: '#3B82F6' }} title="현재 시간대 강수확률 — 기상청 단기예보 POP">
+                  · 강수확률 {currentPop}%
                 </span>
               ) : null}
             </div>
+            {/* 최저/최고 — 온도 column 안에 컴팩트 inline. 한 줄 차지 X. */}
+            <div
+              className="flex items-center gap-2 tabular-nums"
+              style={{ fontSize: 11.5, fontWeight: 800, marginTop: 4 }}
+            >
+              <span style={{ color: '#1D4ED8' }}>▼ {weather.daily.tempMin}°</span>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
+              <span style={{ color: '#B91C1C' }}>▲ {weather.daily.tempMax}°</span>
+            </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
-      {/* 최저/최고 + 특보 + 풍속 chip — 한 줄로 묶음 (수직 공간 절약). */}
-      {weather && (
+      {/* 특보 + 풍속 chip — 최저/최고는 위 column 으로 이동됨. 알림성 정보만 남음. */}
+      {weather && (weather.alerts.length > 0 || (weather.current.windSpeed !== null && weather.current.windSpeed >= 5)) && (
         <div className="flex items-center justify-center gap-1.5 flex-wrap shrink-0" style={{ marginBottom: 'clamp(6px, 1vw, 10px)' }}>
-          <span
-            className="inline-flex items-center gap-1 tabular-nums"
-            style={{
-              fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-              background: 'rgba(59,130,246,0.14)', color: '#1D4ED8',
-              border: '1px solid rgba(59,130,246,0.3)',
-            }}
-          >
-            최저 {weather.daily.tempMin}°
-          </span>
-          <span
-            className="inline-flex items-center gap-1 tabular-nums"
-            style={{
-              fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-              background: 'rgba(239,68,68,0.14)', color: '#B91C1C',
-              border: '1px solid rgba(239,68,68,0.3)',
-            }}
-          >
-            최고 {weather.daily.tempMax}°
-          </span>
           {weather.alerts.map((a) => (
             <span
               key={a}
@@ -670,16 +669,10 @@ export function WeatherWidget() {
        *  예: 12:30 이면 12, 15, 18, 21, 24, 3, 6, 9 (24시 이후는 익일).
        *  weather.hours 는 16슬롯 (오늘 0~21 + 익일 0~21=24~45) 데이터. */}
       {weather && (() => {
-        const nowDate = new Date()
-        const nowH = nowDate.getHours()
-        const nowM = nowDate.getMinutes()
-        // 슬롯 선택 규칙: 다음 3시간 슬롯 시작이 60분 이내면 그 슬롯부터, 아니면 현재 슬롯부터.
-        // 예: 11:04 → 다음 슬롯(12시)까지 56분 → 12부터. 14:30 → 다음 슬롯(15시)까지 30분 → 15부터.
-        //     12:30 → 다음 슬롯(15시)까지 150분 → 12부터 (현재 슬롯 유지).
-        const currentSlotStart = Math.floor(nowH / 3) * 3
-        const nextSlotStart = currentSlotStart + 3
-        const minutesUntilNext = (nextSlotStart - nowH) * 60 - nowM
-        const startH = minutesUntilNext <= 60 ? nextSlotStart : currentSlotStart
+        const nowH = new Date().getHours()
+        // 현재 시각이 속한 슬롯은 "현재 정보(상단 큰 표시)"가 다루므로, 시간별은 항상 *다음* 슬롯부터.
+        // 예: 11시(9-12시 슬롯 중) → 12부터. 12시 정각(12-15시 슬롯 시작) → 15부터.
+        const startH = (Math.floor(nowH / 3) + 1) * 3
         const upcoming = weather.hours.filter((h) => h.hour >= startH).slice(0, 8)
         if (upcoming.length === 0) return null
         return (

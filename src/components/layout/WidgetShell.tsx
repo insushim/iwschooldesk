@@ -253,16 +253,20 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
               {icon}
             </span>
           )}
-          <span
-            className="truncate text-[var(--text-primary)]"
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: '-0.015em',
-            }}
-          >
-            {title}
-          </span>
+          {/* checklist 는 본문 상단 드롭다운에 현재 리스트 이름이 큰 글씨로 표시되므로,
+              Shell 헤더의 '체크리스트' 라벨은 중복이라 숨김 (아이콘만 유지). */}
+          {widgetType !== 'checklist' && (
+            <span
+              className="truncate text-[var(--text-primary)]"
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: '-0.015em',
+              }}
+            >
+              {title}
+            </span>
+          )}
         </div>
 
         <div

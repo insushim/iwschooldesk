@@ -266,6 +266,13 @@ export function WeatherWidget() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [air, setAir] = useState<AirQuality>({ pm10: null, pm25: null })
   const [loading, setLoading] = useState(false)
+  // 1분마다 tick — 시간이 흐를 때 hours 슬롯 시작점(startH) 자동 갱신.
+  // 예: 14:55 → startH=15, 15:00 직후 → startH=18 (1분 안에 자동 반영).
+  const [, setMinuteTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setMinuteTick((n) => n + 1), 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
   const [error, setError] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')

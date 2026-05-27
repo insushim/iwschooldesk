@@ -624,6 +624,9 @@ export function WeatherWidget() {
         const currentPop = currentSlot?.pop ?? 0
         // 1시간 강수량(KMA RN1) 우선, 없으면 강수확률.
         const hasRain1h = weather.current.precipNow !== null && weather.current.precipNow > 0
+        // 레이아웃: [아이콘] [라벨(흐림)]   [큰 온도] [강수확률]
+        //                                  [최저 20도 · 최고 28도]
+        // 전체 가운데 정렬. 라벨은 아이콘 옆, 강수확률은 큰 온도 옆, 최저/최고는 큰 온도 아래.
         return (
         <div className="flex items-center justify-center gap-3 shrink-0" style={{ marginBottom: 'clamp(6px, 1.2vw, 12px)' }}>
           <cur.Icon
@@ -631,38 +634,62 @@ export function WeatherWidget() {
             color={cur.color}
             style={{ filter: `drop-shadow(0 4px 12px ${cur.color}66)`, width: 'clamp(56px, 13vw, 96px)', height: 'clamp(56px, 13vw, 96px)' }}
           />
+          {/* 아이콘 옆 — 라벨(맑음/흐림/비/소나기) */}
+          <span
+            style={{
+              fontSize: 'clamp(14px, 1.9vw, 22px)',
+              fontWeight: 900, letterSpacing: '-0.02em',
+              color: 'var(--text-primary)',
+              WebkitTextStroke: '0.25px rgba(0,0,0,0.55)',
+              textShadow: '0 1px 2px rgba(255,255,255,0.55)',
+            }}
+          >
+            {weather.current.precipType || cur.label}
+          </span>
+          {/* 큰 온도 column — 온도 + (옆에 강수확률) + (아래 최저/최고) */}
           <div className="flex flex-col items-center">
-            <div
-              className="tabular-nums"
-              style={{
-                fontSize: 'clamp(46px, 12vw, 92px)',
-                fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.05em',
-                color: cur.color,
-              }}
-            >
-              {weather.current.temperature}°
-            </div>
-            {/* 라벨(맑음/흐림/비) + 강수확률 + 최저/최고 — 모두 한 줄. 가운데 정렬. */}
-            <div
-              className="flex items-center justify-center gap-1.5 flex-wrap tabular-nums"
-              style={{
-                fontSize: 'clamp(12px, 1.6vw, 17px)',
-                fontWeight: 900, letterSpacing: '-0.02em',
-                color: 'var(--text-primary)',
-                WebkitTextStroke: '0.25px rgba(0,0,0,0.55)',
-                textShadow: '0 1px 2px rgba(255,255,255,0.55)',
-                marginTop: 4,
-              }}
-            >
-              <span>{weather.current.precipType || cur.label}</span>
+            <div className="flex items-baseline gap-2">
+              <div
+                className="tabular-nums"
+                style={{
+                  fontSize: 'clamp(46px, 12vw, 92px)',
+                  fontWeight: 900, lineHeight: 0.95, letterSpacing: '-0.05em',
+                  color: cur.color,
+                }}
+              >
+                {weather.current.temperature}°
+              </div>
               {hasRain1h ? (
-                <span style={{ color: '#3B82F6' }}>· 1시간 {weather.current.precipNow}mm</span>
+                <span
+                  className="tabular-nums"
+                  style={{
+                    fontSize: 'clamp(12px, 1.5vw, 16px)',
+                    fontWeight: 800, color: '#3B82F6',
+                  }}
+                >
+                  1시간 {weather.current.precipNow}mm
+                </span>
               ) : currentPop > 0 ? (
-                <span style={{ color: '#3B82F6' }} title="현재 시간대 강수확률 — 기상청 단기예보 POP">
-                  · 강수확률 {currentPop}%
+                <span
+                  className="tabular-nums"
+                  style={{
+                    fontSize: 'clamp(12px, 1.5vw, 16px)',
+                    fontWeight: 800, color: '#3B82F6',
+                  }}
+                  title="현재 시간대 강수확률 — 기상청 단기예보 POP"
+                >
+                  강수확률 {currentPop}%
                 </span>
               ) : null}
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
+            </div>
+            {/* 큰 온도 아래 — 최저/최고 한 줄 */}
+            <div
+              className="flex items-center justify-center gap-2 tabular-nums"
+              style={{
+                fontSize: 'clamp(11px, 1.4vw, 15px)',
+                fontWeight: 800, marginTop: 4,
+              }}
+            >
               <span style={{ color: '#1D4ED8' }}>최저 {weather.daily.tempMin}도</span>
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>·</span>
               <span style={{ color: '#B91C1C' }}>최고 {weather.daily.tempMax}도</span>

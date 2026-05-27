@@ -109,9 +109,9 @@ export function WidgetLauncher() {
 
   return (
     <div className="h-full overflow-y-auto">
-      {/* 좌우 패딩(px-8 = 32px)으로 카드가 끝에 안 붙되, 너비는 전체 사용. */}
-      <div className="py-6 px-8">
-        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+      {/* 좌우 패딩(px-8) + flex-col + 그리드 flex-1 → 위아래 화면 전체 활용. */}
+      <div className="py-6 px-8 min-h-full flex flex-col">
+        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap shrink-0">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <LayoutGrid size={20} className="text-[var(--accent)]" />
@@ -166,7 +166,7 @@ export function WidgetLauncher() {
         </div>
 
         <div
-          className="grid gap-4"
+          className="grid gap-4 flex-1"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gridAutoRows: '1fr' }}
         >
           {WIDGETS.map((w) => {

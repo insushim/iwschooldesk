@@ -11,7 +11,7 @@ function ymd(d: Date): string {
 
 const DAYS: DayOfWeek[] = [0, 1, 2, 3, 4]
 
-// 초등 교사가 실제로 쓰는 관용 축약. 4글자 이상인 과목만 축약, 3글자 이하는 원본 유지.
+// 초등 교사가 실제로 쓰는 관용 축약. 6글자 이상인 과목만 축약, 5글자 이하는 원본 유지.
 const SUBJECT_SHORT: Record<string, string> = {
   '바른생활': '바생',
   '슬기로운생활': '슬생',
@@ -22,8 +22,8 @@ const SUBJECT_SHORT: Record<string, string> = {
 
 function shortSubject(s: string): string {
   if (!s) return ''
-  if (s.length <= 3) return s // "동아리", "바른", "국어" 등 모두 그대로
-  return SUBJECT_SHORT[s] ?? s.slice(0, 3)
+  if (s.length <= 5) return s // 5글자까지 그대로 표시 (사용자 요청)
+  return SUBJECT_SHORT[s] ?? s.slice(0, 5)
 }
 
 /** 이번 주 월요일~금요일 날짜 문자열 5개 반환 (YYYY-MM-DD). 토/일이면 다음 주 월요일부터. */

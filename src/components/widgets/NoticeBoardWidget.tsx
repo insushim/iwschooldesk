@@ -168,27 +168,10 @@ export function NoticeBoardWidget() {
         </div>
       )}
 
-      {/* 일반 모드 헤더 — 편집/디스플레이 + 글씨 크기 ± + 색 팔레트(편집 중에만) */}
+      {/* 일반 모드 컨트롤 — Shell 헤더에 이미 '알림판' 라벨 있으므로 자체 아이콘·라벨 제거.
+          글씨 ± / 편집 / 디스플레이 모드 버튼만 우측 정렬 한 줄. */}
       {!big && (
-        <div className="flex items-center gap-2 shrink-0 mb-2">
-          <span
-            className="flex items-center justify-center shrink-0"
-            style={{
-              width: 26, height: 26, borderRadius: 8,
-              background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
-              color: '#fff',
-              boxShadow: '0 3px 10px rgba(220,38,38,0.32)',
-            }}
-          >
-            <Megaphone size={14} strokeWidth={2.4} />
-          </span>
-          <span
-            className="flex-1 text-[var(--text-primary)] truncate"
-            style={{ fontSize: 13, fontWeight: 800, letterSpacing: '-0.02em' }}
-          >
-            알림판
-          </span>
-          {/* 글씨 크기 ± — 항상 보임 (편집/표시 무관) */}
+        <div className="flex items-center justify-end gap-1.5 shrink-0 mb-2">
           <button
             onClick={() => changeFontIdx(-1)}
             disabled={fontIdx <= 0}

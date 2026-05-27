@@ -337,6 +337,9 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
             )}
           </div>
 
+          {/* noticeboard 는 자체 글씨 크기 +/- 컨트롤(박스 변동 없는 fontSize 직접 변경)을 갖고 있어
+              Shell 의 zoom 기반 T 버튼은 중복 + 박스 변동 부작용이라 숨김. */}
+          {widgetType !== 'noticeboard' && (
           <div className="relative" ref={fontPopoverRef}>
             <button
               onClick={() => setFontOpen((p) => !p)}
@@ -400,6 +403,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
               </div>
             )}
           </div>
+          )}
 
           <button
             onClick={toggleAlwaysOnTop}

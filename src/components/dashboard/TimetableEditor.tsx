@@ -250,7 +250,7 @@ export function TimetableEditor() {
   }
 
   return (
-    <div className="flex flex-col h-full px-5 py-5 sm:px-7 lg:px-9 lg:py-6">
+    <div className="flex flex-col h-full px-5 py-3 sm:px-7 lg:px-9 lg:py-5">
       {/* 탭 */}
       <div className="flex items-center gap-2 mb-5 shrink-0">
         {([

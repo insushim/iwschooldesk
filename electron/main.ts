@@ -134,7 +134,7 @@ function isOtherWallpaperHwnd(hwnd: bigint, selfId: string): boolean {
  *  - hwnd 위가 없으면(=내가 가장 위) 무조건 BOTTOM.
  */
 function pushWindowToBackSmart(win: BrowserWindow, widgetId: string): void {
-  if (!_setWindowPos || win.isDestroyed()) return
+  if (_quitting || !_setWindowPos || win.isDestroyed()) return
   try {
     const hwnd = hwndOf(win)
     const above = _getWindow ? _getWindow(hwnd, GW_HWNDPREV) : 1n
@@ -148,7 +148,7 @@ function pushWindowToBackSmart(win: BrowserWindow, widgetId: string): void {
 }
 
 function pushWindowToBack(win: BrowserWindow, ctx?: string): void {
-  if (!_setWindowPos || win.isDestroyed()) return
+  if (_quitting || !_setWindowPos || win.isDestroyed()) return
   try {
     const hwnd = hwndOf(win)
     const result = _setWindowPos(hwnd, BigInt(HWND_BOTTOM), 0, 0, 0, 0,
@@ -172,7 +172,7 @@ function pushWindowToBack(win: BrowserWindow, ctx?: string): void {
  * 치명적 버그가 발생한다 (사용자 리포트). 방어로 Win32 로 직접 제거.
  */
 function forceClearClickThrough(win: BrowserWindow): void {
-  if (process.platform !== 'win32') return
+  if (_quitting || process.platform !== 'win32') return
   if (!_getWindowLongPtr || !_setWindowLongPtr || !_setWindowPos) return
   if (win.isDestroyed()) return
   try {
@@ -193,7 +193,7 @@ function forceClearClickThrough(win: BrowserWindow): void {
  * 스타일 변경 후 SWP_FRAMECHANGED 로 윈도우에 변경 사항 알림 필수.
  */
 function setWindowNoActivate(win: BrowserWindow, enable: boolean): void {
-  if (process.platform !== 'win32') return
+  if (_quitting || process.platform !== 'win32') return
   if (!_getWindowLongPtr || !_setWindowLongPtr || !_setWindowPos) return
   if (win.isDestroyed()) return
   try {
@@ -442,6 +442,9 @@ function applyDefaultNoActivate(win: BrowserWindow, widgetId: string): void {
  */
 let _bottomTickTimer: NodeJS.Timeout | null = null
 let _cleanupExpiredTimer: NodeJS.Timeout | null = null
+/** 앱 종료 중 플래그 — before-quit 진입 후 true. 모든 native(Win32 koffi) 호출과 setInterval
+ *  콜백이 이 플래그를 확인해 즉시 return → window destroy 직전 race 로 인한 0x80000003 crash 방지. */
+let _quitting = false
 function startBottomTickTimer(): void {
   if (_bottomTickTimer) return
   _bottomTickTimer = setInterval(() => {
@@ -1861,6 +1864,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  // 종료 플래그 — 이후 모든 setInterval 콜백/native Win32 호출이 즉시 return.
+  // 윈도우 destroy 직전 race 로 0x80000003 (BREAKPOINT) crash 가 발생하던 문제 차단.
+  _quitting = true
   // 종료 직전: 모든 위젯의 마지막 bounds 를 closeDatabase() 호출 전에 강제 flush.
   // debounce(400ms) 큐에 남아있던 변경이 사라지지 않도록 — 다음 실행 때 같은 위치로 복원 보장.
   for (const [id, w] of widgetWindows) {

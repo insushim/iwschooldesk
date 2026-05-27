@@ -670,8 +670,16 @@ export function WeatherWidget() {
        *  예: 12:30 이면 12, 15, 18, 21, 24, 3, 6, 9 (24시 이후는 익일).
        *  weather.hours 는 16슬롯 (오늘 0~21 + 익일 0~21=24~45) 데이터. */}
       {weather && (() => {
-        const nowH = new Date().getHours()
-        const startH = Math.floor(nowH / 3) * 3  // 현재 시각이 속한 3시간 슬롯 시작
+        const nowDate = new Date()
+        const nowH = nowDate.getHours()
+        const nowM = nowDate.getMinutes()
+        // 슬롯 선택 규칙: 다음 3시간 슬롯 시작이 60분 이내면 그 슬롯부터, 아니면 현재 슬롯부터.
+        // 예: 11:04 → 다음 슬롯(12시)까지 56분 → 12부터. 14:30 → 다음 슬롯(15시)까지 30분 → 15부터.
+        //     12:30 → 다음 슬롯(15시)까지 150분 → 12부터 (현재 슬롯 유지).
+        const currentSlotStart = Math.floor(nowH / 3) * 3
+        const nextSlotStart = currentSlotStart + 3
+        const minutesUntilNext = (nextSlotStart - nowH) * 60 - nowM
+        const startH = minutesUntilNext <= 60 ? nextSlotStart : currentSlotStart
         const upcoming = weather.hours.filter((h) => h.hour >= startH).slice(0, 8)
         if (upcoming.length === 0) return null
         return (

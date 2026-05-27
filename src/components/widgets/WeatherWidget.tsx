@@ -271,7 +271,7 @@ export function WeatherWidget() {
       + `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`
       + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum`
       + `&hourly=temperature_2m,weather_code,precipitation_probability`
-      + `&wind_speed_unit=ms&timezone=Asia%2FSeoul&forecast_days=1`
+      + `&wind_speed_unit=ms&timezone=Asia%2FSeoul&forecast_days=2`
     const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${target.lat}&longitude=${target.lon}`
       + `&current=pm10,pm2_5&timezone=Asia%2FSeoul`
 
@@ -413,22 +413,18 @@ export function WeatherWidget() {
             morning: { temp: Math.round(w.hourly.temperature_2m[mIdx]), code: w.hourly.weather_code[mIdx] },
             afternoon: { temp: Math.round(w.hourly.temperature_2m[aIdx]), code: w.hourly.weather_code[aIdx] },
           },
-          hours: [3, 6, 9, 12, 15, 18, 21].map((h) => {
-            const idx = w.hourly.time.findIndex((t) => new Date(t).getHours() === h)
-            const safe = idx >= 0 ? idx : 0
+          // 16슬롯 (오늘 0~21 + 익일 0~21). forecast_days=2 라서 익일 데이터 포함됨.
+          // hourly.time 은 ISO 문자열 배열 (48시간 분량). 인덱스 = 시간 오프셋.
+          hours: [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45].map((h) => {
+            // hourly.time[h] 가 정확히 h시간 후 시각. forecast_days=2 면 48슬롯.
+            const safe = h < w.hourly.time.length ? h : Math.max(0, w.hourly.time.length - 1)
             return {
               hour: h,
               temp: typeof w.hourly.temperature_2m[safe] === 'number' ? Math.round(w.hourly.temperature_2m[safe]) : null,
               code: w.hourly.weather_code[safe] ?? 0,
               pop: w.hourly.precipitation_probability?.[safe] ?? 0,
             }
-          }).concat([{
-            // 24시 = 익일 0시. forecast_days=1 이라 익일 데이터 부재 — 23시 값을 24시 자리에 표시.
-            hour: 24,
-            temp: typeof w.hourly.temperature_2m[23] === 'number' ? Math.round(w.hourly.temperature_2m[23]) : null,
-            code: w.hourly.weather_code[23] ?? 0,
-            pop: w.hourly.precipitation_probability?.[23] ?? 0,
-          }]),
+          }),
           alerts: buildAlerts(curTemp, curWind, null, dailyPrecip),  // Open-Meteo 는 시간당 강수 미제공
           source: 'open-meteo',
           fetchedAt: Date.now(),
@@ -670,12 +666,13 @@ export function WeatherWidget() {
         </div>
       )}
 
-      {/* 시간별 예보 슬롯 — 현재 시간 이후만 표시 (지난 시각 슬롯 제거).
-       *  24시 슬롯은 익일 0시. 현재가 21시 이상이면 24시만 남고 슬롯 1개 → 그래도 의미 있음. */}
+      {/* 시간별 예보 슬롯 — 현재 3시간 슬롯부터 익일까지 8슬롯 표시.
+       *  예: 12:30 이면 12, 15, 18, 21, 24, 3, 6, 9 (24시 이후는 익일).
+       *  weather.hours 는 16슬롯 (오늘 0~21 + 익일 0~21=24~45) 데이터. */}
       {weather && (() => {
         const nowH = new Date().getHours()
-        // hour > nowH 인 슬롯만. 24시는 항상 포함(익일 0시).
-        const upcoming = weather.hours.filter((h) => h.hour === 24 || h.hour > nowH)
+        const startH = Math.floor(nowH / 3) * 3  // 현재 시각이 속한 3시간 슬롯 시작
+        const upcoming = weather.hours.filter((h) => h.hour >= startH).slice(0, 8)
         if (upcoming.length === 0) return null
         return (
         <div
@@ -688,6 +685,10 @@ export function WeatherWidget() {
           {upcoming.map((h) => {
             const info = weatherInfo(h.code)
             const hasRain = h.pop > 0
+            // 표시 시각: 0~24 그대로, 25~45 는 익일이므로 -24 (예: 27→3, 30→6).
+            // 24 는 의도적으로 "24" 유지 → 오늘 끝/익일 시작 경계 명확화.
+            const displayHour = h.hour <= 24 ? h.hour : h.hour - 24
+            const isTomorrow = h.hour > 24
             return (
               <div
                 key={h.hour}
@@ -700,9 +701,10 @@ export function WeatherWidget() {
                   border: `1px solid ${info.color}22`,
                   gap: 2,
                 }}
+                title={isTomorrow ? `내일 ${displayHour}시` : `오늘 ${displayHour}시`}
               >
-                <span className="tabular-nums" style={{ fontSize: 9.5, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.3px', lineHeight: 1 }}>
-                  {h.hour}
+                <span className="tabular-nums" style={{ fontSize: 9.5, fontWeight: 900, color: isTomorrow ? 'var(--text-muted)' : 'var(--text-primary)', letterSpacing: '-0.3px', lineHeight: 1 }}>
+                  {displayHour}
                 </span>
                 <span className="tabular-nums" style={{ fontSize: 12, fontWeight: 900, color: info.color, lineHeight: 1 }}>
                   {h.temp !== null ? `${h.temp}°` : '—'}

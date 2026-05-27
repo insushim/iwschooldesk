@@ -407,29 +407,39 @@ async function fetchWeatherFromKma(lat: number, lon: number, env: Env): Promise<
   const afternoonPty = toNum(getFcstNear('PTY', 15)) ?? 0
   const afternoonSky = toNum(getFcstNear('SKY', 15)) ?? 1
 
-  // 3시간 간격 8슬롯 (3·6·9·12·15·18·21·24시). 24시는 익일 0시 forecast 사용 (단기예보 +72h 안에 포함).
-  const HOUR_SLOTS = [3, 6, 9, 12, 15, 18, 21, 24]
+  // 3시간 간격 16슬롯 — 오늘 0~21 + 익일 0~21(=24~45). 클라이언트가 현재 시간 기준으로
+  // 8슬롯 동적 선택. KMA 단기예보 +72h 안에 모두 포함됨 (발표 시간에 따라 일부 null 가능).
+  const HOUR_SLOTS = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45]
+  // 익일 데이터 한 번만 인덱싱 (h>=24 슬롯 8개 처리용).
+  const tomorrowD = toKst(new Date()); tomorrowD.setUTCDate(tomorrowD.getUTCDate() + 1)
+  const ymdTomorrow = `${tomorrowD.getUTCFullYear()}${String(tomorrowD.getUTCMonth() + 1).padStart(2, '0')}${String(tomorrowD.getUTCDate()).padStart(2, '0')}`
+  const tomorrowByCatTime = new Map<string, Map<string, string>>()
+  for (const it of (fcst ?? []).concat(fcstY23 ?? [])) {
+    if (it.fcstDate !== ymdTomorrow) continue
+    if (!it.category || !it.fcstTime || it.fcstValue === undefined) continue
+    if (!tomorrowByCatTime.has(it.category)) tomorrowByCatTime.set(it.category, new Map())
+    tomorrowByCatTime.get(it.category)!.set(it.fcstTime, it.fcstValue)
+  }
+  const getTomorrowAt = (cat: string, hour: number): string | undefined => {
+    const padded = String(hour).padStart(2, '0') + '00'
+    return tomorrowByCatTime.get(cat)?.get(padded)
+  }
   const hours = HOUR_SLOTS.map((h) => {
     let temp: number | null = null
     let pty = 0
     let sky = 1
     let pop = 0
-    if (h === 24) {
-      // 24시 = 익일 00시 — byCatTime 은 오늘분만 필터되어 있음 → fcst 전체(필터 전)에서 익일 0000 슬롯 직접 탐색.
-      const tomorrow = toKst(new Date()); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
-      const ymdTomorrow = `${tomorrow.getUTCFullYear()}${String(tomorrow.getUTCMonth() + 1).padStart(2, '0')}${String(tomorrow.getUTCDate()).padStart(2, '0')}`
-      for (const it of (fcst ?? []).concat(fcstY23 ?? [])) {
-        if (it.fcstDate !== ymdTomorrow || it.fcstTime !== '0000') continue
-        if (it.category === 'TMP') temp = toNum(it.fcstValue)
-        else if (it.category === 'PTY') pty = toNum(it.fcstValue) ?? 0
-        else if (it.category === 'SKY') sky = toNum(it.fcstValue) ?? 1
-        else if (it.category === 'POP') pop = toNum(it.fcstValue) ?? 0
-      }
-    } else {
+    if (h < 24) {
       temp = toNum(getFcstNear('TMP', h))
       pty = toNum(getFcstNear('PTY', h)) ?? 0
       sky = toNum(getFcstNear('SKY', h)) ?? 1
       pop = toNum(getFcstNear('POP', h)) ?? 0
+    } else {
+      const th = h - 24  // 익일 시각 (0~21)
+      temp = toNum(getTomorrowAt('TMP', th))
+      pty = toNum(getTomorrowAt('PTY', th)) ?? 0
+      sky = toNum(getTomorrowAt('SKY', th)) ?? 1
+      pop = toNum(getTomorrowAt('POP', th)) ?? 0
     }
     return { hour: h, temp, code: ptySkyToWmoCode(pty, sky), pop }
   })

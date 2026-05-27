@@ -230,12 +230,30 @@ export function HabitManager(): React.ReactElement {
               </button>
             </div>
 
-            {/* 큰 stats 카드 — streak / 누적 / 최장 */}
-            <div className="shrink-0 grid grid-cols-3 gap-4 mb-6">
-              <BigStat label="현재 연속" value={stats.streak_current} suffix="일째" accent={ACCENT} icon={<Flame size={18} strokeWidth={2.4} style={{ color: ACCENT }} />} />
-              <BigStat label="누적 체크" value={stats.total_days} suffix="일" accent={ACCENT} />
-              <BigStat label="역대 최장" value={stats.streak_longest} suffix="일" accent={ACCENT} />
-            </div>
+            {/* 큰 stats 카드 — streak / 누적 / 최장 + 이번 주 / 이번 달 (5칸 그리드, 큰 화면 활용) */}
+            {(() => {
+              const todayD = new Date()
+              const ymPrefix = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}`
+              const thisMonthCount = Array.from(doneSet).filter((d) => d.startsWith(ymPrefix)).length
+              const monthDays = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 0).getDate()
+              // 이번 주 = 일~토 7일 중 doneSet 포함 일수
+              const weekDates: string[] = []
+              const sunday = new Date(todayD); sunday.setDate(todayD.getDate() - todayD.getDay())
+              for (let i = 0; i < 7; i++) {
+                const d = new Date(sunday); d.setDate(sunday.getDate() + i)
+                weekDates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+              }
+              const thisWeekCount = weekDates.filter((d) => doneSet.has(d)).length
+              return (
+                <div className="shrink-0 grid grid-cols-5 gap-3 mb-6">
+                  <BigStat label="현재 연속" value={stats.streak_current} suffix="일째" accent={ACCENT} icon={<Flame size={18} strokeWidth={2.4} style={{ color: ACCENT }} />} />
+                  <BigStat label="역대 최장" value={stats.streak_longest} suffix="일" accent={ACCENT} />
+                  <BigStat label="이번 주" value={thisWeekCount} suffix="/7일" accent={ACCENT} />
+                  <BigStat label={`이번 달 (${monthDays}일 중)`} value={thisMonthCount} suffix="일" accent={ACCENT} />
+                  <BigStat label="누적 체크" value={stats.total_days} suffix="일" accent={ACCENT} />
+                </div>
+              )
+            })()}
 
             {/* 90일 contribution graph */}
             <div className="flex-1 overflow-y-auto">

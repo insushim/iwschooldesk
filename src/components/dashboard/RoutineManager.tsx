@@ -281,7 +281,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
               ) : (
                 <div className="rounded-lg border border-[var(--border-widget)] overflow-hidden">
                   {/* 헤더: 날짜 축 */}
-                  <div className="flex items-center" style={{ background: 'var(--bg-secondary)', padding: '8px 12px', borderBottom: '1px solid var(--border-widget)' }}>
+                  <div className="flex items-center" style={{ background: 'var(--bg-secondary)', padding: '8px 8px', borderBottom: '1px solid var(--border-widget)' }}>
                     {/* row 의 체크박스(18px + 8px gap)와 정렬되도록 spacer 두고 라벨 표시 */}
                     <div style={{ width: 26 }} />
                     <div style={{ width: 214, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>항목</div>
@@ -310,7 +310,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
                       <div
                         key={it.id}
                         className="group flex items-center hover:bg-[var(--bg-secondary)]/40"
-                        style={{ padding: '6px 12px', borderTop: '1px solid var(--border-widget)' }}
+                        style={{ padding: '6px 8px', borderTop: '1px solid var(--border-widget)' }}
                       >
                         <button
                           onClick={() => toggleItem(it.id)}

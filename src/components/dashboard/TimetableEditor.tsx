@@ -250,9 +250,9 @@ export function TimetableEditor() {
   }
 
   return (
-    <div className="flex flex-col h-full px-5 py-3 sm:px-7 lg:px-9 lg:py-5">
+    <div className="flex flex-col h-full px-5 py-2 sm:px-7 lg:px-9 lg:py-3">
       {/* 탭 */}
-      <div className="flex items-center gap-2 mb-5 shrink-0">
+      <div className="flex items-center gap-2 mb-2 shrink-0">
         {([
           { id: 'regular' as TabType, icon: Clock, label: '기본 시간표', color: 'blue' },
           { id: 'extracurricular' as TabType, icon: BookOpen, label: '비교과 수업', color: 'emerald' },
@@ -347,7 +347,7 @@ export function TimetableEditor() {
                   const isCurrent = todayDay !== null && isCurrentPeriod(pInfo.start_time, pInfo.end_time)
                   return (
                     <tr key={pInfo.period}>
-                      <td className="px-3 py-1.5 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
+                      <td className="px-2 py-1 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
                         style={{ backgroundColor: isCurrent ? 'var(--accent-light, rgba(99,102,241,0.08))' : undefined }}>
                         <div className="text-xs font-bold text-[var(--text-primary)]">{pInfo.label || `${pInfo.period}교시`}</div>
                         <div className="text-[11px] text-[var(--text-muted)] mt-1">{pInfo.start_time} ~ {pInfo.end_time}</div>
@@ -751,7 +751,7 @@ function CellButton({ slot, isHighlighted, onClick }: { slot: TimetableSlot | un
 
   return (
     <motion.button onClick={onClick}
-      className="w-full h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer relative overflow-hidden px-2 py-1"
+      className="w-full h-full flex flex-col items-center justify-center gap-0 cursor-pointer relative overflow-hidden px-1 py-0.5"
       style={{
         backgroundColor: `${color}${isSpec ? '12' : '18'}`,
         borderLeft: isHighlighted ? '3px solid var(--accent)' : `3px solid ${color}`,

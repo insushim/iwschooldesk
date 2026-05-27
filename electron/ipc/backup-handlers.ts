@@ -309,7 +309,7 @@ export function registerBackupHandlers(): void {
 
     const result = await dialog.showSaveDialog({
       title: 'SchoolDesk 암호화 백업 저장',
-      defaultPath: `schooldesk-backup-${new Date().toISOString().slice(0, 10)}.sdbackup`,
+      defaultPath: `schooldesk-backup-${(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`})()}.sdbackup`,
       filters: [{ name: 'SchoolDesk 백업', extensions: ['sdbackup'] }],
     })
     if (result.canceled || !result.filePath) return { ok: false as const, reason: 'canceled' }

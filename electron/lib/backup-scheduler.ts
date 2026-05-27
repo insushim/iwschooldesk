@@ -95,7 +95,7 @@ async function runOnce(): Promise<void> {
     const plaintext = Buffer.from(JSON.stringify(payload), 'utf8')
     const fileBuf = encryptBackup(plaintext, { password, mnemonic })
 
-    const name = `schooldesk-auto-${new Date().toISOString().slice(0, 10)}.sdbackup`
+    const name = `schooldesk-auto-${(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`})()}.sdbackup`
     const target = path.join(folder, name)
     fs.writeFileSync(target, fileBuf)
 
@@ -166,7 +166,9 @@ async function runStudentRecordCsv(): Promise<void> {
 
     const subDir = path.join(folder, 'student-records')
     fs.mkdirSync(subDir, { recursive: true })
-    const name = `학생기록_${new Date().toISOString().slice(0, 10)}.csv`
+    const d = new Date()
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const name = `학생기록_${ymd}.csv`
     const target = path.join(subDir, name)
     fs.writeFileSync(target, csv, 'utf8')
 

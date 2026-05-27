@@ -109,8 +109,8 @@ export function WidgetLauncher() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-6">
-        <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
               <LayoutGrid size={20} className="text-[var(--accent)]" />
@@ -165,8 +165,8 @@ export function WidgetLauncher() {
         </div>
 
         <div
-          className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+          className="grid gap-2"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gridAutoRows: '1fr' }}
         >
           {WIDGETS.map((w) => {
             const Icon = w.icon
@@ -178,11 +178,11 @@ export function WidgetLauncher() {
                 key={w.type}
                 whileHover={{ y: -2 }}
                 className={cn(
-                  'relative flex flex-col items-start gap-2.5 rounded-[var(--radius)] border text-left transition-all',
+                  'relative flex flex-col items-start gap-1.5 rounded-[var(--radius)] border text-left transition-all h-full',
                   isOpen ? 'shadow-lg' : 'hover:shadow-md'
                 )}
                 style={{
-                  padding: '18px',
+                  padding: '10px 12px',
                   backgroundColor: isWallpaper
                     ? `${w.color}1F`
                     : isOpen ? `${w.color}12` : 'var(--bg-widget)',
@@ -200,19 +200,19 @@ export function WidgetLauncher() {
                   <span
                     className="flex items-center justify-center"
                     style={{
-                      width: 40, height: 40,
-                      borderRadius: 12,
+                      width: 30, height: 30,
+                      borderRadius: 9,
                       background: `linear-gradient(135deg, ${w.color}28 0%, ${w.color}12 100%)`,
                       color: w.color,
                       border: `1px solid ${w.color}22`,
                     }}
                   >
-                    <Icon size={19} strokeWidth={2.1} />
+                    <Icon size={15} strokeWidth={2.1} />
                   </span>
                   <span
                     className="text-[10px] font-semibold rounded-full"
                     style={{
-                      padding: '3px 10px',
+                      padding: '2px 8px',
                       backgroundColor: isOpen ? w.color : 'transparent',
                       color: isOpen ? '#fff' : 'var(--text-muted)',
                       border: isOpen ? 'none' : '1px solid rgba(15,23,42,0.12)',
@@ -223,10 +223,10 @@ export function WidgetLauncher() {
                 </button>
                 <div
                   onClick={() => toggle(w.type)}
-                  className="cursor-pointer"
+                  className="cursor-pointer flex-1"
                 >
-                  <div className="text-sm font-semibold text-[var(--text-primary)]">{w.label}</div>
-                  <div className="text-xs text-[var(--text-muted)] mt-0.5">{w.desc}</div>
+                  <div className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight">{w.label}</div>
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5 leading-tight">{w.desc}</div>
                 </div>
 
                 {/* 배경화면 모드 토글 — 지원 위젯에만 노출 */}
@@ -242,11 +242,11 @@ export function WidgetLauncher() {
                         ? '배경화면 모드 해제 — 다시 클릭 가능해짐'
                         : '배경화면 모드 — 클릭 통과 + 항상 맨 뒤. 해제는 Ctrl+Alt+Shift+W'
                     }
-                    className="flex items-center gap-1.5 w-full mt-1 transition-colors"
+                    className="flex items-center justify-center gap-1 w-full transition-colors mt-auto"
                     style={{
-                      padding: '8px 10px',
-                      borderRadius: 10,
-                      fontSize: 11,
+                      padding: '5px 8px',
+                      borderRadius: 8,
+                      fontSize: 10,
                       fontWeight: 700,
                       letterSpacing: '-0.2px',
                       background: isWallpaper

@@ -61,12 +61,15 @@ export function StatisticsView() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const todayStr = new Date().toISOString().slice(0, 10)
+    // 로컬(KST) ymd — toISOString 은 UTC 라 자정~9시 어제 반환 버그.
+    const toLocalYmd = (dt: Date): string =>
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    const todayStr = toLocalYmd(new Date())
     const weekDays = ['일', '월', '화', '수', '목', '금', '토']
     const lastSevenDays = Array.from({ length: 7 }, (_, i) => {
       const d = new Date()
       d.setDate(d.getDate() - (6 - i))
-      return { ymd: d.toISOString().slice(0, 10), label: weekDays[d.getDay()] }
+      return { ymd: toLocalYmd(d), label: weekDays[d.getDay()] }
     })
 
     let cancelled = false
@@ -240,7 +243,8 @@ export function StatisticsView() {
     const weekData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date()
       date.setDate(date.getDate() - (6 - i))
-      const dayStr = date.toISOString().slice(0, 10)
+      // 로컬(KST) ymd — toISOString UTC 버그 방지.
+      const dayStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
       const count = completedTasks.filter((t) => t.completed_at?.slice(0, 10) === dayStr).length
       return { name: weekDays[date.getDay()], 완료: count }
     })

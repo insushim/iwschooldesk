@@ -18,7 +18,9 @@ export function createRoutine(data: CreateRoutineInput): Routine {
   const db = getDatabase()
   const id = uuid()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
-  const today = new Date().toISOString().slice(0, 10)
+  // 로컬(KST) 기준 today — toISOString 은 UTC 라 한국 자정~9시 어제 반환 버그.
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const kind = data.kind ?? 'personal'
   const defaultIcon = kind === 'classroom' ? '✅' : '🔁'
   const defaultColor = kind === 'classroom' ? '#0EA5E9' : '#8B5CF6'

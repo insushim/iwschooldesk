@@ -30,7 +30,8 @@ export function createHabit(data: CreateHabitInput): Habit {
   const db = getDatabase()
   const id = uuid()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
-  const today = new Date().toISOString().slice(0, 10)
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const maxOrder = (db.prepare('SELECT MAX(sort_order) as m FROM habits').get() as { m: number | null })?.m ?? 0
   db.prepare(`
     INSERT INTO habits (id, title, color, icon, start_date, sort_order, created_at, updated_at)
@@ -87,7 +88,7 @@ function dayDiff(a: string, b: string): number {
 function addDays(date: string, n: number): string {
   const d = new Date(date + 'T00:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 /**

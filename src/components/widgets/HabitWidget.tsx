@@ -7,7 +7,9 @@ import { useAutoRefresh } from '../../hooks/useAutoRefresh'
 type HabitWithStats = Habit & HabitStats
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  // 로컬(KST) 기준 YYYY-MM-DD. toISOString() 은 UTC 라 한국 자정~오전 9시 사이 어제 날짜 반환하던 버그.
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 const ACCENT = '#F97316'

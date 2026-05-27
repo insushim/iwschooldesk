@@ -474,6 +474,16 @@ export function ChecklistWidget() {
         <AnimatePresence>
           {items.map((item, idx) => {
             const sectionTitle = isSectionLine(item.content)
+            // 첫 섹션 헤더가 리스트 제목과 (특수문자·공백 무시) 동일하면 중복이라 UI에서만 숨김.
+            // 사용자가 직접 만든 섹션도 있을 수 있어 데이터는 유지, 표시만 생략.
+            const isRedundantSection = sectionTitle && (() => {
+              if (!selected) return false
+              const normalize = (s: string): string => s.replace(/[\s()_\-./[\]]/g, '').toLowerCase()
+              const sectionsBefore = items.slice(0, idx).filter((i) => isSectionLine(i.content)).length
+              if (sectionsBefore !== 0) return false  // 첫 섹션만 검사
+              return normalize(item.content) === normalize(selected.title)
+            })()
+            if (isRedundantSection) return null
 
             // 섹션 헤더 — 좌측 그라디언트 악센트 바 + 콜러드 배경 tint로 시각적으로 강하게 구분
             if (sectionTitle) {

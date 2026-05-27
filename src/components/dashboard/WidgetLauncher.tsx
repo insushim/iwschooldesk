@@ -201,20 +201,20 @@ export function WidgetLauncher() {
                   <span
                     className="flex items-center justify-center shrink-0"
                     style={{
-                      width: 26, height: 26,
-                      borderRadius: 8,
+                      width: 34, height: 34,
+                      borderRadius: 10,
                       background: `linear-gradient(135deg, ${w.color}28 0%, ${w.color}12 100%)`,
                       color: w.color,
                       border: `1px solid ${w.color}22`,
                     }}
                   >
-                    <Icon size={14} strokeWidth={2.1} />
+                    <Icon size={18} strokeWidth={2.1} />
                   </span>
-                  <span className="text-[13px] font-bold text-[var(--text-primary)] flex-1 truncate">{w.label}</span>
+                  <span className="text-[15px] font-bold text-[var(--text-primary)] flex-1 truncate">{w.label}</span>
                   <span
-                    className="text-[10px] font-semibold rounded-full shrink-0"
+                    className="text-[11px] font-semibold rounded-full shrink-0"
                     style={{
-                      padding: '2px 8px',
+                      padding: '3px 10px',
                       backgroundColor: isOpen ? w.color : 'transparent',
                       color: isOpen ? '#fff' : 'var(--text-muted)',
                       border: isOpen ? 'none' : '1px solid rgba(15,23,42,0.12)',
@@ -223,10 +223,10 @@ export function WidgetLauncher() {
                     {isOpen ? '켜짐' : '꺼짐'}
                   </span>
                 </button>
-                {/* 줄 2: 설명 한 줄 */}
+                {/* 줄 2: 설명 */}
                 <div
                   onClick={() => toggle(w.type)}
-                  className="cursor-pointer text-[11px] text-[var(--text-muted)] leading-tight w-full truncate"
+                  className="cursor-pointer text-[13px] text-[var(--text-muted)] leading-snug w-full"
                   title={w.desc}
                 >
                   {w.desc}

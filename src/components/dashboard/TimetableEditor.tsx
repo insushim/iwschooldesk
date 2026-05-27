@@ -328,11 +328,11 @@ export function TimetableEditor() {
             <table className="w-full border-collapse" style={{ minWidth: 640 }}>
               <thead>
                 <tr>
-                  <th className="w-24 p-3 text-xs font-medium text-[var(--text-muted)] bg-[var(--bg-secondary)] border-b border-r border-[var(--border-widget)]">
+                  <th className="w-24 px-3 py-2 text-xs font-medium text-[var(--text-muted)] bg-[var(--bg-secondary)] border-b border-r border-[var(--border-widget)]">
                     <Clock size={14} className="mx-auto opacity-50" />
                   </th>
                   {DAYS.map((day) => (
-                    <th key={day} className="p-3 text-sm font-semibold border-b border-r border-[var(--border-widget)] last:border-r-0"
+                    <th key={day} className="px-3 py-2 text-sm font-semibold border-b border-r border-[var(--border-widget)] last:border-r-0"
                       style={{
                         backgroundColor: todayDay === day ? 'var(--accent-light, rgba(99,102,241,0.08))' : 'var(--bg-secondary)',
                         color: todayDay === day ? 'var(--accent)' : 'var(--text-primary)',
@@ -347,7 +347,7 @@ export function TimetableEditor() {
                   const isCurrent = todayDay !== null && isCurrentPeriod(pInfo.start_time, pInfo.end_time)
                   return (
                     <tr key={pInfo.period}>
-                      <td className="px-4 py-3 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
+                      <td className="px-3 py-1.5 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
                         style={{ backgroundColor: isCurrent ? 'var(--accent-light, rgba(99,102,241,0.08))' : undefined }}>
                         <div className="text-xs font-bold text-[var(--text-primary)]">{pInfo.label || `${pInfo.period}교시`}</div>
                         <div className="text-[11px] text-[var(--text-muted)] mt-1">{pInfo.start_time} ~ {pInfo.end_time}</div>
@@ -751,7 +751,7 @@ function CellButton({ slot, isHighlighted, onClick }: { slot: TimetableSlot | un
 
   return (
     <motion.button onClick={onClick}
-      className="w-full h-full flex flex-col items-center justify-center gap-1 cursor-pointer relative overflow-hidden px-2 py-2"
+      className="w-full h-full flex flex-col items-center justify-center gap-0.5 cursor-pointer relative overflow-hidden px-2 py-1"
       style={{
         backgroundColor: `${color}${isSpec ? '12' : '18'}`,
         borderLeft: isHighlighted ? '3px solid var(--accent)' : `3px solid ${color}`,

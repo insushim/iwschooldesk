@@ -114,6 +114,30 @@ const KOREAN_CITIES: ReadonlyArray<City> = [
 
 const DEFAULT_CITY: City = KOREAN_CITIES[0]
 const STORAGE_KEY = 'weather:city:v1'
+const RESPONSE_CACHE_PREFIX = 'weather:cache:v1:'
+const RESPONSE_CACHE_TTL_MS = 60 * 60 * 1000  // 60분 — Worker 호출 자체를 줄여 비용·트래픽 절감
+
+interface WeatherResponseCache {
+  weather: WeatherData
+  air: { pm10: number | null; pm25: number | null }
+  fetchedAt: number
+}
+function loadResponseCache(lat: number, lon: number): WeatherResponseCache | null {
+  try {
+    const key = `${RESPONSE_CACHE_PREFIX}${lat.toFixed(3)},${lon.toFixed(3)}`
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const e = JSON.parse(raw) as WeatherResponseCache
+    if (Date.now() - e.fetchedAt > RESPONSE_CACHE_TTL_MS) return null
+    return e
+  } catch { return null }
+}
+function saveResponseCache(lat: number, lon: number, weather: WeatherData, air: { pm10: number | null; pm25: number | null }): void {
+  try {
+    const key = `${RESPONSE_CACHE_PREFIX}${lat.toFixed(3)},${lon.toFixed(3)}`
+    localStorage.setItem(key, JSON.stringify({ weather, air, fetchedAt: Date.now() }))
+  } catch { /* quota */ }
+}
 /** 사용자가 직접 한 번이라도 도시를 선택했는지 표시 — 자동 매칭 덮어쓰기 방지. */
 const USER_PICKED_KEY = 'weather:city:userPicked'
 
@@ -252,7 +276,19 @@ export function WeatherWidget() {
   // 새로고침(10분) 또는 사용자 새로고침 버튼으로 다시 시도. 결국 무조건 성공할 때까지 재시도.
   const RETRY_DELAYS_MS = [1000, 3000, 8000, 20000, 60000, 120000] as const
 
-  const fetchAll = useCallback(async (target: City): Promise<void> => {
+  const fetchAll = useCallback(async (target: City, opts?: { force?: boolean }): Promise<void> => {
+    // localStorage 응답 캐시 hit — 60분 이내면 Worker 호출 자체 생략 (1만명 배포 시 비용 절감 핵심).
+    // 새로고침 버튼(force=true) 또는 캐시 만료 시에만 fetch.
+    if (!opts?.force) {
+      const cached = loadResponseCache(target.lat, target.lon)
+      if (cached) {
+        setWeather(cached.weather)
+        setAir(cached.air)
+        setError(null)
+        setLoading(false)
+        return
+      }
+    }
     if (abortRef.current) abortRef.current.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -436,11 +472,13 @@ export function WeatherWidget() {
       // 미세먼지 — 1) Worker(에어코리아 프록시) 시도 → 2) Open-Meteo fallback.
       // Worker 가 한국 환경부 실측 측정소 데이터 제공(정확). 미배포·키 미설정 시 자동 fallback.
       let airSet = false
+      let airData: { pm10: number | null; pm25: number | null } = { pm10: null, pm25: null }
       try {
         const r = await fetch(workerAirUrl, { signal: ctrl.signal })
         if (r.ok) {
           const j = await r.json() as { pm10: number | null; pm25: number | null }
-          setAir({ pm10: j.pm10, pm25: j.pm25 })
+          airData = { pm10: j.pm10, pm25: j.pm25 }
+          setAir(airData)
           airSet = true
         }
       } catch { /* fallback 으로 */ }
@@ -449,7 +487,8 @@ export function WeatherWidget() {
         try {
           const aRes = await retryFetch(aUrl, '미세먼지')
           const a = await aRes.json() as { current: { pm10: number; pm2_5: number } }
-          setAir({ pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) })
+          airData = { pm10: Math.round(a.current.pm10), pm25: Math.round(a.current.pm2_5) }
+          setAir(airData)
         } catch (e) {
           if ((e as Error).name !== 'AbortError') {
             // 미세먼지만 실패 — 날씨는 정상 표시되도록 에러 메시지 비움.
@@ -459,6 +498,8 @@ export function WeatherWidget() {
       } else {
         setError(null)
       }
+      // 성공한 weather+air 응답을 localStorage 에 저장 — 다음 마운트/30분 interval 때 캐시 hit 가능.
+      saveResponseCache(target.lat, target.lon, next, airData)
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       setError((e as Error).message || '날씨 정보를 불러올 수 없어요')
@@ -469,9 +510,9 @@ export function WeatherWidget() {
 
   useEffect(() => {
     fetchAll(city)
-    // 30분마다 자동 새로고침 — Worker 요청량/에어코리아 한도 감안.
-    // 사용자가 새로고침 버튼으로 언제든 즉시 갱신 가능.
-    const t = setInterval(() => fetchAll(city), 30 * 60 * 1000)
+    // 60분마다 자동 새로고침 — 60분 응답 캐시(localStorage)와 정렬. 캐시 hit 시 Worker 호출 X.
+    // 사용자가 새로고침 버튼으로 언제든 즉시 갱신 가능 (force=true).
+    const t = setInterval(() => fetchAll(city), 60 * 60 * 1000)
     return () => clearInterval(t)
   }, [city, fetchAll])
 
@@ -541,7 +582,7 @@ export function WeatherWidget() {
           )}
           <div className="flex-1" />
           <button
-            onClick={() => fetchAll(city)}
+            onClick={() => fetchAll(city, { force: true })}
             disabled={loading}
             className="flex items-center justify-center transition-colors text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]"
             style={{ width: 24, height: 24, borderRadius: 7, border: '1px solid var(--border-widget)' }}

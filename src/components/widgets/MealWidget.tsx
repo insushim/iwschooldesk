@@ -393,9 +393,10 @@ export function MealWidget() {
   }, [config.school, config.apiKey])
 
   useEffect(() => { reload() }, [reload])
-  // 자정 넘기면 자동 갱신
+  // 자정 넘기면 자동 갱신 — 24시간 1회 (학교 PC가 종일 켜져 있을 때만 의미. 일반적으론 mount 시
+  // reload + ymd 캐시 비교로 충분). 6시간 → 24시간으로 늘려 Worker 호출 절약.
   useEffect(() => {
-    const t = setInterval(() => { reload() }, 6 * 60 * 60 * 1000)  // 6시간마다
+    const t = setInterval(() => { reload() }, 24 * 60 * 60 * 1000)
     return () => clearInterval(t)
   }, [reload])
 

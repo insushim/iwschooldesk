@@ -242,6 +242,117 @@ export function NoticeBoardWidget() {
     try { window.api.widget.setAllDisplayMode?.(next) } catch { /* noop */ }
   }
 
+  // 정렬/폰트/크기/편집 버튼 묶음 — 일반 모드와 디스플레이 모드에서 공유.
+  // variant='display' 는 더 큰 흰 캡슐(32px), 'normal' 은 28px. 디스플레이 모드에서도
+  // 학생에게 보여주면서 바로 편집할 수 있도록 동일 컨트롤 노출(사용자 요청).
+  const renderEditControls = (variant: 'normal' | 'display'): React.ReactNode => {
+    const isDisplay = variant === 'display'
+    const btn: React.CSSProperties = isDisplay
+      ? {
+          width: 32, height: 32, borderRadius: 10,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-primary)', background: 'rgba(255,255,255,0.94)',
+          border: '1px solid rgba(15,23,42,0.18)', boxShadow: '0 3px 10px rgba(15,23,42,0.14)',
+          backdropFilter: 'blur(8px)', cursor: 'pointer', flexShrink: 0,
+        }
+      : {
+          width: 28, height: 28, borderRadius: 8,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-primary)', background: 'rgba(255,255,255,0.92)',
+          border: '1px solid rgba(15,23,42,0.18)',
+          boxShadow: '0 2px 6px rgba(15,23,42,0.10), 0 0 0 1px rgba(255,255,255,0.6) inset',
+          backdropFilter: 'blur(6px)', cursor: 'pointer',
+          transition: 'transform 0.12s ease, background 0.12s ease', flexShrink: 0,
+        }
+    const btnActive: React.CSSProperties = {
+      ...btn, color: '#fff',
+      background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+      border: '1px solid #B91C1C', boxShadow: '0 3px 10px rgba(220,38,38,0.40)',
+    }
+    const btnDisabled: React.CSSProperties = { ...btn, opacity: 0.35, cursor: 'not-allowed' }
+    const isz = isDisplay ? 15 : 14
+    return (
+      <>
+        {/* 정렬 3개 */}
+        <button onClick={() => changeTextAlign('left')} style={textAlign === 'left' ? btnActive : btn} title="왼쪽 정렬">
+          <AlignLeft size={isz} strokeWidth={2.4} />
+        </button>
+        <button onClick={() => changeTextAlign('center')} style={textAlign === 'center' ? btnActive : btn} title="가운데 정렬">
+          <AlignCenter size={isz} strokeWidth={2.4} />
+        </button>
+        <button onClick={() => changeTextAlign('right')} style={textAlign === 'right' ? btnActive : btn} title="오른쪽 정렬">
+          <AlignRight size={isz} strokeWidth={2.4} />
+        </button>
+        {/* 폰트 선택 (드롭다운) — 일반/디스플레이 모드는 동시 렌더되지 않으므로 ref 공유 OK */}
+        <div ref={fontMenuRef} className="relative">
+          <button onClick={() => setFontMenuOpen((v) => !v)} style={btn} title={`폰트 · ${FONT_FAMILIES.find((f) => f.id === fontFamilyId)?.label}`}>
+            <Type size={isz} strokeWidth={2.4} />
+          </button>
+          {fontMenuOpen && (
+            <div
+              className="absolute right-0 z-50"
+              style={{
+                top: 'calc(100% + 6px)', padding: 6, borderRadius: 12,
+                background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(14px)',
+                boxShadow: '0 12px 36px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)',
+                minWidth: 140,
+              }}
+            >
+              {FONT_FAMILIES.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => changeFontFamily(f.id)}
+                  className="w-full text-left transition-colors hover:bg-[var(--bg-secondary)]"
+                  style={{
+                    padding: '6px 10px', borderRadius: 8, fontFamily: f.css,
+                    fontSize: 14, fontWeight: 700,
+                    color: fontFamilyId === f.id ? '#DC2626' : 'var(--text-primary)',
+                    background: fontFamilyId === f.id ? 'rgba(220,38,38,0.08)' : 'transparent',
+                    display: 'block',
+                  }}
+                >{f.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* 글씨 크기 */}
+        <button onClick={() => changeFontIdx(-1)} disabled={fontIdx <= 0} style={fontIdx <= 0 ? btnDisabled : btn} title={`글씨 작게 (현재 ${fontSize}px)`}>
+          <Minus size={isz} strokeWidth={2.4} />
+        </button>
+        <button onClick={() => changeFontIdx(+1)} disabled={fontIdx >= FONT_SIZES.length - 1} style={fontIdx >= FONT_SIZES.length - 1 ? btnDisabled : btn} title={`글씨 크게 (현재 ${fontSize}px)`}>
+          <Plus size={isz} strokeWidth={2.4} />
+        </button>
+        {/* 편집 — 편집 중이 아닐 때만 */}
+        {!editing && (
+          <button onClick={startEdit} style={btn} title="공지 편집">
+            <Pencil size={isz} strokeWidth={2.2} />
+          </button>
+        )}
+      </>
+    )
+  }
+
+  // 색 팔레트 — 편집 중일 때 색 점들. 일반/디스플레이 공용.
+  const renderColorPalette = (): React.ReactNode => (
+    <>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>색</span>
+      {FONT_COLORS.map((c) => (
+        <button
+          key={c.hex}
+          onClick={() => changeFontColor(c.hex)}
+          className="transition-transform hover:scale-110"
+          style={{
+            width: 18, height: 18, borderRadius: '50%',
+            background: c.hex,
+            border: fontColor === c.hex ? '2px solid var(--text-primary)' : '1.5px solid var(--border-widget)',
+            boxShadow: fontColor === c.hex ? `0 0 0 2px ${c.hex}33` : undefined,
+          }}
+          title={c.label}
+        />
+      ))}
+    </>
+  )
+
   return (
     <div
       className="flex flex-col h-full relative overflow-hidden"
@@ -292,8 +403,11 @@ export function NoticeBoardWidget() {
         return (
         <div
           className="absolute flex items-center gap-1.5 z-30"
-          style={{ top: minimized ? '50%' : 'clamp(12px, 2vw, 22px)', transform: minimized ? 'translateY(-50%)' : undefined, right: 'clamp(12px, 2vw, 22px)', WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as React.CSSProperties}
+          style={{ top: minimized ? '50%' : 'clamp(12px, 2vw, 22px)', transform: minimized ? 'translateY(-50%)' : undefined, right: 'clamp(12px, 2vw, 22px)', WebkitAppRegion: 'no-drag', pointerEvents: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end', rowGap: 6 } as React.CSSProperties}
         >
+          {/* 디스플레이 모드에서도 정렬/폰트/크기/편집 버튼 노출 — 학생에게 보여주면서 바로 편집(사용자 요청).
+              minimized(얇은 strip)면 공간이 없어 해제·펼치기만. */}
+          {!minimized && renderEditControls('display')}
           <button
             onClick={() => { try { window.api.widget.setAllDisplayMode?.(false) } catch { /* noop */ } }}
             style={{ ...floatBtn, color: 'var(--accent)' }}
@@ -312,94 +426,38 @@ export function NoticeBoardWidget() {
         )
       })()}
 
+      {/* 디스플레이 모드 편집 중 — 색 팔레트(컨트롤 줄 아래 우측). */}
+      {big && !iAmWallpaper && editing && !minimized && (
+        <div
+          className="absolute flex items-center gap-1.5 z-30 flex-wrap"
+          style={{
+            top: 'clamp(54px, 7vw, 70px)', right: 'clamp(12px, 2vw, 22px)',
+            padding: '6px 10px', borderRadius: 12,
+            background: 'rgba(255,255,255,0.94)', boxShadow: '0 3px 10px rgba(15,23,42,0.14)',
+            backdropFilter: 'blur(8px)', maxWidth: 'min(92vw, 420px)', justifyContent: 'flex-end',
+            WebkitAppRegion: 'no-drag', pointerEvents: 'auto',
+          } as React.CSSProperties}
+        >
+          {renderColorPalette()}
+        </div>
+      )}
+
       {/* 일반 모드 컨트롤 — 정렬/폰트/크기/편집/디스플레이/최소화/최대화.
           버튼 스타일은 학급 목표 위젯 톤 — 흰 캡슐 + 진한 보더 + boxShadow 로 시인성 강화. */}
-      {!big && (() => {
+      {!big && !minimized && (() => {
+        // 최소화 시엔 셸 헤더의 최대화 버튼이 펼치기를 담당 → 자체 컨트롤 줄 없음.
         const btn: React.CSSProperties = {
           width: 28, height: 28, borderRadius: 8,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--text-primary)',
-          background: 'rgba(255,255,255,0.92)',
+          color: 'var(--text-primary)', background: 'rgba(255,255,255,0.92)',
           border: '1px solid rgba(15,23,42,0.18)',
           boxShadow: '0 2px 6px rgba(15,23,42,0.10), 0 0 0 1px rgba(255,255,255,0.6) inset',
-          backdropFilter: 'blur(6px)',
-          cursor: 'pointer',
-          transition: 'transform 0.12s ease, background 0.12s ease',
-          flexShrink: 0,
+          backdropFilter: 'blur(6px)', cursor: 'pointer',
+          transition: 'transform 0.12s ease, background 0.12s ease', flexShrink: 0,
         }
-        const btnActive: React.CSSProperties = {
-          ...btn,
-          color: '#fff',
-          background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
-          border: '1px solid #B91C1C',
-          boxShadow: '0 3px 10px rgba(220,38,38,0.40)',
-        }
-        const btnDisabled: React.CSSProperties = { ...btn, opacity: 0.35, cursor: 'not-allowed' }
-        // 최소화 시 — 셸 헤더의 최대화 버튼이 펼치기를 담당하므로 자체 컨트롤 줄은 그리지 않음.
-        // (헤더 한 줄만 남는 깔끔한 strip — 사용자 요청)
-        if (minimized) return null
         return (
         <div className="flex items-center justify-end shrink-0 mb-2" style={{ gap: 6, flexWrap: 'nowrap', overflow: 'hidden' }}>
-          {/* 정렬 3개 */}
-          <button onClick={() => changeTextAlign('left')} style={textAlign === 'left' ? btnActive : btn} title="왼쪽 정렬">
-            <AlignLeft size={14} strokeWidth={2.4} />
-          </button>
-          <button onClick={() => changeTextAlign('center')} style={textAlign === 'center' ? btnActive : btn} title="가운데 정렬">
-            <AlignCenter size={14} strokeWidth={2.4} />
-          </button>
-          <button onClick={() => changeTextAlign('right')} style={textAlign === 'right' ? btnActive : btn} title="오른쪽 정렬">
-            <AlignRight size={14} strokeWidth={2.4} />
-          </button>
-          {/* 폰트 선택 (드롭다운) */}
-          <div ref={fontMenuRef} className="relative">
-            <button onClick={() => setFontMenuOpen((v) => !v)} style={btn} title={`폰트 · ${FONT_FAMILIES.find((f) => f.id === fontFamilyId)?.label}`}>
-              <Type size={14} strokeWidth={2.4} />
-            </button>
-            {fontMenuOpen && (
-              <div
-                className="absolute right-0 z-50"
-                style={{
-                  top: 'calc(100% + 6px)',
-                  padding: 6,
-                  borderRadius: 12,
-                  background: 'rgba(255,255,255,0.98)',
-                  backdropFilter: 'blur(14px)',
-                  boxShadow: '0 12px 36px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.08)',
-                  minWidth: 140,
-                }}
-              >
-                {FONT_FAMILIES.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => changeFontFamily(f.id)}
-                    className="w-full text-left transition-colors hover:bg-[var(--bg-secondary)]"
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      fontFamily: f.css,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: fontFamilyId === f.id ? '#DC2626' : 'var(--text-primary)',
-                      background: fontFamilyId === f.id ? 'rgba(220,38,38,0.08)' : 'transparent',
-                      display: 'block',
-                    }}
-                  >{f.label}</button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* 글씨 크기 */}
-          <button onClick={() => changeFontIdx(-1)} disabled={fontIdx <= 0} style={fontIdx <= 0 ? btnDisabled : btn} title={`글씨 작게 (현재 ${fontSize}px)`}>
-            <Minus size={14} strokeWidth={2.4} />
-          </button>
-          <button onClick={() => changeFontIdx(+1)} disabled={fontIdx >= FONT_SIZES.length - 1} style={fontIdx >= FONT_SIZES.length - 1 ? btnDisabled : btn} title={`글씨 크게 (현재 ${fontSize}px)`}>
-            <Plus size={14} strokeWidth={2.4} />
-          </button>
-          {!editing && (
-            <button onClick={startEdit} style={btn} title="공지 편집">
-              <Pencil size={14} strokeWidth={2.2} />
-            </button>
-          )}
+          {renderEditControls('normal')}
           <button onClick={toggleDisplayMode} style={btn} title="디스플레이 모드 — 큰 글씨로 학생에게">
             <Monitor size={14} strokeWidth={2.2} />
           </button>
@@ -408,24 +466,10 @@ export function NoticeBoardWidget() {
         )
       })()}
 
-      {/* 편집 모드 — 색 팔레트 (textarea 위). minimized 시 숨김. */}
+      {/* 편집 모드 — 색 팔레트 (textarea 위, 일반 모드). minimized 시 숨김. */}
       {editing && !big && !minimized && (
         <div className="flex items-center gap-1.5 shrink-0 mb-2 flex-wrap" style={{ paddingLeft: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>색</span>
-          {FONT_COLORS.map((c) => (
-            <button
-              key={c.hex}
-              onClick={() => changeFontColor(c.hex)}
-              className="transition-transform hover:scale-110"
-              style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: c.hex,
-                border: fontColor === c.hex ? '2px solid var(--text-primary)' : '1.5px solid var(--border-widget)',
-                boxShadow: fontColor === c.hex ? `0 0 0 2px ${c.hex}33` : undefined,
-              }}
-              title={c.label}
-            />
-          ))}
+          {renderColorPalette()}
         </div>
       )}
 

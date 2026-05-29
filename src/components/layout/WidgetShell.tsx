@@ -38,7 +38,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
   // 슬라이더 기본 표시값 — main 의 기본 위젯 opacity 와 일치. 사용자가
   // 슬라이더 열면 현재 적용된 값과 일치되게 보이도록.
   // weather 만 0.95, 나머지는 0.90 (main createWidgetWindow 기본값과 동기).
-  const [opacity, setOpacityState] = useState(widgetType === 'weather' ? 0.95 : 0.90)
+  const [opacity, setOpacityState] = useState(widgetType === 'weather' ? 0.95 : widgetType === 'noticeboard' ? 1 : 0.90)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [opacityOpen, setOpacityOpen] = useState(false)
   const [fontOpen, setFontOpen] = useState(false)
@@ -227,7 +227,7 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
 
   return (
     <div
-      className="shell-card flex flex-col h-screen w-screen"
+      className={`shell-card flex flex-col h-screen w-screen${widgetType === 'noticeboard' && !iAmWallpaper ? ' shell-card-opaque' : ''}`}
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       {/* Draggable header — 배경화면 모드면 항상 숨김 (클릭 통과 영역에 헤더 의미 X).

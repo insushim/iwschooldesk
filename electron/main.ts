@@ -912,7 +912,8 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
   // 기본 불투명도: 대부분 0.90, 단 weather 위젯만 0.95 (시인성 우선).
   // 사용자가 투명도 슬라이더로 직접 더 조정 가능.
   const defaultOpacity = widgetType === 'weather' ? 0.95 : 0.90
-  const opacity = saved?.opacity ?? defaultOpacity
+  // 알림판(noticeboard)은 '뒤가 안 비치게' 항상 완전 불투명 — 저장된 투명도 무시(사용자 요청).
+  const opacity = widgetType === 'noticeboard' ? 1 : (saved?.opacity ?? defaultOpacity)
   // 위젯은 '일할 때 방해 안 되도록' 무조건 맨 뒤에서 시작.
   // 사용자가 세션 중 Pin 버튼으로 임시로 위로 올릴 수 있지만, 다음 실행 땐 다시 맨 뒤.
   // 예외: 알림판(noticeboard) — 수업 중 필기/지우기용이라 항상 다른 위젯보다 앞.

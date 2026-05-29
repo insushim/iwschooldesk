@@ -925,7 +925,8 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     x,
     y,
     minWidth: 220,
-    minHeight: 160,
+    // 알림판은 '헤더만 남게' 위아래로 자유롭게 줄일 수 있도록 최소 높이를 낮춤(사용자 요청).
+    minHeight: widgetType === 'noticeboard' ? 44 : 160,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -1426,8 +1427,9 @@ function registerWindowIpc(): void {
       const isCompact = lockedCompactWindows.has(winId)
       if (isCompact) {
         // compact → maximize. compact 잠금 풀고, 사이즈 복원 후 maximize.
+        // (알림판 전용 핸들러 — 헤더만 남게 줄일 수 있게 min 44 유지)
         lockedCompactWindows.delete(winId)
-        widget.setMinimumSize(220, 160)
+        widget.setMinimumSize(220, 44)
         const prev = lockedCompactPrevHeight.get(winId)
         if (prev && prev > 120) {
           const [curW] = widget.getSize()
@@ -1550,7 +1552,7 @@ function registerWindowIpc(): void {
         w.setSize(curW, compactH)
       } else {
         lockedCompactWindows.delete(winId)
-        w.setMinimumSize(220, 160) // 일반 위젯 기본 최소
+        w.setMinimumSize(220, isNoticeBoard ? 44 : 160) // 알림판은 헤더만 남게 작은 최소
         const prev = lockedCompactPrevHeight.get(winId)
         if (prev && prev > compactH) {
           const [curW] = w.getSize()

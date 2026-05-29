@@ -143,6 +143,25 @@ export function NoticeBoardWidget() {
   // 기존 minimized 변수 호환 — 본문/색팔레트 숨김 조건에 사용. 항상 compact 와 동기.
   const minimized = compact
 
+  // 사용자가 창을 위아래로 직접 줄여 "헤더만 남게" 만들 때 — 본문/컨트롤이 들어갈 높이가
+  // 안 나오면 자동으로 접어서 헤더만 깔끔히 남긴다(사용자 요청). compact 토글과 별개로 동작.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [tooShort, setTooShort] = useState(false)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const update = (h: number): void => setTooShort(h < 44)
+    update(el.getBoundingClientRect().height)
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height
+      if (h != null) update(h)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  // 본문/컨트롤을 숨길지 — compact 토글이거나, 직접 줄여서 너무 짧을 때.
+  const collapsed = minimized || tooShort
+
   const changeTextAlign = (v: TextAlignVal): void => {
     setTextAlign(v)
     try { localStorage.setItem(TEXT_ALIGN_KEY, v) } catch { /* noop */ }
@@ -355,9 +374,10 @@ export function NoticeBoardWidget() {
 
   return (
     <div
+      ref={rootRef}
       className="flex flex-col h-full relative overflow-hidden"
       style={{
-        padding: minimized
+        padding: collapsed
           ? '8px 12px'
           : big ? 'clamp(8px, 1.5vw, 16px) clamp(16px, 3vw, 36px)' : '14px 18px 22px 18px',
         background: big
@@ -444,8 +464,8 @@ export function NoticeBoardWidget() {
 
       {/* 일반 모드 컨트롤 — 정렬/폰트/크기/편집/디스플레이/최소화/최대화.
           버튼 스타일은 학급 목표 위젯 톤 — 흰 캡슐 + 진한 보더 + boxShadow 로 시인성 강화. */}
-      {!big && !minimized && (() => {
-        // 최소화 시엔 셸 헤더의 최대화 버튼이 펼치기를 담당 → 자체 컨트롤 줄 없음.
+      {!big && !collapsed && (() => {
+        // 최소화(또는 직접 줄여 짧아짐) 시엔 셸 헤더의 최대화 버튼이 펼치기를 담당 → 자체 컨트롤 줄 없음.
         const btn: React.CSSProperties = {
           width: 28, height: 28, borderRadius: 8,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -466,16 +486,16 @@ export function NoticeBoardWidget() {
         )
       })()}
 
-      {/* 편집 모드 — 색 팔레트 (textarea 위, 일반 모드). minimized 시 숨김. */}
-      {editing && !big && !minimized && (
+      {/* 편집 모드 — 색 팔레트 (textarea 위, 일반 모드). 접힘 시 숨김. */}
+      {editing && !big && !collapsed && (
         <div className="flex items-center gap-1.5 shrink-0 mb-2 flex-wrap" style={{ paddingLeft: 4 }}>
           {renderColorPalette()}
         </div>
       )}
 
       {/* 본문 — 표시/편집 모드 모두 동일 fontSize/fontColor 적용 (편집 시 작아지는 버그 해결).
-          minimized 면 본문 자체를 안 그려 헤더만 남김. */}
-      {!minimized && (
+          접힘(compact 토글 or 직접 줄여 짧아짐) 면 본문 자체를 안 그려 헤더만 남김. */}
+      {!collapsed && (
       <div
         className="flex-1 flex items-center justify-center min-h-0 relative"
         onClick={() => { if (!editing && !iAmWallpaper) startEdit() }}

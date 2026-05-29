@@ -172,7 +172,9 @@ export function TimerWidget() {
                 color: active ? m.primary : 'var(--text-secondary)',
                 letterSpacing: '-0.3px',
                 boxShadow: active ? `0 6px 18px ${m.primary}22` : 'none',
-              }}
+                cursor: 'pointer',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties}
             >
               <m.Icon
                 strokeWidth={2.4}
@@ -386,10 +388,10 @@ export function TimerWidget() {
           className="flex flex-wrap justify-center shrink-0 w-full"
           style={{ gap: 'clamp(3px, 1cqmin, 6px)' }}
         >
-          {[5, 10, 15, 30, 45, 60].map((min) => (
+          {[1, 3, 5, 10, 15, 30].map((min) => (
             <button
               key={min}
-              onClick={() => timer.setFreeTime(min)}
+              onClick={() => { timer.setFreeTime(min); setAutoStartPending(true) }}
               className="transition-colors hover:scale-105"
               style={{
                 padding: 'clamp(3px, 1cqmin, 5px) clamp(7px, 2cqmin, 12px)',
@@ -400,7 +402,9 @@ export function TimerWidget() {
                 color: 'var(--text-secondary)',
                 letterSpacing: '-0.2px',
                 whiteSpace: 'nowrap',
-              }}
+                cursor: 'pointer',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = `${palette.primary}18`
                 e.currentTarget.style.color = palette.dark
@@ -431,7 +435,9 @@ export function TimerWidget() {
             height: 'clamp(30px, 8cqmin, 44px)',
             backgroundColor: 'var(--bg-secondary)',
             color: 'var(--text-muted)',
-          }}
+            cursor: 'pointer',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
           title="리셋"
         >
           <RotateCcw
@@ -451,7 +457,9 @@ export function TimerWidget() {
             height: 'clamp(42px, 11cqmin, 60px)',
             background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.dark} 100%)`,
             boxShadow: `0 10px 24px ${palette.primary}55`,
-          }}
+            cursor: 'pointer',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
           title={timer.state === 'running' ? '일시정지' : '시작'}
         >
           {timer.state === 'running' ? (

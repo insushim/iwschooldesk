@@ -89,6 +89,26 @@ export function TimerWidget() {
     setEditing(false)
   }
 
+  // editing 상태에서 Play 누르면 자동 commit + 다음 렌더에 start.
+  // commitEdit 직후 timer.start 호출은 state flush 전이라 옛 값/모드 closure 사용 가능성 — useEffect로 안전하게.
+  const [autoStartPending, setAutoStartPending] = useState(false)
+  useEffect(() => {
+    if (autoStartPending && timer.state === 'idle' && timer.mode === 'free' && timer.secondsLeft > 0) {
+      setAutoStartPending(false)
+      timer.start()
+    }
+  }, [autoStartPending, timer.state, timer.mode, timer.secondsLeft, timer])
+
+  const handlePlayOrPause = (): void => {
+    if (editing) {
+      commitEdit()
+      setAutoStartPending(true)
+      return
+    }
+    if (timer.state === 'running') timer.pause()
+    else timer.start()
+  }
+
   const cancelEdit = (): void => setEditing(false)
 
   const onMinChange = (v: string): void => setEditMin(v.replace(/\D/g, '').slice(0, 2))
@@ -424,7 +444,7 @@ export function TimerWidget() {
           />
         </button>
         <button
-          onClick={timer.state === 'running' ? timer.pause : timer.start}
+          onClick={handlePlayOrPause}
           className="rounded-full flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 shrink-0"
           style={{
             width: 'clamp(42px, 11cqmin, 60px)',

@@ -452,6 +452,8 @@ function startBottomTickTimer(): void {
       if (w.isDestroyed()) continue
       if (pinnedWidgets.has(id)) continue   // Pin 상태 — 위에 유지
       if (wallpaperWidgets.has(id)) continue // 배경화면 모드는 자체 tick
+      // 알림판(noticeboard) — 항상 alwaysOnTop, 뒤로 보내지 않음.
+      if (id.startsWith('widget-noticeboard')) continue
       // 일반 모드: 포커스 상태면 편집 중이니 건드리지 않음.
       // 디스플레이 모드: NOACTIVATE 로 포커스가 애초에 잘 안 걸리지만, 혹시 걸려도 무조건 뒤로.
       if (!displayModeGlobalOn && w.isFocused()) continue
@@ -913,7 +915,8 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
   const opacity = saved?.opacity ?? defaultOpacity
   // 위젯은 '일할 때 방해 안 되도록' 무조건 맨 뒤에서 시작.
   // 사용자가 세션 중 Pin 버튼으로 임시로 위로 올릴 수 있지만, 다음 실행 땐 다시 맨 뒤.
-  const alwaysOnTop = false
+  // 예외: 알림판(noticeboard) — 수업 중 필기/지우기용이라 항상 다른 위젯보다 앞.
+  const alwaysOnTop = widgetType === 'noticeboard'
 
   const win = new BrowserWindow({
     width,
@@ -971,8 +974,10 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     } catch { /* noop */ }
     // showInactive: 위젯이 포커스를 훔치지 않고 조용히 뒤에서 뜸.
     win.showInactive()
-    // 첫 표시 후 맨 뒤로 한 번 밀기 (다른 작업 창들 뒤로)
-    setTimeout(() => pushWindowToBack(win), 50)
+    // 첫 표시 후 맨 뒤로 한 번 밀기 (다른 작업 창들 뒤로). 알림판은 제외 (항상 위).
+    if (widgetType !== 'noticeboard') {
+      setTimeout(() => pushWindowToBack(win), 50)
+    }
     // 여러 위젯이 연속 뜰 때 메인 창이 뒤로 밀리지 않도록 마지막에 맨 앞으로.
     scheduleMainWindowOnTop()
   })
@@ -983,6 +988,7 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     if (win.isDestroyed()) return
     if (pinnedWidgets.has(widgetId)) return
     if (wallpaperWidgets.has(widgetId)) return // 자체 tick 이 담당
+    if (widgetType === 'noticeboard') return  // 알림판은 항상 위
     if (win.isFocused()) return // 편집 중 (입력 필드 포커스) 이면 뒤로 안 보냄
     // 분산 재시도 — show/move 후 다른 창이 올라와도 끝까지 맨 뒤로.
     for (const delay of [0, 60, 180, 400, 800]) {
@@ -990,6 +996,7 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
         if (win.isDestroyed()) return
         if (pinnedWidgets.has(widgetId)) return
         if (wallpaperWidgets.has(widgetId)) return
+        if (widgetType === 'noticeboard') return
         if (win.isFocused()) return
         pushWindowToBack(win)
       }, delay)
@@ -1408,6 +1415,43 @@ function registerWindowIpc(): void {
       mainWindow?.maximize()
     }
   })
+  // 알림판 통합 토글 — 한 버튼으로 [compact(헤더만) ↔ maximize(풀스크린)] 사이클.
+  // 1회 호출당 1단계 전이. lockedCompact 와 maximize 를 한 흐름에서 처리해 race/buggy state 방지.
+  ipcMain.on('window:toggle-expand', (e) => {
+    const widget = getWidgetWindowForEvent(e)
+    if (!widget || widget.isDestroyed()) return
+    const winId = widget.id
+    try {
+      const isCompact = lockedCompactWindows.has(winId)
+      if (isCompact) {
+        // compact → maximize. compact 잠금 풀고, 사이즈 복원 후 maximize.
+        lockedCompactWindows.delete(winId)
+        widget.setMinimumSize(220, 160)
+        const prev = lockedCompactPrevHeight.get(winId)
+        if (prev && prev > 120) {
+          const [curW] = widget.getSize()
+          widget.setSize(curW, prev)
+        }
+        lockedCompactPrevHeight.delete(winId)
+        widget.maximize()
+      } else {
+        // normal 또는 maximize → compact. maximize 해제 후 compact 적용.
+        if (widget.isMaximized()) widget.unmaximize()
+        // 이전 높이 저장 (다음 펼침 시 복원용)
+        if (!lockedCompactPrevHeight.has(winId)) {
+          const [, curH] = widget.getSize()
+          lockedCompactPrevHeight.set(winId, curH)
+        }
+        lockedCompactWindows.add(winId)
+        // 알림판 compact = 42px (WidgetShell 헤더 한 줄만 — 자체 컨트롤 줄 제거됨)
+        widget.setMinimumSize(220, 40)
+        const [curW] = widget.getSize()
+        widget.setSize(curW, 42)
+      }
+      // renderer 에 상태 동기화 신호 — UI 가 버튼 라벨/아이콘을 갱신할 수 있도록.
+      widget.webContents.send('noticeboard-expand-changed', { compact: !isCompact })
+    } catch { /* ignore */ }
+  })
   ipcMain.on('window:close', (e) => {
     const widget = getWidgetWindowForEvent(e)
     if (widget) widget.close()
@@ -1485,6 +1529,14 @@ function registerWindowIpc(): void {
     const w = BrowserWindow.fromWebContents(e.sender)
     if (!w || w.isDestroyed()) return
     const winId = w.id
+    // 위젯 타입 식별 — 알림판은 헤더만 보이는 더 컴팩트한 높이 사용.
+    let isNoticeBoard = false
+    for (const [id, win] of widgetWindows) {
+      if (win === w) { isNoticeBoard = id.startsWith('widget-noticeboard'); break }
+    }
+    // 알림판: WidgetShell 헤더 한 줄만 ≈ 42px (자체 컨트롤 줄은 헤더로 통합되어 제거됨)
+    const compactH = isNoticeBoard ? 42 : 120
+    const compactMinH = isNoticeBoard ? 40 : 116
     try {
       if (compact) {
         if (!lockedCompactPrevHeight.has(winId)) {
@@ -1492,16 +1544,14 @@ function registerWindowIpc(): void {
           lockedCompactPrevHeight.set(winId, curH)
         }
         lockedCompactWindows.add(winId)
-        // 헤더 + "잠금 해제" 버튼이 잘리지 않고 확실히 보이도록 여유 있게 120px.
-        // (72 → 96 → 120 으로 단계적 상향; Windows 창 테두리·DPI 스케일 고려)
-        w.setMinimumSize(220, 116)
+        w.setMinimumSize(220, compactMinH)
         const [curW] = w.getSize()
-        w.setSize(curW, 120)
+        w.setSize(curW, compactH)
       } else {
         lockedCompactWindows.delete(winId)
         w.setMinimumSize(220, 160) // 일반 위젯 기본 최소
         const prev = lockedCompactPrevHeight.get(winId)
-        if (prev && prev > 120) {
+        if (prev && prev > compactH) {
           const [curW] = w.getSize()
           w.setSize(curW, prev)
         }

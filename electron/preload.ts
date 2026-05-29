@@ -165,6 +165,15 @@ contextBridge.exposeInMainWorld('api', {
     },
     // 최소화(= 창 숨김). 복원은 WidgetLauncher 의 토글에서 openWindow → showInactive 로.
     minimizeSelf: () => ipcRenderer.send('window:minimize'),
+    // 알림판 전용 — 위젯 윈도우 maximize 토글 (작업표시줄 제외 전체 ↔ 원래 크기)
+    toggleMaximizeSelf: () => ipcRenderer.send('window:toggle-maximize'),
+    // 알림판 통합 토글 — compact(헤더만) ↔ maximize(풀스크린) 사이클을 한 호출로.
+    toggleExpandSelf: () => ipcRenderer.send('window:toggle-expand'),
+    onNoticeboardExpandChanged: (cb: (payload: { compact: boolean }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, p: { compact: boolean }) => cb(p)
+      ipcRenderer.on('noticeboard-expand-changed', listener)
+      return () => ipcRenderer.removeListener('noticeboard-expand-changed', listener)
+    },
     // 디스플레이 모드 마스터 토글 — 모든 위젯에 헤더 숨김 상태 동기화.
     setAllDisplayMode: (on: boolean) => ipcRenderer.send('widget:setAllDisplayMode', on),
     onAllDisplayModeChanged: (cb: (payload: { on: boolean }) => void) => {

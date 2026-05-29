@@ -90,26 +90,26 @@ export function HabitManager(): React.ReactElement {
     reloadDetails()
   }
 
-  // 90일 contribution grid — 7행 (요일) × 약 13열 (주). 좌→우 = 과거→오늘.
-  // 첫 열의 시작 요일(0=일~6=토) 만큼 빈칸 padding.
-  const grid = useMemo(() => {
-    const firstDay = new Date(days90[0] + 'T00:00:00')
-    const startDow = firstDay.getDay() // 0~6
-    const cells: ({ date: string; done: boolean } | null)[] = []
-    for (let i = 0; i < startDow; i++) cells.push(null) // 첫 주 앞쪽 빈칸
-    for (const d of days90) cells.push({ date: d, done: doneSet.has(d) })
-    // 마지막 열 끝까지 빈칸으로 채워 (7의 배수로)
-    while (cells.length % 7 !== 0) cells.push(null)
-    // 7x N 으로 재배치 (column-major)
-    const weeks = Math.ceil(cells.length / 7)
-    const columns: ({ date: string; done: boolean } | null)[][] = []
-    for (let w = 0; w < weeks; w++) {
-      const col: ({ date: string; done: boolean } | null)[] = []
-      for (let d = 0; d < 7; d++) col.push(cells[w * 7 + d] ?? null)
-      columns.push(col)
+  // 최근 3개월 달력 — 월별 미니 캘린더 (일~토 7열)
+  const months = useMemo(() => {
+    const todayD = new Date(today + 'T00:00:00')
+    const result: { year: number; month: number; cells: ({ day: number; date: string; done: boolean; isToday: boolean } | null)[] }[] = []
+    for (let i = 2; i >= 0; i--) {
+      const target = new Date(todayD.getFullYear(), todayD.getMonth() - i, 1)
+      const year = target.getFullYear()
+      const monthIdx = target.getMonth()
+      const firstDow = target.getDay()
+      const lastDay = new Date(year, monthIdx + 1, 0).getDate()
+      const cells: ({ day: number; date: string; done: boolean; isToday: boolean } | null)[] = []
+      for (let p = 0; p < firstDow; p++) cells.push(null)
+      for (let d = 1; d <= lastDay; d++) {
+        const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        cells.push({ day: d, date: dateStr, done: doneSet.has(dateStr), isToday: dateStr === today })
+      }
+      result.push({ year, month: monthIdx + 1, cells })
     }
-    return columns
-  }, [days90, doneSet])
+    return result
+  }, [today, doneSet])
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -255,71 +255,62 @@ export function HabitManager(): React.ReactElement {
               )
             })()}
 
-            {/* 90일 contribution graph */}
+            {/* 월별 달력 — 최근 3개월 */}
             <div className="flex-1 overflow-y-auto">
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="font-bold text-[var(--text-primary)]" style={{ fontSize: 13 }}>
-                  최근 90일
+                  최근 3개월
                 </h3>
                 <span className="text-xs text-[var(--text-muted)]" style={{ fontWeight: 600 }}>
                   · {stats.total_days > 0 ? `완수율 ${Math.round((doneSet.size / 90) * 100)}%` : '데이터 없음'}
                 </span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)]" style={{ fontWeight: 700 }}>
+                  시작일: {selected.start_date}
+                </span>
               </div>
-              <div
-                className="rounded-xl p-4"
-                style={{ background: 'var(--bg-widget)', border: '1px solid var(--border-widget)' }}
-              >
-                <div className="flex items-start gap-1.5" style={{ overflowX: 'auto' }}>
-                  {/* 요일 라벨 (월/수/금 만) */}
-                  <div className="flex flex-col gap-1 shrink-0" style={{ paddingTop: 0 }}>
-                    {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                      <span
-                        key={d}
-                        style={{
-                          height: 14, lineHeight: '14px',
-                          fontSize: 9, fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          visibility: (i === 1 || i === 3 || i === 5) ? 'visible' : 'hidden',
-                        }}
-                      >{d}</span>
-                    ))}
-                  </div>
-                  {/* 컬럼 (주) */}
-                  {grid.map((col, ci) => (
-                    <div key={ci} className="flex flex-col gap-1 shrink-0">
-                      {col.map((cell, ri) => {
-                        if (!cell) {
-                          return <span key={ri} style={{ width: 14, height: 14 }} />
-                        }
-                        const isToday = cell.date === today
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+                {months.map((m) => (
+                  <div
+                    key={`${m.year}-${m.month}`}
+                    className="rounded-xl"
+                    style={{ background: 'var(--bg-widget)', border: '1px solid var(--border-widget)', padding: 12 }}
+                  >
+                    <div className="font-bold mb-2" style={{ fontSize: 12, color: 'var(--text-primary)' }}>
+                      {m.year}년 {m.month}월
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 mb-1" style={{ fontSize: 10, fontWeight: 800, textAlign: 'center' }}>
+                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+                        <div
+                          key={d}
+                          style={{ color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : 'var(--text-muted)' }}
+                        >{d}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {m.cells.map((cell, idx) => {
+                        if (!cell) return <span key={idx} />
                         return (
                           <span
-                            key={ri}
+                            key={idx}
                             title={`${cell.date}${cell.done ? ' ✓' : ''}`}
                             style={{
-                              width: 14, height: 14, borderRadius: 4,
-                              display: 'inline-block',
+                              aspectRatio: '1/1',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              borderRadius: 5,
+                              fontSize: 11, fontWeight: cell.done ? 800 : 600,
+                              color: cell.done ? '#fff' : 'var(--text-secondary)',
                               background: cell.done
                                 ? `linear-gradient(135deg, ${ACCENT}, #C2410C)`
-                                : 'rgba(15,23,42,0.07)',
-                              outline: isToday ? `1.3px solid ${ACCENT}` : 'none',
-                              outlineOffset: 1,
+                                : 'rgba(15,23,42,0.04)',
+                              outline: cell.isToday ? `1.5px solid ${ACCENT}` : undefined,
+                              outlineOffset: -1,
                             }}
-                          />
+                          >{cell.day}</span>
                         )
                       })}
                     </div>
-                  ))}
-                </div>
-                {/* 범례 */}
-                <div className="flex items-center gap-2 mt-3 text-[10px] font-bold text-[var(--text-muted)]">
-                  <span>적음</span>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: 'rgba(15,23,42,0.07)' }} />
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: `linear-gradient(135deg, ${ACCENT}, #C2410C)`, opacity: 0.45 }} />
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: `linear-gradient(135deg, ${ACCENT}, #C2410C)` }} />
-                  <span>많음</span>
-                  <span className="ml-auto">시작일: {selected.start_date}</span>
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </>

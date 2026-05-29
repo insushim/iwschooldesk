@@ -114,7 +114,7 @@ const KOREAN_CITIES: ReadonlyArray<City> = [
 
 const DEFAULT_CITY: City = KOREAN_CITIES[0]
 const STORAGE_KEY = 'weather:city:v1'
-const RESPONSE_CACHE_PREFIX = 'weather:cache:v1:'
+const RESPONSE_CACHE_PREFIX = 'weather:cache:v2:'
 const RESPONSE_CACHE_TTL_MS = 60 * 60 * 1000  // 60분 — Worker 호출 자체를 줄여 비용·트래픽 절감
 
 interface WeatherResponseCache {
@@ -137,6 +137,15 @@ function saveResponseCache(lat: number, lon: number, weather: WeatherData, air: 
     const key = `${RESPONSE_CACHE_PREFIX}${lat.toFixed(3)},${lon.toFixed(3)}`
     localStorage.setItem(key, JSON.stringify({ weather, air, fetchedAt: Date.now() }))
   } catch { /* quota */ }
+}
+/** KMA 일시 장애 방어 — 시간별 응답이 너무 부분적이면 캐시·표시 X.
+ *  기준: hours 길이 8 미만이거나, 마지막 8슬롯에서 temp가 있는 슬롯이 4개 미만이면 invalid.
+ *  invalid 시 옛 캐시 유지 + 자동 다음 사이클(60분) 또는 새로고침 버튼으로 재시도. */
+function isHoursValid(hours: { hour: number; temp: number | null }[] | undefined): boolean {
+  if (!hours || hours.length < 8) return false
+  const lastHalf = hours.slice(-8)
+  const validCount = lastHalf.filter((h) => h.temp !== null).length
+  return validCount >= 4
 }
 /** 사용자가 직접 한 번이라도 도시를 선택했는지 표시 — 자동 매칭 덮어쓰기 방지. */
 const USER_PICKED_KEY = 'weather:city:userPicked'
@@ -473,7 +482,18 @@ export function WeatherWidget() {
           fetchedAt: Date.now(),
         }
       }
-      setWeather(next)
+      // 응답 검증 — KMA 부분 응답이면 옛 캐시 유지 (없으면 부분이라도 표시)
+      const responseValid = isHoursValid(next.hours)
+      if (responseValid) {
+        setWeather(next)
+      } else {
+        const oldCache = loadResponseCache(target.lat, target.lon)
+        if (oldCache && isHoursValid(oldCache.weather.hours)) {
+          setWeather(oldCache.weather)
+        } else {
+          setWeather(next)
+        }
+      }
       setError(null)
 
       // 미세먼지 — 1) Worker(에어코리아 프록시) 시도 → 2) Open-Meteo fallback.
@@ -506,7 +526,10 @@ export function WeatherWidget() {
         setError(null)
       }
       // 성공한 weather+air 응답을 localStorage 에 저장 — 다음 마운트/30분 interval 때 캐시 hit 가능.
-      saveResponseCache(target.lat, target.lon, next, airData)
+      // 부분 응답이면 캐시 저장 X (다음 사이클에서 fresh 시도)
+      if (responseValid) {
+        saveResponseCache(target.lat, target.lon, next, airData)
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return
       setError((e as Error).message || '날씨 정보를 불러올 수 없어요')

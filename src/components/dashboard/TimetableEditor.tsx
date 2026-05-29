@@ -250,9 +250,9 @@ export function TimetableEditor() {
   }
 
   return (
-    <div className="flex flex-col h-full px-5 py-2 sm:px-7 lg:px-9 lg:py-3">
+    <div className="flex flex-col h-full px-5 py-1 sm:px-7 lg:px-9 lg:py-2 overflow-x-hidden">
       {/* 탭 */}
-      <div className="flex items-center gap-2 mb-2 shrink-0">
+      <div className="flex items-center gap-2 mb-1 shrink-0">
         {([
           { id: 'regular' as TabType, icon: Clock, label: '기본 시간표', color: 'blue' },
           { id: 'extracurricular' as TabType, icon: BookOpen, label: '비교과 수업', color: 'emerald' },
@@ -275,8 +275,8 @@ export function TimetableEditor() {
                   : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-widget-hover)]'
               }`}
               style={{
-                padding: '12px 24px',
-                fontSize: '15px',
+                padding: '8px 18px',
+                fontSize: '14px',
                 ...(isActive ? {} : { borderColor: 'rgba(15,23,42,0.12)' }),
               }}
             >
@@ -293,7 +293,7 @@ export function TimetableEditor() {
       ) : activeTab === 'periods' ? (
         <PeriodTimeEditor periods={periods} onSave={refresh} />
       ) : (
-        <div className="flex flex-col gap-5 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-2 flex-1 overflow-y-auto overflow-x-hidden">
           {/* 학년 선택 + 안내 */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <p className="text-xs text-[var(--text-muted)] px-1">
@@ -306,10 +306,10 @@ export function TimetableEditor() {
                   key={g}
                   onClick={() => setGrade(g)}
                   style={{
-                    width: '40px',
-                    height: '36px',
-                    fontSize: '14px',
-                    borderRadius: '10px',
+                    width: '36px',
+                    height: '30px',
+                    fontSize: '13px',
+                    borderRadius: '8px',
                     border: '1px solid',
                     borderColor: grade === g ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
                     backgroundColor: grade === g ? 'var(--accent)' : 'var(--bg-secondary)',
@@ -328,11 +328,11 @@ export function TimetableEditor() {
             <table className="w-full border-collapse" style={{ minWidth: 640 }}>
               <thead>
                 <tr>
-                  <th className="w-24 px-3 py-2 text-xs font-medium text-[var(--text-muted)] bg-[var(--bg-secondary)] border-b border-r border-[var(--border-widget)]">
+                  <th className="w-24 px-2 py-1 text-xs font-medium text-[var(--text-muted)] bg-[var(--bg-secondary)] border-b border-r border-[var(--border-widget)]">
                     <Clock size={14} className="mx-auto opacity-50" />
                   </th>
                   {DAYS.map((day) => (
-                    <th key={day} className="px-3 py-2 text-sm font-semibold border-b border-r border-[var(--border-widget)] last:border-r-0"
+                    <th key={day} className="px-2 py-1 text-sm font-semibold border-b border-r border-[var(--border-widget)] last:border-r-0"
                       style={{
                         backgroundColor: todayDay === day ? 'var(--accent-light, rgba(99,102,241,0.08))' : 'var(--bg-secondary)',
                         color: todayDay === day ? 'var(--accent)' : 'var(--text-primary)',
@@ -347,10 +347,10 @@ export function TimetableEditor() {
                   const isCurrent = todayDay !== null && isCurrentPeriod(pInfo.start_time, pInfo.end_time)
                   return (
                     <tr key={pInfo.period}>
-                      <td className="px-2 py-1 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
+                      <td className="px-1 py-0.5 text-center border-b border-r border-[var(--border-widget)] bg-[var(--bg-secondary)] whitespace-nowrap"
                         style={{ backgroundColor: isCurrent ? 'var(--accent-light, rgba(99,102,241,0.08))' : undefined }}>
                         <div className="text-xs font-bold text-[var(--text-primary)]">{pInfo.label || `${pInfo.period}교시`}</div>
-                        <div className="text-[11px] text-[var(--text-muted)] mt-1">{pInfo.start_time} ~ {pInfo.end_time}</div>
+                        <div className="text-[10px] text-[var(--text-muted)]">{pInfo.start_time} ~ {pInfo.end_time}</div>
                       </td>
                       {DAYS.map((day) => {
                         const slot = getSlotFor(day, pInfo.period)
@@ -361,7 +361,7 @@ export function TimetableEditor() {
                           <td key={day}
                             className="border-b border-r border-[var(--border-widget)] last:border-r-0 p-0 transition-colors"
                             style={{
-                              height: 82,
+                              height: 52,
                               minWidth: 100,
                               backgroundColor: isDragOver ? 'rgba(99,102,241,0.15)' : undefined,
                               outline: isDragOver ? '2px dashed var(--accent)' : undefined,
@@ -398,15 +398,15 @@ export function TimetableEditor() {
           </div>
 
           {/* 과목 팔레트 (드래그) */}
-          <div className="rounded-2xl border border-[var(--border-widget)] bg-[var(--bg-secondary)]/30 p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-2xl border border-[var(--border-widget)] bg-[var(--bg-secondary)]/30 p-3">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <BookOpen size={15} className="text-[var(--accent)]" />
                 <span className="text-sm font-bold text-[var(--text-primary)]">{grade}학년 과목</span>
                 <span className="text-xs text-[var(--text-muted)]">· 드래그해서 시간표에 놓으세요</span>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2.5 mb-4">
+            <div className="flex flex-wrap gap-2 mb-2">
               {allSubjects.map(({ name: subj, color, custom }) => {
                 const isDragging = draggedSubject === subj
                 return (
@@ -423,12 +423,12 @@ export function TimetableEditor() {
                       setDragOverCell(null)
                     }}
                     style={{
-                      paddingLeft: '18px',
-                      paddingRight: custom ? '8px' : '18px',
-                      paddingTop: '10px',
-                      paddingBottom: '10px',
-                      fontSize: '14px',
-                      borderRadius: '10px',
+                      paddingLeft: '14px',
+                      paddingRight: custom ? '6px' : '14px',
+                      paddingTop: '6px',
+                      paddingBottom: '6px',
+                      fontSize: '13px',
+                      borderRadius: '8px',
                       border: `1.5px solid ${color}`,
                       backgroundColor: `${color}20`,
                       color,
@@ -758,13 +758,13 @@ function CellButton({ slot, isHighlighted, onClick }: { slot: TimetableSlot | un
         borderTop: isSpec ? `2px dashed ${color}50` : 'none',
         borderBottom: isSpec ? `2px dashed ${color}50` : 'none',
       }}
-      whileHover={{ scale: 1.02 }} transition={{ duration: 0.15 }}>
+      transition={{ duration: 0.15 }}>
       {isHighlighted && (
         <motion.div className="absolute inset-0 pointer-events-none"
           style={{ background: `linear-gradient(135deg, transparent 50%, ${color}10 100%)` }}
           animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} />
       )}
-      {isSpec && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 font-bold relative z-10">전담</span>}
+      {isSpec && <span className="text-[10px] px-1 py-0 rounded bg-purple-500/15 text-purple-400 font-bold relative z-10 leading-tight">전담</span>}
       <span className="text-xs font-semibold leading-tight relative z-10" style={{ color }}>{slot.subject}</span>
       {(slot.specialist_teacher || slot.room) && (
         <span className="text-xs text-[var(--text-muted)] relative z-10">

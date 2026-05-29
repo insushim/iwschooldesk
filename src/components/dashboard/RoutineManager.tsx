@@ -281,22 +281,22 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
               ) : (
                 <div className="rounded-lg border border-[var(--border-widget)] overflow-hidden">
                   {/* 헤더: 날짜 축 */}
-                  <div className="flex items-center" style={{ background: 'var(--bg-secondary)', padding: '8px 8px', borderBottom: '1px solid var(--border-widget)' }}>
+                  <div className="flex items-center" style={{ background: 'var(--bg-secondary)', padding: '8px 4px', borderBottom: '1px solid var(--border-widget)' }}>
                     {/* row 의 체크박스(18px + 8px gap)와 정렬되도록 spacer 두고 라벨 표시 */}
                     <div style={{ width: 26 }} />
-                    <div style={{ width: 214, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>항목</div>
-                    <div className="flex-1 flex items-center gap-0.5 justify-end">
+                    <div style={{ width: 130, fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', flexShrink: 0 }}>항목</div>
+                    <div className="flex items-center gap-0.5" style={{ flex: 1, minWidth: 0 }}>
                       {days30.map((d, i) => (
                         <span
                           key={d}
                           title={d}
                           style={{
-                            width: 12,
-                            fontSize: 8,
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 9,
                             fontWeight: 700,
                             color: d === today ? ACCENT : 'var(--text-muted)',
                             textAlign: 'center',
-                            display: 'inline-block',
                           }}
                         >{i % 5 === 0 ? new Date(d).getDate() : ''}</span>
                       ))}
@@ -310,7 +310,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
                       <div
                         key={it.id}
                         className="group flex items-center hover:bg-[var(--bg-secondary)]/40"
-                        style={{ padding: '6px 8px', borderTop: '1px solid var(--border-widget)' }}
+                        style={{ padding: '6px 4px', borderTop: '1px solid var(--border-widget)' }}
                       >
                         <button
                           onClick={() => toggleItem(it.id)}
@@ -324,7 +324,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
                           }}
                           title="오늘 체크"
                         >{it.is_completed ? <Check size={11} strokeWidth={3} /> : null}</button>
-                        <div style={{ width: 220, minWidth: 0 }}>
+                        <div style={{ width: 130, minWidth: 0, flexShrink: 0 }}>
                           {isEditing ? (
                             <div className="flex items-center gap-1">
                               <input
@@ -345,7 +345,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
                             </span>
                           )}
                         </div>
-                        <div className="flex-1 flex items-center gap-0.5 justify-end">
+                        <div className="flex items-center gap-0.5" style={{ flex: 1, minWidth: 0 }}>
                           {days30.map((d) => {
                             const done = completedDates.has(d)
                             const isToday = d === today
@@ -354,7 +354,7 @@ export function RoutineManager({ kind = 'personal' }: { kind?: RoutineKind } = {
                                 key={d}
                                 title={`${d}${done ? ' ✓' : ''}`}
                                 style={{
-                                  width: 12, height: 12, borderRadius: 3,
+                                  flex: 1, minWidth: 0, aspectRatio: '1/1', maxHeight: 18, borderRadius: 3,
                                   display: 'inline-block',
                                   background: done ? `linear-gradient(135deg, ${ACCENT}, #6D28D9)` : 'rgba(15,23,42,0.08)',
                                   outline: isToday ? `1.2px solid ${ACCENT}` : 'none',

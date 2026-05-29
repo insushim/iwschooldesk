@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { X, Pin, PinOff, Eye, Type, Image as WallpaperIcon, MonitorOff } from 'lucide-react'
+import { X, Pin, PinOff, Eye, Type, Image as WallpaperIcon, MonitorOff, Maximize2, Minimize2 } from 'lucide-react'
 import { WALLPAPER_ELIGIBLE_TYPES, type WidgetType } from '../../types/widget.types'
 import { useDisplayBg } from '../../lib/display-bg'
 
@@ -11,9 +11,10 @@ const WIDGETS_WITH_OWN_DISPLAY_CONTROLS = new Set<string>([
 
 /** 디스플레이 모드에서 shell 의 플로팅 컨트롤(해제 버튼)을 표시하지 않는 위젯.
  *  본문이 풀스크린 콘텐츠라 컨트롤이 시각적으로 거슬리는 경우. 해제는 단축키 Ctrl+Alt+Shift+D
- *  또는 다른 위젯의 끄기 버튼으로. */
+ *  또는 다른 위젯의 끄기 버튼으로.
+ *  noticeboard: 자체 우상단에 디스플레이 해제 + 최소/최대 한 줄로 그려서 중복 방지. */
 const WIDGETS_WITHOUT_FLOATING_DISPLAY_CONTROL = new Set<string>([
-  'calendar',
+  'calendar', 'noticeboard',
 ])
 
 /** 디스플레이 모드에서 shell floating 컨트롤을 **우하단**에 배치할 위젯.
@@ -51,6 +52,9 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
   const [childDisplayMode, setChildDisplayMode] = useState(false)
   // 쉘 자체 디스플레이 모드 — 헤더 버튼으로 토글. 배경화면 모드가 없는 위젯이나 "그냥 헤더만 숨기고 싶을 때" 사용.
   const [shellDisplayMode, setShellDisplayMode] = useState(false)
+  // 알림판(noticeboard) compact 상태 — 헤더의 펼치기/접기 버튼 아이콘 토글용.
+  // 알림판은 자체 컨트롤 줄 대신 셸 헤더에서 최대화 버튼을 제공한다(사용자 요청).
+  const [noticeCompact, setNoticeCompact] = useState(false)
   // 쉘 레벨 디스플레이 배경 프리셋 — 디스플레이 모드 켠 위젯의 body 배경 색.
   // 위젯별로 따로 저장 (e.g. 메모/시계 각자 다른 색 선택 가능).
   const bgScopeKey = useMemo(() => `shell:${widgetType ?? 'default'}`, [widgetType])
@@ -140,6 +144,13 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
     })
     return () => { if (off) off() }
   }, [])
+
+  // 알림판 compact 상태 sync — 헤더 버튼 아이콘(최대화 ↔ 접기) 갱신.
+  useEffect(() => {
+    if (widgetType !== 'noticeboard') return
+    const off = window.api.widget.onNoticeboardExpandChanged?.((p) => setNoticeCompact(!!p.compact))
+    return () => { if (off) off() }
+  }, [widgetType])
 
   // 디스플레이 모드 해제(플로팅 버튼)는 항상 마스터 브로드캐스트 — 모든 위젯이 함께 해제.
   const exitAllDisplayMode = (): void => {
@@ -417,6 +428,20 @@ export function WidgetShell({ title, icon, iconColor, children, widgetType }: Wi
             {alwaysOnTop ? <Pin size={13} strokeWidth={2.2} /> : <PinOff size={13} strokeWidth={2.2} />}
           </button>
           </>)}
+
+          {/* 알림판 전용 — 최대화/접기 토글. 자체 컨트롤 줄 대신 헤더에서 제공(사용자 요청).
+              compact 면 '펼치기(최대화)', 아니면 '접기(헤더만)'. */}
+          {widgetType === 'noticeboard' && (
+            <button
+              onClick={() => { try { window.api.widget.toggleExpandSelf?.() } catch { /* noop */ } }}
+              className="shell-btn"
+              title={noticeCompact ? '알림판 펼치기 — 전체 화면' : '알림판 접기 — 헤더만'}
+            >
+              {noticeCompact
+                ? <Maximize2 size={13} strokeWidth={2.2} />
+                : <Minimize2 size={13} strokeWidth={2.2} />}
+            </button>
+          )}
 
           <button
             onClick={() => window.api.widget.closeSelf()}

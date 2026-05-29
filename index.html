@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Content Security Policy: 로컬 리소스 + Open-Meteo 날씨/미세먼지 API 만 허용.
+  <!-- Content Security Policy: 로컬 리소스 + Open-Meteo 날씨/미세먼지 API + Google Fonts(알림판 폰트) 만 허용.
        NEIS 는 main 프로세스에서 호출하므로 CSP 영향 X. -->
   <meta
     http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://api.open-meteo.com https://air-quality-api.open-meteo.com https://schooldesk-meal.simssijjang.workers.dev; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none';"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://api.open-meteo.com https://air-quality-api.open-meteo.com https://schooldesk-meal.simssijjang.workers.dev https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none';"
   />
+  <!-- 알림판 무료 한글 폰트 (Google Fonts, 오프라인 시 Pretendard fallback) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Black+Han+Sans&family=Do+Hyeon&family=Jua&family=Gowun+Batang:wght@400;700&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
   <title>SchoolDesk</title>
 </head>
 <body>

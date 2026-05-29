@@ -1082,7 +1082,12 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     lockedCompactPrevHeight.delete(capturedWinId)
     const t = wallpaperWidgets.get(widgetId)
     if (t) { clearInterval(t); wallpaperWidgets.delete(widgetId) }
-    saveWidgetPosition({ widget_id: widgetId, widget_type: widgetType, is_visible: 0 })
+    // ★ 앱 종료(_quitting)로 창이 닫히는 경우엔 is_visible 을 0 으로 만들지 않는다.
+    //   → 정상 종료·강제 종료·재설치 후 다음 실행에 restoreVisibleWidgets 가 자동으로 다시 켠다.
+    //   사용자가 위젯 X(닫기) 로 직접 끈 경우(=_quitting=false)만 is_visible=0 → 다음 실행에 안 켜짐.
+    if (!_quitting) {
+      saveWidgetPosition({ widget_id: widgetId, widget_type: widgetType, is_visible: 0 })
+    }
   })
 
   widgetWindows.set(widgetId, win)

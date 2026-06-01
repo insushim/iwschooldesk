@@ -44,14 +44,10 @@ try {
   app.on('child-process-gone', (_e, details) => _crashLog('child-process-gone', JSON.stringify(details)))
 } catch { /* noop */ }
 
-// ─── GPU 하드웨어 가속 비활성화 (Windows 0x80000003 종료 crash 대응) ─────────────
-// 투명·프레임리스 위젯 창이 다수 떠 있는 상태에서 사용자가 'PC 재시작/종료' 를 하면,
-// Windows 가 창들을 일괄 파괴하는 도중 GPU(자식) 프로세스가 STATUS_BREAKPOINT(0x80000003)
-// 로 죽으며 "응용 프로그램 오류" 대화상자가 뜨던 문제. (before-quit 도달 전 native 즉사라
-// JS 가드로는 못 막음.) 교사용 위젯/대시보드는 GPU 가속이 없어도 체감 차이가 없으므로
-// 가속을 끄면 종료 시 파괴될 GPU 프로세스 자체가 사라져 이 crash 가 근본적으로 제거된다.
-// 반드시 app 'ready' 이전에 호출.
-try { app.disableHardwareAcceleration() } catch { /* noop */ }
+// (HW 가속 비활성화는 효과 없음을 crash.log 로 확인 — GPU 프로세스가 여전히 존재. 제거함.)
+// 실제 원인은 'PC 재시작/종료' 시 mainWindow 가 close 를 preventDefault(트레이 숨김)로 막아
+// Windows 가 강제 종료 → 0x80000003. 해결: WM_QUERYENDSESSION 을 받아 즉시 정상 종료 모드 진입.
+// (createMainWindow 의 hookWindowMessage + mainWindow 'close' _quitting 가드 참조.)
 
 // ───── Windows Z-order 제어 (네이티브 Win32 FFI) ─────
 // blur 시 위젯을 "맨 뒤"로 밀어내기 + 배경화면 모드에선 `WS_EX_NOACTIVATE` 를 걸어
@@ -762,6 +758,27 @@ function createMainWindow(): BrowserWindow {
     mainWindow?.hide()
   })
 
+  // ★ Windows 'PC 재시작/종료' 대응 (핵심 종료 crash 수정).
+  //   사용자는 앱을 종료하지 않고 PC 를 재시작/로그오프한다. 이때 OS 가 WM_QUERYENDSESSION 을 보내는데,
+  //   mainWindow 가 close 를 preventDefault(트레이 숨김)로 막으면 Windows 가 "종료에 응답 안 함" 으로
+  //   판단해 프로세스를 강제 종료 → 0x80000003 "응용 프로그램 오류" 대화상자.
+  //   해결: 세션 종료 메시지를 받는 즉시 beginShutdown() 으로 정상 종료 모드 진입(=_quitting=true →
+  //   close 가 hide 가 아니라 실제 닫힘 + native z-order 타이머 정지 + 위치 flush) 후 app.quit().
+  if (process.platform === 'win32') {
+    try {
+      const WM_QUERYENDSESSION = 0x0011
+      const WM_ENDSESSION = 0x0016
+      const onSessionEnd = (msg: number): void => {
+        _breadcrumb(`WM_${msg === WM_QUERYENDSESSION ? 'QUERYENDSESSION' : 'ENDSESSION'} → graceful quit`)
+        beginShutdown('session-end')
+        // OS 가 강제로 죽이기 전에 우리가 먼저 깔끔히 종료.
+        try { app.quit() } catch { /* noop */ }
+      }
+      mainWindow.hookWindowMessage(WM_QUERYENDSESSION, () => onSessionEnd(WM_QUERYENDSESSION))
+      mainWindow.hookWindowMessage(WM_ENDSESSION, () => onSessionEnd(WM_ENDSESSION))
+    } catch (err) { _crashLog('hookWindowMessage', err) }
+  }
+
   loadRendererUrl(mainWindow)
 
   return mainWindow
@@ -1405,9 +1422,7 @@ function createTray(): void {
       click: () => {
         // ★ destroy 전에 종료 모드 진입 — _quitting=true + z-order 타이머 정지로
         //   파괴 중 koffi(Win32) race 0x80000003 crash 차단. (before-quit 은 이 다음이라 늦음)
-        beginShutdown('tray-quit')
-        // 파괴 전에 위치 flush — destroy() 는 'close' 를 안 쏘므로 여기서 저장해야 위치 보존.
-        flushAllWidgetBounds()
+        beginShutdown('tray-quit')  // _quitting=true + 타이머 정지 + 위치 flush
         for (const w of widgetWindows.values()) {
           if (!w.isDestroyed()) w.destroy()
         }
@@ -2023,15 +2038,14 @@ function beginShutdown(reason: string): void {
   _quitting = true
   _breadcrumb(`beginShutdown: ${reason}`)
   try { stopBottomTickTimer() } catch { /* noop */ }
+  // 창이 아직 살아있는 이 시점(특히 WM_QUERYENDSESSION)에서 위치를 flush 해 둔다.
+  try { flushAllWidgetBounds() } catch (err) { _crashLog('beginShutdown:flush', err) }
 }
 
 app.on('before-quit', () => {
   _breadcrumb('before-quit: begin')
-  // 종료 플래그 + z-order 타이머 정지 (이미 트레이 종료에서 호출됐으면 idempotent).
+  // 종료 플래그 + z-order 타이머 정지 + 위치 flush (이미 진입했으면 idempotent).
   beginShutdown('before-quit')
-  // 종료 직전: 모든 위젯의 마지막 bounds 를 closeDatabase() 호출 전에 강제 flush.
-  // debounce(400ms) 큐에 남아있던 변경이 사라지지 않도록 — 다음 실행 때 같은 위치로 복원 보장.
-  flushAllWidgetBounds()
   globalShortcut.unregisterAll()
   stopBackupScheduler()
   stopBottomTickTimer()

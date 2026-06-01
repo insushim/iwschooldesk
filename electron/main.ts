@@ -988,7 +988,7 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
         const [cw] = win.getSize()
         win.setSize(cw, 42)
         // 렌더러 헤더 버튼 아이콘(펼치기/접기) 동기화 — 리스너 부착 후 도달하도록 약간 지연.
-        setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('noticeboard-expand-changed', { compact: true }) }, 400)
+        setTimeout(() => { if (!_quitting && !win.isDestroyed()) win.webContents.send('noticeboard-expand-changed', { compact: true }) }, 400)
       } catch { /* noop */ }
     }
     // showInactive: 위젯이 포커스를 훔치지 않고 조용히 뒤에서 뜸.
@@ -1029,6 +1029,10 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
 
   const persistBounds = () => {
     if (win.isDestroyed()) return
+    // ★ 앱 종료 중에는 절대 저장 안 함 — before-quit 이 이미 모든 bounds 를 flush 한 뒤
+    //   closeDatabase() 로 DB 를 닫았으므로, 여기서 getDatabase() 를 호출하면 종료 도중
+    //   better-sqlite3 를 재오픈하게 되어 0x80000003 네이티브 crash 가 발생한다.
+    if (_quitting) return
     // ★ 시작 직후 grace window 안에서는 'move'/'resize' 로 인한 저장 차단.
     // Windows 가 디스플레이 미인식 상태에서 위젯을 좌상단(0,0) 근처로 강제 이동시키면
     // 'move' 이벤트가 발사되는데, 그 좌표를 DB 에 저장하면 모든 위젯이 한곳에 모이는

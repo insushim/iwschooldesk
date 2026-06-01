@@ -25,6 +25,12 @@ type Frequency = 'off' | 'daily' | 'weekly'
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000 // 15분
 let timer: NodeJS.Timeout | null = null
+// 시작 직후 1회 보정용 setTimeout 핸들 — stopBackupScheduler 에서 반드시 정리해야 한다.
+// (정리 안 하면 앱이 시작 10초 내 종료될 때 closeDatabase() 뒤에 콜백이 깨어나 getDatabase()
+//  재오픈 → 종료 도중 0x80000003 네이티브 crash.)
+let startupTimer: NodeJS.Timeout | null = null
+// 종료/정지 후 콜백이 깨어나도 DB 를 건드리지 않도록 하는 가드.
+let stopped = false
 
 const KEY_FREQ = 'backup_auto_frequency'
 const KEY_FOLDER = 'backup_auto_folder'
@@ -219,13 +225,17 @@ function runStudentRecordPurge(): void {
 /** 앱 시작 시 1회 호출. 이후 15분마다 체크. */
 export function startBackupScheduler(): void {
   if (timer) return
-  // 시작 직후 1회 — 어제 놓친 백업 보정
-  setTimeout(() => {
+  stopped = false
+  // 시작 직후 1회 — 어제 놓친 백업 보정. 핸들을 저장해 종료 시 정리 가능하게 한다.
+  startupTimer = setTimeout(() => {
+    startupTimer = null
+    if (stopped) return  // 그 사이 앱이 종료됐으면 DB 접근 금지
     void runOnce()
     void runStudentRecordCsv()
     runStudentRecordPurge()
   }, 10_000)
   timer = setInterval(() => {
+    if (stopped) return
     void runOnce()
     void runStudentRecordCsv()
     runStudentRecordPurge()
@@ -233,9 +243,14 @@ export function startBackupScheduler(): void {
 }
 
 export function stopBackupScheduler(): void {
+  stopped = true
   if (timer) {
     clearInterval(timer)
     timer = null
+  }
+  if (startupTimer) {
+    clearTimeout(startupTimer)
+    startupTimer = null
   }
 }
 

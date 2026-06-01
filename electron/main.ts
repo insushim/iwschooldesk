@@ -35,6 +35,24 @@ function _breadcrumb(msg: string): void {
 }
 try { _breadcrumb(`=== process start pid=${process.pid} v${app.getVersion?.() ?? '?'} ===`) } catch { /* noop */ }
 
+// ─── 자식 프로세스(렌더러/GPU/유틸리티) 충돌 로깅 ────────────────
+// 0x80000003 같은 네이티브 crash 가 main 이 아니라 GPU/렌더러 프로세스에서 날 수 있다.
+// 그 경우 어떤 프로세스가 왜 죽었는지(type/reason/exitCode) 를 남겨 원인을 특정한다.
+try {
+  app.on('render-process-gone', (_e, _wc, details) => _crashLog('render-process-gone', JSON.stringify(details)))
+  // @ts-expect-error child-process-gone 의 타입 시그니처(details) 사용
+  app.on('child-process-gone', (_e, details) => _crashLog('child-process-gone', JSON.stringify(details)))
+} catch { /* noop */ }
+
+// ─── GPU 하드웨어 가속 비활성화 (Windows 0x80000003 종료 crash 대응) ─────────────
+// 투명·프레임리스 위젯 창이 다수 떠 있는 상태에서 사용자가 'PC 재시작/종료' 를 하면,
+// Windows 가 창들을 일괄 파괴하는 도중 GPU(자식) 프로세스가 STATUS_BREAKPOINT(0x80000003)
+// 로 죽으며 "응용 프로그램 오류" 대화상자가 뜨던 문제. (before-quit 도달 전 native 즉사라
+// JS 가드로는 못 막음.) 교사용 위젯/대시보드는 GPU 가속이 없어도 체감 차이가 없으므로
+// 가속을 끄면 종료 시 파괴될 GPU 프로세스 자체가 사라져 이 crash 가 근본적으로 제거된다.
+// 반드시 app 'ready' 이전에 호출.
+try { app.disableHardwareAcceleration() } catch { /* noop */ }
+
 // ───── Windows Z-order 제어 (네이티브 Win32 FFI) ─────
 // blur 시 위젯을 "맨 뒤"로 밀어내기 + 배경화면 모드에선 `WS_EX_NOACTIVATE` 를 걸어
 // 클릭을 받아도 foreground 로 올라오지 않게 한다(= "진짜 바탕화면처럼" 고정).
@@ -736,7 +754,11 @@ function createMainWindow(): BrowserWindow {
   })
 
   mainWindow.on('close', (e) => {
+    // ★ 종료 중(_quitting)이면 hide 하지 말고 진짜로 닫히게 둔다.
+    //   _quitting=false 일 때만 '닫기=트레이로 숨김'.
+    if (_quitting) { _breadcrumb('mainWindow: close (quitting → allow)'); return }
     e.preventDefault()
+    _breadcrumb('mainWindow: close → hide')
     mainWindow?.hide()
   })
 
@@ -1367,6 +1389,7 @@ function createTray(): void {
     {
       label: '모든 위젯 닫기',
       click: () => {
+        _breadcrumb('tray: 모든 위젯 닫기')
         for (const w of widgetWindows.values()) {
           if (!w.isDestroyed()) w.close()
         }
@@ -1745,10 +1768,12 @@ function broadcastAllDisplayMode(on: boolean): void {
 // 이미 실행 중인 경우 두 번째 프로세스는 즉시 종료 → 트레이 아이콘 중복 방지.
 const gotInstanceLock = app.requestSingleInstanceLock()
 if (!gotInstanceLock) {
+  _breadcrumb('single-instance: lock not acquired → exit')
   app.quit()
   process.exit(0)
 }
 app.on('second-instance', () => {
+  _breadcrumb('second-instance')
   // 사용자가 exe를 (다른 폴더·다른 상황에서) 한 번 더 실행하면:
   //  1) 메인 창 복구/포커스
   //  2) 저장된 위젯 중 닫힌 것들을 되살려 "exe 재실행 = 전부 복원" UX 보장

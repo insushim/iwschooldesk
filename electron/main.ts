@@ -1189,11 +1189,15 @@ function restoreVisibleWidgets(): void {
   let positions: ReturnType<typeof getWidgetPositions> = []
   try { positions = getWidgetPositions() } catch (err) { _crashLog('getWidgetPositions', err); return }
 
-  // ★ 클러스터 감지: visible 위젯들의 중심점이 한곳에 3 개 이상 모여있으면 saved 좌표 신뢰 불가.
-  //   (Windows 가 디스플레이 변경 후 위젯들을 좌상단 근처로 모은 결과가 DB 에 영구화된 상태)
-  const clustered = detectClusteredWidgets(positions)
-  if (clustered.size > 0) {
-    wDebug(`restoreVisibleWidgets: detected cluster of ${clustered.size} widgets — bypassing saved positions: ${[...clustered].join(', ')}`)
+  // ★ 클러스터 자동 재배치 비활성화 (사용자 요구: 강제종료·고정토글 등 어떤 변경에도 저장된 위치 100% 유지).
+  //   Windows 디스플레이 변경에 의한 강제 군집은 startup grace(5초) + isAnomalousFullscreen + isOnScreen
+  //   가드가 '저장' 단계에서 이미 차단하므로, 시작 시 위치를 임의로 흩뜨리지 않는다.
+  //   (이전엔 종료 시 is_visible=0 라 자동 복원이 거의 없어 군집 오판이 드물었으나, v1.6.70 자동 복원
+  //    도입 후 의도적으로 모아둔 위젯까지 흩어지는 회귀 발생 → 자동 재배치 제거.)
+  //   의도적 재배치가 필요하면 트레이 '위젯 위치 초기화' 메뉴로만 수행한다.
+  const heuristicCluster = detectClusteredWidgets(positions)
+  if (heuristicCluster.size > 0) {
+    wDebug(`restoreVisibleWidgets: cluster heuristic matched ${heuristicCluster.size} widgets, but AUTO-RELOCATE is DISABLED — saved positions preserved: ${[...heuristicCluster].join(', ')}`)
   }
 
   // ★ Startup grace: 복원 직후 ~5 초 동안 OS 가 강제 이동시키는 'move' 이벤트로 좌표가
@@ -1214,34 +1218,15 @@ function restoreVisibleWidgets(): void {
       // 생성 직전에 등록.
       startupGraceWidgets.add(p.widget_id)
       graceIds.push(p.widget_id)
-      const ignoreSavedPosition = clustered.has(p.widget_id)
-      createWidgetWindow(p.widget_type as WidgetType, instanceId, { ignoreSavedPosition })
+      // 저장된 위치는 항상 존중 — 자동 재배치 없음 (위 주석 참조).
+      createWidgetWindow(p.widget_type as WidgetType, instanceId, { ignoreSavedPosition: false })
     } catch (err) {
       // 한 위젯 복원 실패가 다른 위젯 복원을 막지 않도록 개별 격리.
       _crashLog(`restoreWidget:${p.widget_type}`, err)
     }
   }
 
-  // ★ 클러스터 감지된 위젯들은 새 spread 좌표를 즉시 DB 에 반영. grace 윈도우 안에서는
-  //   persistBounds 가 차단되므로 명시적으로 한 번 저장.
-  if (clustered.size > 0) {
-    for (const id of clustered) {
-      const w = widgetWindows.get(id)
-      if (!w || w.isDestroyed()) continue
-      try {
-        const b = w.getBounds()
-        if (!isOnScreen(b.x, b.y, b.width, b.height)) continue
-        if (isAnomalousFullscreen(b.width, b.height)) continue
-        const widgetType = id.replace(/^widget-/, '').split('-')[0] as WidgetType
-        saveWidgetPosition({
-          widget_id: id,
-          widget_type: widgetType,
-          x: b.x, y: b.y,
-          width: b.width, height: b.height,
-        })
-      } catch (err) { _crashLog(`restoreCluster:save:${id}`, err) }
-    }
-  }
+  // (자동 재배치 제거됨 — 저장된 위치를 그대로 복원하므로 시작 시 좌표를 다시 쓸 필요 없음.)
 
   // grace 해제 — 5 초 후. 사용자가 그 안에 위젯을 드래그해도 좌표가 저장 안 되는 단점은
   // 매우 작은 가격(드래그 직후 0.5~5 초 내 다시 드래그하지 않을 가능성 매우 높음)으로

@@ -44,10 +44,30 @@ try {
   app.on('child-process-gone', (_e, details) => _crashLog('child-process-gone', JSON.stringify(details)))
 } catch { /* noop */ }
 
-// (HW 가속 비활성화는 효과 없음을 crash.log 로 확인 — GPU 프로세스가 여전히 존재. 제거함.)
-// 실제 원인은 'PC 재시작/종료' 시 mainWindow 가 close 를 preventDefault(트레이 숨김)로 막아
-// Windows 가 강제 종료 → 0x80000003. 해결: WM_QUERYENDSESSION 을 받아 즉시 정상 종료 모드 진입.
-// (createMainWindow 의 hookWindowMessage + mainWindow 'close' _quitting 가드 참조.)
+// ─── Windows 종료/로그오프 시 "응용 프로그램 오류 0x80000003" 대화상자 차단 ─────────────
+// crash.log 분석 결과: 사용자가 위젯을 켜둔 채 'PC 재시작' 하면, Windows 가 윈도우 스테이션을
+// 종료(logoff)하면서 GPU/NetworkService 자식 프로세스가 STATUS_DLL_INIT_FAILED_LOGOFF(0xC000026B)
+// 로 죽고, 그 충돌에 대해 Windows 오류 보고(WER)가 "SchoolDesk.exe 응용 프로그램 오류 0x80000003"
+// 대화상자를 띄운다. (세션 종료 신호 이벤트/메시지 훅은 이 환경에서 도달하지 않음 — 여러 빌드로 확인.)
+// PC 가 어차피 꺼지는 중이고 데이터는 %APPDATA% 에 실시간 저장돼 안전하므로, 이 무해한 종료-중
+// 충돌의 '대화상자만' 억제한다. (정상 동작 중 진짜 버그 대화상자도 함께 억제되는 trade-off 가 있으나,
+// 이 앱은 uncaughtException 을 crash.log 로 따로 남기므로 진단에는 영향 없음.)
+//  - noerrdialogs: Chromium 스위치. 명령줄을 상속하는 모든 자식 프로세스(GPU/Network/renderer)에도 적용.
+//  - SetErrorMode(SEM_*): main 프로세스의 WER GPF 대화상자 억제.
+// 반드시 app 'ready' 이전(모듈 로드 시점)에 설정.
+try { app.commandLine.appendSwitch('noerrdialogs') } catch { /* noop */ }
+if (process.platform === 'win32') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const koffi = require('koffi')
+    const kernel32 = koffi.load('kernel32.dll')
+    const SetErrorMode = kernel32.func('__stdcall', 'SetErrorMode', 'uint', ['uint'])
+    const SEM_FAILCRITICALERRORS = 0x0001
+    const SEM_NOGPFAULTERRORBOX = 0x0002
+    const SEM_NOOPENFILEERRORBOX = 0x8000
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX)
+  } catch { /* koffi 미가용 시 무시 */ }
+}
 
 // ───── Windows Z-order 제어 (네이티브 Win32 FFI) ─────
 // blur 시 위젯을 "맨 뒤"로 밀어내기 + 배경화면 모드에선 `WS_EX_NOACTIVATE` 를 걸어

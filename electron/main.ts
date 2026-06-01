@@ -56,6 +56,11 @@ try {
 //  - SetErrorMode(SEM_*): main 프로세스의 WER GPF 대화상자 억제.
 // 반드시 app 'ready' 이전(모듈 로드 시점)에 설정.
 try { app.commandLine.appendSwitch('noerrdialogs') } catch { /* noop */ }
+// ★ GPU 하드웨어 가속 OFF — 사용자가 '주 모니터 변경/해상도 변경' 같은 디스플레이 설정을 바꾸면
+//   GPU 프로세스가 컴포지터를 재생성하며 흔들리고(특히 투명·프레임리스 위젯 다수), 그 상태로 PC 를
+//   재시작하면 GPU/NetworkService 연쇄 크래시 → 0x80000003 로 이어졌다. 소프트웨어 렌더링으로
+//   GPU 프로세스 의존을 줄여 디스플레이 변경에 대한 안정성을 높인다. (교사용 위젯앱이라 체감 성능 영향 미미.)
+try { app.disableHardwareAcceleration() } catch { /* noop */ }
 if (process.platform === 'win32') {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -737,6 +742,28 @@ function loadRendererUrl(win: BrowserWindow, hash = ''): void {
   }
 }
 
+/** ★ Windows 세션 종료(PC 재시작/종료/로그오프) 신호를 '모든 창'에서 수신해 즉시 탈출.
+ *  - query-session-end / session-end 는 win32 전용 BaseWindow 이벤트(Electron 41+). 어느 창이든
+ *    먼저 받으면 발동 → mainWindow 가 트레이로 숨어 못 받는 경우도 위젯 창이 커버.
+ *  - 핸들러는 beginShutdown(위치 flush + 타이머 정지) 직후 **app.exit(0) 로 즉시 종료**한다.
+ *    app.quit() 의 graceful 종료는 창 close 캐스케이드를 기다리는 사이 GPU/NetworkService 가
+ *    연쇄 크래시(0xC000026B)하며 main 이 0x80000003 으로 먼저 죽었다(crash.log). exit(0) 는 그
+ *    폭풍이 시작되기 전에 프로세스를 깨끗이 끝낸다. 데이터는 beginShutdown 에서 이미 flush 됨. */
+function registerSessionEndQuit(win: BrowserWindow): void {
+  if (process.platform !== 'win32' || win.isDestroyed()) return
+  const handler = (phase: string) => (): void => {
+    _breadcrumb(`${phase} → exit(0)`)
+    try { beginShutdown(phase) } catch (err) { _crashLog('sessionEnd:beginShutdown', err) }
+    try { app.exit(0) } catch { /* noop */ }
+  }
+  try {
+    // @ts-expect-error query-session-end 는 win32 전용 BaseWindow 이벤트 (Electron 41+)
+    win.on('query-session-end', handler('query-session-end'))
+    // @ts-expect-error session-end 는 win32 전용 BaseWindow 이벤트
+    win.on('session-end', handler('session-end'))
+  } catch (err) { _crashLog('registerSessionEndQuit', err) }
+}
+
 function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -787,18 +814,7 @@ function createMainWindow(): BrowserWindow {
   //   후 app.quit() 으로 OS 가 강제로 죽이기 '전에' 우리가 먼저 깔끔히 빠져나간다.
   //   (이전 hookWindowMessage(WM_QUERYENDSESSION) 는 Electron 이 그 메시지를 BaseWindow HWND 로
   //    전달하지 않아 안 먹혔음 — crash.log 로 확인.)
-  const onSessionEnd = (phase: string) => (e?: { preventDefault?: () => void }) => {
-    void e
-    _breadcrumb(`${phase} → graceful quit`)
-    beginShutdown(phase)
-    try { app.quit() } catch { /* noop */ }
-  }
-  try {
-    // @ts-expect-error query-session-end 는 win32 전용 BaseWindow 이벤트 (Electron 41+)
-    mainWindow.on('query-session-end', onSessionEnd('query-session-end'))
-    // @ts-expect-error session-end 는 win32 전용 BaseWindow 이벤트
-    mainWindow.on('session-end', onSessionEnd('session-end'))
-  } catch (err) { _crashLog('session-end-hook', err) }
+  registerSessionEndQuit(mainWindow)
 
   loadRendererUrl(mainWindow)
 
@@ -1039,6 +1055,9 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
       backgroundThrottling: false,
     },
   })
+
+  // PC 재시작/종료 신호를 위젯 창에서도 수신 (mainWindow 가 트레이로 숨어 못 받는 경우 커버).
+  registerSessionEndQuit(win)
 
   win.setOpacity(opacity)
   // 저장된 글씨 크기 배율 — renderer 가 WidgetShell body 에 CSS zoom 으로 적용.

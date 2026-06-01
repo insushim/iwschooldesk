@@ -1380,6 +1380,11 @@ function createTray(): void {
     {
       label: '종료',
       click: () => {
+        // ★ destroy 전에 종료 모드 진입 — _quitting=true + z-order 타이머 정지로
+        //   파괴 중 koffi(Win32) race 0x80000003 crash 차단. (before-quit 은 이 다음이라 늦음)
+        beginShutdown('tray-quit')
+        // 파괴 전에 위치 flush — destroy() 는 'close' 를 안 쏘므로 여기서 저장해야 위치 보존.
+        flushAllWidgetBounds()
         for (const w of widgetWindows.values()) {
           if (!w.isDestroyed()) w.destroy()
         }
@@ -1955,13 +1960,9 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
-  _breadcrumb('before-quit: begin')
-  // 종료 플래그 — 이후 모든 setInterval 콜백/native Win32 호출이 즉시 return.
-  // 윈도우 destroy 직전 race 로 0x80000003 (BREAKPOINT) crash 가 발생하던 문제 차단.
-  _quitting = true
-  // 종료 직전: 모든 위젯의 마지막 bounds 를 closeDatabase() 호출 전에 강제 flush.
-  // debounce(400ms) 큐에 남아있던 변경이 사라지지 않도록 — 다음 실행 때 같은 위치로 복원 보장.
+/** 모든 위젯의 마지막 bounds 를 DB 에 flush. destroy/quit 전에 호출.
+ *  saveWidgetPosition 직접 호출이라 _quitting/grace 가드와 무관하게 저장된다. */
+function flushAllWidgetBounds(): void {
   for (const [id, w] of widgetWindows) {
     try {
       if (w.isDestroyed()) continue
@@ -1984,6 +1985,28 @@ app.on('before-quit', () => {
       })
     } catch (err) { _crashLog(`flushWidgetBounds:${id}`, err) }
   }
+}
+
+/** 종료 진입점 — ★ 위젯을 destroy 하기 '전에' 반드시 호출.
+ *  _quitting 을 켜고 z-order 타이머를 즉시 정지해, 창 파괴 중 500ms tick / blur·moved 이벤트의
+ *  koffi(Win32) 호출이 파괴 중인 HWND 에 들어가 0x80000003(BREAKPOINT) crash 를 일으키는 것을 막는다.
+ *  (트레이 '종료' 가 app.quit() 전에 위젯을 destroy 하므로 before-quit 만으로는 너무 늦었다.) idempotent. */
+let _shutdownBegun = false
+function beginShutdown(reason: string): void {
+  if (_shutdownBegun) return
+  _shutdownBegun = true
+  _quitting = true
+  _breadcrumb(`beginShutdown: ${reason}`)
+  try { stopBottomTickTimer() } catch { /* noop */ }
+}
+
+app.on('before-quit', () => {
+  _breadcrumb('before-quit: begin')
+  // 종료 플래그 + z-order 타이머 정지 (이미 트레이 종료에서 호출됐으면 idempotent).
+  beginShutdown('before-quit')
+  // 종료 직전: 모든 위젯의 마지막 bounds 를 closeDatabase() 호출 전에 강제 flush.
+  // debounce(400ms) 큐에 남아있던 변경이 사라지지 않도록 — 다음 실행 때 같은 위치로 복원 보장.
+  flushAllWidgetBounds()
   globalShortcut.unregisterAll()
   stopBackupScheduler()
   stopBottomTickTimer()

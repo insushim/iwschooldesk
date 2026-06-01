@@ -50,7 +50,7 @@ export const ALLOWED_UPDATE_FIELDS = {
   widget_positions: new Set([
     'widget_type', 'x', 'y', 'width', 'height',
     'is_visible', 'is_locked', 'opacity', 'always_on_top',
-    'config', 'font_scale', 'wallpaper_mode',
+    'config', 'font_scale', 'wallpaper_mode', 'is_compact',
   ]),
 } as const
 
@@ -133,7 +133,7 @@ export const ALLOWED_TABLE_COLUMNS: Record<string, Set<string>> = {
   widget_positions: new Set([
     'widget_id', 'widget_type', 'x', 'y', 'width', 'height',
     'is_visible', 'is_locked', 'opacity', 'always_on_top',
-    'config', 'font_scale', 'wallpaper_mode', 'updated_at',
+    'config', 'font_scale', 'wallpaper_mode', 'is_compact', 'updated_at',
   ]),
   routines: new Set([
     'id', 'title', 'color', 'icon', 'sort_order', 'start_date',

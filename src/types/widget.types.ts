@@ -33,6 +33,8 @@ export interface WidgetPosition {
   font_scale?: number
   /** 배경화면 모드: 1 = 클릭 통과 + z-order 최하단 고정, 0 = 일반 위젯 */
   wallpaper_mode?: number
+  /** 알림판 헤더만 줄이기(compact) 상태: 1 = compact, 0 = 일반. 재시작 후 복원용. */
+  is_compact?: number
   updated_at: string
 }
 

@@ -919,6 +919,10 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
   // 예외: 알림판(noticeboard) — 수업 중 필기/지우기용이라 항상 다른 위젯보다 앞.
   const alwaysOnTop = widgetType === 'noticeboard'
 
+  // 저장된 알림판 compact(헤더만) 상태 — ready-to-show 에서 '높이만' 헤더로 줄여 복원.
+  // 위치(x/y)·너비는 saved 그대로 유지된다(위치 보존 원칙 불변).
+  const restoreCompact = widgetType === 'noticeboard' && saved?.is_compact === 1
+
   const win = new BrowserWindow({
     width,
     height,
@@ -974,6 +978,19 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
         win.setBounds({ x: targetX, y: targetY, width: targetW, height: targetH })
       }
     } catch { /* noop */ }
+    // ★ 저장된 알림판 compact(헤더만) 상태 복원 — 위에서 복원된 위치/너비는 그대로 두고 높이만 헤더로 줄인다.
+    //   펼칠 때 되돌릴 전체 높이는 lockedCompactPrevHeight 에 보관(작은 높이 영구 저장 방지).
+    if (restoreCompact && !win.isDestroyed()) {
+      try {
+        lockedCompactPrevHeight.set(win.id, height)
+        lockedCompactWindows.add(win.id)
+        win.setMinimumSize(220, 40)
+        const [cw] = win.getSize()
+        win.setSize(cw, 42)
+        // 렌더러 헤더 버튼 아이콘(펼치기/접기) 동기화 — 리스너 부착 후 도달하도록 약간 지연.
+        setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('noticeboard-expand-changed', { compact: true }) }, 400)
+      } catch { /* noop */ }
+    }
     // showInactive: 위젯이 포커스를 훔치지 않고 조용히 뒤에서 뜸.
     win.showInactive()
     // 첫 표시 후 맨 뒤로 한 번 밀기 (다른 작업 창들 뒤로). 알림판은 제외 (항상 위).
@@ -1440,6 +1457,15 @@ function registerWindowIpc(): void {
         widget.setMinimumSize(220, 40)
         const [curW] = widget.getSize()
         widget.setSize(curW, 42)
+      }
+      // ★ 재시작 후에도 기억: compact 여부를 DB 에 저장 (위치/높이는 기존 그대로 보존).
+      //   isCompact 는 토글 직전 상태 → 새 상태는 그 반대.
+      for (const [id, w] of widgetWindows) {
+        if (w === widget) {
+          const t = id.replace(/^widget-/, '').split('-')[0] as WidgetType
+          try { saveWidgetPosition({ widget_id: id, widget_type: t, is_compact: isCompact ? 0 : 1 }) } catch { /* ignore */ }
+          break
+        }
       }
       // renderer 에 상태 동기화 신호 — UI 가 버튼 라벨/아이콘을 갱신할 수 있도록.
       widget.webContents.send('noticeboard-expand-changed', { compact: !isCompact })

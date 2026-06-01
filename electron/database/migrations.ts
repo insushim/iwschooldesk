@@ -435,5 +435,14 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_habit_completions_habit ON habit_completions(habit_id);
       CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
     `
+  },
+  {
+    name: '018_widget_compact',
+    // 알림판(noticeboard) '헤더만 줄이기(compact)' 상태를 재시작 후에도 기억.
+    // 1 = compact(헤더만), 0 = 일반. height 는 기존대로 펼친 높이를 저장하고
+    // 이 플래그로만 compact 여부를 복원한다(작은 높이 영구 저장 방지).
+    sql: `
+      ALTER TABLE widget_positions ADD COLUMN is_compact INTEGER DEFAULT 0;
+    `
   }
 ]

@@ -35,6 +35,12 @@
 !macro customInstall
   nsExec::Exec 'taskkill /F /IM SchoolDesk.exe /T'
   Sleep 500
+
+  ; ★ Windows Error Reporting 제외 등록 — PC 재시작/디스플레이 변경 시 종료-중 GPU/Network 자식
+  ;   프로세스가 충돌(0x80000003)하며 뜨던 "응용 프로그램 오류" 팝업을 설치 시점에 미리 차단.
+  ;   앱도 시작 시 같은 키를 쓰지만(이중 안전), 설치 직후부터 보장되도록 여기서도 등록한다.
+  ;   HKCU(관리자 불필요)·exe 한정·같은 이름의 모든 자식 프로세스 커버. 데이터엔 영향 없음.
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications" "${PRODUCT_NAME}.exe" 1
 !macroend
 
 !macro customUnInstall
@@ -55,5 +61,7 @@
     skip_appdata_removal:
       DetailPrint "사용자 데이터는 보존되었습니다: $APPDATA\school-desk"
     appdata_done:
+    ; 진짜 삭제(업데이트 아님)일 때만 WER 제외 등록도 정리.
+    DeleteRegValue HKCU "Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications" "${PRODUCT_NAME}.exe"
   ${endIf}
 !macroend

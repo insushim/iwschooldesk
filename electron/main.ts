@@ -72,6 +72,22 @@ if (process.platform === 'win32') {
     const SEM_NOOPENFILEERRORBOX = 0x8000
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX)
   } catch { /* koffi 미가용 시 무시 */ }
+
+  // ★★ Windows Error Reporting 제외 등록 — "응용 프로그램 오류 0x80000003" 대화상자 근본 차단.
+  //   crash.log 로 확정: 사용자가 해상도/주모니터 변경 후 PC 재시작하면 GPU/NetworkService '자식'
+  //   프로세스가 종료-중(STATUS_DLL_INIT_FAILED_LOGOFF) 연쇄 크래시하고, 그 중 하나가 STATUS_BREAKPOINT
+  //   (0x80000003)로 죽으며 WER 대화상자를 띄운다. 0x80000003 은 GPF 가 아니라 breakpoint 라 main 의
+  //   SetErrorMode 로도, 자식엔 안 통한다(자식은 별도 프로세스). Windows 종료 신호(session-end)는 이
+  //   시나리오에서 우리 앱에 도달하지 않아 미리 graceful 종료도 불가(Electron 문서: 종료/재시작 시
+  //   before-quit 미발생). → 데이터는 %APPDATA% 실시간 저장이라 안전하므로, 같은 exe 이름의 모든
+  //   프로세스(main/GPU/Network/renderer)에 대해 WER UI 를 끈다. HKCU(관리자 불필요)·앱 한정·가역.
+  try {
+    const exeName = process.execPath.split(/[\\/]/).pop() || 'SchoolDesk.exe'
+    execFile('reg', [
+      'add', 'HKCU\\Software\\Microsoft\\Windows\\Windows Error Reporting\\ExcludedApplications',
+      '/v', exeName, '/t', 'REG_DWORD', '/d', '1', '/f',
+    ], () => { /* 실패해도 무시 — 베스트 에포트 */ })
+  } catch { /* noop */ }
 }
 
 // ───── Windows Z-order 제어 (네이티브 Win32 FFI) ─────

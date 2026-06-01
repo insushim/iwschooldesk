@@ -54,10 +54,16 @@ function isLikelyMetaToken(s: string): boolean {
 function filterName(raw: unknown): string | null {
   if (raw === null || raw === undefined) return null
   // 전각 공백/중간점/·/ 등 normalize 후 trim
-  const t = String(raw)
+  let t = String(raw)
     .replace(/[　 ]/g, ' ') // 전각/NBSP 공백 → 일반 공백
     .replace(/\s+/g, ' ')
     .trim()
+  if (!t) return null
+  // 이름 옆 괄호 메모 제거: "홍길동(전학)", "김서연[반장]" → 이름만
+  t = t.replace(/\s*[([{][^)\]}]*[)\]}]\s*/g, ' ').replace(/\s+/g, ' ').trim()
+  // 앞쪽 번호/불릿 제거: "1. 홍길동", "01) 김서연", "12 이민호", "①이수민" → 이름만
+  //  (한국 명렬표는 이름 칸에 번호가 함께 든 경우가 흔해 추출 실패의 주원인이었음)
+  t = t.replace(/^\s*(?:\d{1,3}|[①-⑳])\s*[.)\-:、,]?\s*/, '').trim()
   if (!t) return null
   if (EXCLUDED_EXACT.has(t)) return null
   if (isLikelyMetaToken(t)) return null
@@ -100,6 +106,18 @@ function parseXlsxNames(ab: ArrayBuffer): string[] {
   return names
 }
 
+/** HTML 표(NEIS '명렬표' 가 .xls 확장자로 저장되는 흔한 케이스)에서 태그를 걷어내 텍스트만 남김. */
+function htmlToText(s: string): string {
+  return s
+    .replace(/<\s*(?:br|tr|td|th|p|div|li|h[1-6])[^>]*>/gi, ' ') // 줄/칸 경계 → 공백
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#\d+;/g, ' ')
+}
+
 function parseTextNames(text: string): string[] {
   const names: string[] = []
   // 공백·탭·개행·쉼표·세미콜론·슬래시 등 일반 구분자로 토큰화
@@ -117,7 +135,13 @@ export async function importStudentsFile(file: File): Promise<ImportStudentsResu
     assertFileSize(file)
     let names: string[] = []
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.xlsm') || lower.endsWith('.ods')) {
-      names = parseXlsxNames(await file.arrayBuffer())
+      const ab = await file.arrayBuffer()
+      try { names = parseXlsxNames(ab) } catch { names = [] }
+      // ★ NEIS '명렬표' 는 HTML 표를 .xls 확장자로 저장한 경우가 많아 엑셀 파서가 못 읽는다.
+      //   깨진/비표준 엑셀도 포함해, 추출 0명이면 텍스트(HTML 태그 제거)로 한 번 더 시도.
+      if (names.length === 0) {
+        try { names = parseTextNames(htmlToText(await readTextAutoEncoding(file))) } catch { /* keep [] */ }
+      }
     } else if (lower.endsWith('.docx') || lower.endsWith('.doc')) {
       const mammoth = await import('mammoth')
       const { value: text } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
@@ -146,7 +170,7 @@ export async function importStudentsFile(file: File): Promise<ImportStudentsResu
 
     names = dedupePreserveOrder(names)
     if (names.length === 0) {
-      return { ok: false, error: '파일에서 학생 이름을 찾지 못했어요. 이름이 한 셀/한 줄에 한 명씩 있는지 확인해 주세요.' }
+      return { ok: false, error: '파일에서 학생 이름을 찾지 못했어요. 이름이 한 셀/한 줄에 한 명씩 있는지 확인해 주세요. (NEIS 명렬표라면 엑셀에서 한 번 열어 .xlsx 로 저장하거나, 이름만 복사해 .csv 로 올리면 잘 됩니다.)' }
     }
     return { ok: true, names, fileName: file.name }
   } catch (err) {

@@ -268,12 +268,24 @@ export function StudentCheckWidget() {
   }
 
   const confirmImport = async () => {
-    if (!selectedId || !importedNames || importedNames.length === 0) return
+    if (!importedNames || importedNames.length === 0) return
     setImportBusy(true)
+    // ★ 선택된 학급 리스트가 없으면 자동으로 '우리반' 리스트를 만들어 거기에 넣는다.
+    //   (리스트 먼저 만들어야 하는 순서를 몰라 막히던 것을 제거 — 사용자 요청)
+    let listId = selectedId
+    if (!listId) {
+      try {
+        const r = await window.api.routine.create({ title: '우리반', kind: 'classroom', icon: '📋' })
+        listId = r.id
+        setSelectedId(r.id)
+        await reload()
+      } catch { /* 생성 실패 시 아래에서 중단 */ }
+    }
+    if (!listId) { setImportBusy(false); return }
     const added: RoutineItemWithStatus[] = []
     for (const name of importedNames) {
       try {
-        const item = await window.api.routine.addItem({ routine_id: selectedId, content: name })
+        const item = await window.api.routine.addItem({ routine_id: listId, content: name })
         added.push({ ...item, is_completed: 0 })
       } catch { /* 개별 실패는 무시하고 계속 */ }
     }

@@ -162,6 +162,22 @@ export function StudentTimetableWidget() {
     return () => clearInterval(t)
   }, [])
 
+  // 오늘 '교시(period>=1)' 중 종료시각이 이미 지난 개수.
+  // 이 값이 늘어나면(=한 교시가 끝나면) 하단 쪽수 메모를 자동으로 비운다(원래 빈 상태로).
+  // periods 로드 전엔 null → 신호 없음(로드 직후 0→N 점프로 오삭제되는 것 방지).
+  const endedPeriodCount = useMemo<number | null>(() => {
+    if (periods.length === 0) return null
+    const nowMin = now.getHours() * 60 + now.getMinutes()
+    let c = 0
+    for (const p of periods) {
+      if (p.period < 1) continue // 아침활동(0)·쉬는시간(음수) 제외 — 실제 교시만
+      const parts = (p.end_time || '').split(':')
+      const h = Number(parts[0]); const m = Number(parts[1])
+      if (Number.isFinite(h) && Number.isFinite(m) && h * 60 + m <= nowMin) c++
+    }
+    return c
+  }, [periods, now])
+
   // 오늘/다음 평일 override를 필요할 때만 fetch (날짜가 바뀔 때만 재조회)
   const todayStr_ = todayStr(now)
   const nextDay = useMemo(() => nextWeekday(now), [todayStr_]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -548,7 +564,7 @@ export function StudentTimetableWidget() {
       </AnimatePresence>
 
       {/* 학생 알림 메모 — 숙제·준비물·전달사항. 일반/편집 모드에선 클릭 편집, 디스플레이 모드에선 큰 글씨 읽기 전용. */}
-      <StudentNote displayMode={displayMode} accentColor={color} />
+      <StudentNote displayMode={displayMode} accentColor={color} endedPeriodCount={endedPeriodCount} />
 
       <style>{`
         @keyframes pulse-dot {
@@ -563,7 +579,7 @@ export function StudentTimetableWidget() {
 /** 학생 안내 메모 (시간표 위젯 하단) — 숙제·준비물·전달사항.
  *  편집 모드(displayMode=false): 클릭 → inline textarea, blur 시 자동 저장.
  *  디스플레이 모드: 큰 글씨 읽기 전용 (학생들 보기 좋게). */
-function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accentColor: string }): React.ReactElement | null {
+function StudentNote({ displayMode, accentColor, endedPeriodCount }: { displayMode: boolean; accentColor: string; endedPeriodCount: number | null }): React.ReactElement | null {
   const [note, setNote] = useState('')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -573,6 +589,24 @@ function StudentNote({ displayMode, accentColor }: { displayMode: boolean; accen
   }, [])
   useEffect(() => { reload() }, [reload])
   useDataChange('settings', reload)
+
+  // ★ 교시가 끝날 때마다 쪽수 메모 자동 비움 — "한번 쓰고 까먹어 옛 쪽수가 남아 헷갈림" 방지(사용자 요청).
+  //   endedPeriodCount(오늘 종료된 교시 수)가 '늘어날 때만' 비운다. 첫 값은 기준점으로만 잡고 비우지 않음
+  //   (앱을 교시 중간에 켜도 기존 메모를 함부로 지우지 않도록). 편집 중이면 입력 방해 않게 건너뜀.
+  const prevEndedRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (endedPeriodCount === null) return
+    if (prevEndedRef.current === null) { prevEndedRef.current = endedPeriodCount; return }
+    if (endedPeriodCount > prevEndedRef.current) {
+      prevEndedRef.current = endedPeriodCount
+      if (!editing) {
+        window.api.settings.set('student_timetable_note', '').catch(() => { /* ignore */ })
+        setNote('')
+      }
+    } else {
+      prevEndedRef.current = endedPeriodCount
+    }
+  }, [endedPeriodCount, editing])
 
   const startEdit = (): void => {
     // 디스플레이 모드에서도 교사가 클릭해 메모 추가/수정 가능해야 한다.

@@ -20,6 +20,21 @@ function _crashLog(kind: string, err: unknown): void {
 process.on('uncaughtException', (err) => _crashLog('uncaughtException', err))
 process.on('unhandledRejection', (err) => _crashLog('unhandledRejection', err))
 
+// ─── 라이프사이클 breadcrumb ──────────────────────────────
+// 0x80000003 같은 '네이티브' crash 는 JS uncaughtException 으로 안 잡힌다.
+// 대신 시작/종료의 각 단계를 crash.log 에 남겨, crash.log 의 '마지막 줄' 로
+// 어느 단계(시작 vs 종료, 어느 phase)에서 프로세스가 죽었는지 역추적한다.
+function _breadcrumb(msg: string): void {
+  try {
+    const dir = process.env.APPDATA
+      ? join(process.env.APPDATA, 'SchoolDesk')
+      : join(homedir(), '.SchoolDesk')
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    appendFileSync(join(dir, 'crash.log'), `[${new Date().toISOString()}] [step] ${msg}\n`)
+  } catch { /* noop */ }
+}
+try { _breadcrumb(`=== process start pid=${process.pid} v${app.getVersion?.() ?? '?'} ===`) } catch { /* noop */ }
+
 // ───── Windows Z-order 제어 (네이티브 Win32 FFI) ─────
 // blur 시 위젯을 "맨 뒤"로 밀어내기 + 배경화면 모드에선 `WS_EX_NOACTIVATE` 를 걸어
 // 클릭을 받아도 foreground 로 올라오지 않게 한다(= "진짜 바탕화면처럼" 고정).
@@ -907,8 +922,13 @@ function createWidgetWindow(widgetType: WidgetType, instanceId?: string, options
     && !savedAnomalous
     && typeof saved?.x === 'number'
     && typeof saved?.y === 'number'
-  const clamped = hasSavedPos ? clampToScreen(saved!.x!, saved!.y!, width, height) : null
-  const { x, y } = clamped ?? getSpreadPosition(widgetType, width, height)
+  // ★ 듀얼 모니터 보존: 부팅/재시작 직후엔 제2 모니터 인식이 늦어 saved 좌표가 잠깐 '화면 밖'으로
+  //   판정된다. 예전엔 이때 primary(제1 모니터)로 끌어와 생성 → 모든 위젯이 제1 모니터로 모여
+  //   영구화됐다. 이제 saved 좌표를 '화면 밖이어도' 그대로 신뢰한다(제2 모니터가 인식되면 정확히 그 자리).
+  //   진짜로 모니터가 사라진 경우의 '안 보임' 은 reconcile 이 DB 저장 없이 잠깐만 옮겨 가시성만 확보.
+  const { x, y } = hasSavedPos
+    ? { x: saved!.x!, y: saved!.y! }
+    : getSpreadPosition(widgetType, width, height)
   // 기본 불투명도: 대부분 0.90, 단 weather 위젯만 0.95 (시인성 우선).
   // 사용자가 투명도 슬라이더로 직접 더 조정 가능.
   const defaultOpacity = widgetType === 'weather' ? 0.95 : 0.90
@@ -1738,6 +1758,7 @@ app.on('second-instance', () => {
 })
 
 app.whenReady().then(async () => {
+  _breadcrumb('whenReady: begin')
   getDatabase()
   seedTemplates()
   initWin32Z() // Win32 FFI 초기화 (Windows만). 실패 시 graceful.
@@ -1885,17 +1906,14 @@ app.whenReady().then(async () => {
         const newW = anomalous ? defaults.w : b.width
         const newH = anomalous ? defaults.h : b.height
         const pos = getSpreadPosition(widgetType, newW, newH)
-        wDebug(`reconcile[${id}]: ${b.width}x${b.height}@(${b.x},${b.y}) offScreen=${offScreen} anomalous=${anomalous} clustered=${isClusteredId} → ${newW}x${newH}@(${pos.x},${pos.y})`)
+        wDebug(`reconcile[${id}]: ${b.width}x${b.height}@(${b.x},${b.y}) offScreen=${offScreen} anomalous=${anomalous} clustered=${isClusteredId} → ${newW}x${newH}@(${pos.x},${pos.y}) (visibility-only, NOT persisted)`)
+        // ★ DB 에 저장하지 않는다 — 저장 좌표는 사용자가 드래그하거나 '위치 초기화' 할 때만 바뀐다.
+        //   여기 이동은 '제2 모니터가 일시적으로 안 보일 때 가시성만 확보' 하는 임시 이동.
+        //   (예전엔 여기서 saveWidgetPosition 하여 제2 모니터 좌표가 제1 모니터로 영구 덮어써졌다.)
+        //   setBounds 가 유발하는 'move' 가 persistBounds 로 저장되지 않도록 grace 로 잠깐 보호.
+        startupGraceWidgets.add(id)
+        setTimeout(() => startupGraceWidgets.delete(id), 4000)
         w.setBounds({ x: pos.x, y: pos.y, width: newW, height: newH })
-        // 새 좌표는 정상이므로 persistBounds 의 가드 통과 → DB 갱신.
-        try {
-          saveWidgetPosition({
-            widget_id: id,
-            widget_type: widgetType,
-            x: pos.x, y: pos.y,
-            width: newW, height: newH,
-          })
-        } catch (err) { _crashLog(`reconcile:save:${id}`, err) }
       } catch (err) { _crashLog(`reconcile:${id}`, err) }
     }
   }
@@ -1928,6 +1946,7 @@ app.whenReady().then(async () => {
   screen.on('display-metrics-changed', () => { armDisplayGrace(); scheduleReconcile('display-metrics-changed') })
   // 부팅 직후 자동 시작 케이스 — 디스플레이 인식이 늦을 수 있어 1.5 초 후 한 번 더 검사.
   setTimeout(() => reconcileWidgetsToScreens('post-startup-1500ms'), 1500)
+  _breadcrumb('whenReady: end')
 })
 
 app.on('window-all-closed', () => {
@@ -1937,6 +1956,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  _breadcrumb('before-quit: begin')
   // 종료 플래그 — 이후 모든 setInterval 콜백/native Win32 호출이 즉시 return.
   // 윈도우 destroy 직전 race 로 0x80000003 (BREAKPOINT) crash 가 발생하던 문제 차단.
   _quitting = true
@@ -1977,12 +1997,15 @@ app.on('before-quit', () => {
   // 트레이 아이콘 명시적 정리 — 비정상 종료 시 좀비 아이콘 방지
   try { tray?.destroy() } catch { /* ignore */ }
   tray = null
+  _breadcrumb('before-quit: end (db closed)')
 })
 
 app.on('will-quit', () => {
+  _breadcrumb('will-quit')
   try { tray?.destroy() } catch { /* ignore */ }
   tray = null
 })
+app.on('quit', () => _breadcrumb('quit'))
 
 app.on('activate', () => {
   if (mainWindow) {

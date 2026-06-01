@@ -758,26 +758,27 @@ function createMainWindow(): BrowserWindow {
     mainWindow?.hide()
   })
 
-  // ★ Windows 'PC 재시작/종료' 대응 (핵심 종료 crash 수정).
-  //   사용자는 앱을 종료하지 않고 PC 를 재시작/로그오프한다. 이때 OS 가 WM_QUERYENDSESSION 을 보내는데,
-  //   mainWindow 가 close 를 preventDefault(트레이 숨김)로 막으면 Windows 가 "종료에 응답 안 함" 으로
-  //   판단해 프로세스를 강제 종료 → 0x80000003 "응용 프로그램 오류" 대화상자.
-  //   해결: 세션 종료 메시지를 받는 즉시 beginShutdown() 으로 정상 종료 모드 진입(=_quitting=true →
-  //   close 가 hide 가 아니라 실제 닫힘 + native z-order 타이머 정지 + 위치 flush) 후 app.quit().
-  if (process.platform === 'win32') {
-    try {
-      const WM_QUERYENDSESSION = 0x0011
-      const WM_ENDSESSION = 0x0016
-      const onSessionEnd = (msg: number): void => {
-        _breadcrumb(`WM_${msg === WM_QUERYENDSESSION ? 'QUERYENDSESSION' : 'ENDSESSION'} → graceful quit`)
-        beginShutdown('session-end')
-        // OS 가 강제로 죽이기 전에 우리가 먼저 깔끔히 종료.
-        try { app.quit() } catch { /* noop */ }
-      }
-      mainWindow.hookWindowMessage(WM_QUERYENDSESSION, () => onSessionEnd(WM_QUERYENDSESSION))
-      mainWindow.hookWindowMessage(WM_ENDSESSION, () => onSessionEnd(WM_ENDSESSION))
-    } catch (err) { _crashLog('hookWindowMessage', err) }
+  // ★ Windows 'PC 재시작/종료/로그오프' 대응 (핵심 종료 crash 수정).
+  //   사용자는 앱을 종료하지 않고 PC 를 재시작한다. 이때 mainWindow 가 close 를 preventDefault(트레이
+  //   숨김)로 막으면 Windows 가 강제 종료 → GPU/Network 자식 프로세스가 0xC000026B(LOGOFF) 로 crash
+  //   하고 main 도 0x80000003 → "응용 프로그램 오류" 대화상자.
+  //   Electron 41 의 정식 Windows 세션 종료 이벤트(query-session-end / session-end)를 받아
+  //   즉시 정상 종료 모드 진입(=_quitting → close 가 hide 아닌 실제 닫힘 + 타이머 정지 + 위치 flush)
+  //   후 app.quit() 으로 OS 가 강제로 죽이기 '전에' 우리가 먼저 깔끔히 빠져나간다.
+  //   (이전 hookWindowMessage(WM_QUERYENDSESSION) 는 Electron 이 그 메시지를 BaseWindow HWND 로
+  //    전달하지 않아 안 먹혔음 — crash.log 로 확인.)
+  const onSessionEnd = (phase: string) => (e?: { preventDefault?: () => void }) => {
+    void e
+    _breadcrumb(`${phase} → graceful quit`)
+    beginShutdown(phase)
+    try { app.quit() } catch { /* noop */ }
   }
+  try {
+    // @ts-expect-error query-session-end 는 win32 전용 BaseWindow 이벤트 (Electron 41+)
+    mainWindow.on('query-session-end', onSessionEnd('query-session-end'))
+    // @ts-expect-error session-end 는 win32 전용 BaseWindow 이벤트
+    mainWindow.on('session-end', onSessionEnd('session-end'))
+  } catch (err) { _crashLog('session-end-hook', err) }
 
   loadRendererUrl(mainWindow)
 
